@@ -8,3 +8,7 @@ Desktop.ini
 # Local scratch / backups
 backup/
 *.log
+
+# 本機測試用,不上傳
+local-test.html
+_to_delete/

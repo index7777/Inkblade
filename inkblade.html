@@ -551,10 +551,11 @@ const ART={ body:new Image(), sword:new Image(), n:0, ok:false };
   ART[k].onerror=()=>{ ART.ok=false; };          // 找不到圖就退回原本的靈石畫法
 });
 ART.body.src='assets/art/hero-body.png';
-ART.sword.src='assets/art/hero-sword.png';
+ART.sword.src='assets/art/mo-jian.png';   // Master Sword 墨劍,唯一武器
 // 貼圖上的錨點(比例):手握位置、劍柄位置
-const HERO={ handX:0.9652, handY:0.5097, gripX:0.1135, gripY:0.375,
-             aspect:417/620, swAspect:60/460 };
+// gripX 取在護手位置,劍身自此往 +x 延伸
+const HERO={ handX:0.9652, handY:0.5097, gripX:0.279, gripY:0.50,
+             aspect:417/620, swAspect:45/520 };
 
 // ---------- 遊戲狀態 ----------
 const G = {
@@ -563,7 +564,7 @@ const G = {
   kills:0, wave:1, waveTimer:0, spawnAcc:0,
   xp:0, xpNeed:6, level:1, pendingLevels:0,
   shake:0, hitstop:0, flash:0, flashC:'255,255,255', banner:null,
-  aim:0.85, facing:1, swing:0, lean:0,
+  aim:0.85, facing:1, intent:0, streaks:[],
 };
 booted=true;
 
@@ -691,9 +692,13 @@ function launchSword(path){
   }
   G.mana -= cost;
   SND.cast(len);
-  G.swing=1;                                       // 觸發揮砍動作
-  { const p1=path[Math.min(3,path.length-1)];
-    G.aim=Math.atan2(p1.y-G.player.y, p1.x-G.player.x); }
+  G.intent=1;                                      // 意念起 —— 只反映在腳下法陣,身體不動
+  { const P=G.player, p1=path[Math.min(3,path.length-1)];
+    G.aim=Math.atan2(p1.y-P.y, p1.x-P.x);
+    // 赴筆:劍意自修士身側掠至落筆處,留一道細墨痕
+    const h=P.r*4.7, feet=P.y+P.r*1.05;
+    G.streaks.push({x1:P.x+G.facing*h*0.10, y1:feet-h*0.55,
+                    x2:s0.x, y2:s0.y, life:1}); }
   // 同屏上限:優先淘汰最舊的劍
   const n=stat.count;
   let room=stat.cap - G.swords.length;
@@ -1005,8 +1010,9 @@ function update(){
     G.aim+=da*0.09;
     G.facing = Math.cos(G.aim)>=0 ? 1 : -1;
   }
-  if(G.swing>0) G.swing=Math.max(0,G.swing-0.075);
-  G.lean += ((G.swing>0.1?1:0)-G.lean)*0.18;
+  if(G.intent>0) G.intent=Math.max(0,G.intent-0.045);
+  for(let i=G.streaks.length-1;i>=0;i--){ const k=G.streaks[i];
+    k.life-=0.085; if(k.life<=0) G.streaks.splice(i,1); }
   if(P.pulse>0)P.pulse-=0.05;
   if(G.t%5===0) updateHUD();
 }
@@ -1044,7 +1050,7 @@ function drawHero(P){
   const src=P.pulse>0.15 ? heroHurtCv : heroCv;
   ctx.save();
   ctx.translate(P.x, feet+br*1.1);
-  ctx.rotate(G.lean*0.10*G.facing);              // 出劍時的前傾
+  // 出劍時身體不做任何動作 —— 御劍是意念,不是招式。只有呼吸與風。
   ctx.scale(G.facing, 1+br*0.014);               // 轉身 + 呼吸
   const N=28, sh=h/N, sDPR=src.height/h;
   for(let i=0;i<N;i++){
@@ -1052,31 +1058,15 @@ function drawHero(P){
     // 風動幅度:腳下錨定為 0,腰以下的衣袂最大;頭頂髮絲另給一份小幅
     const robe=Math.max(0,Math.min(1,(ry-0.30)/0.42))*(1-Math.max(0,Math.min(1,(ry-0.87)/0.13)));
     const hair=Math.max(0,1-Math.abs(ry-0.14)/0.17);
-    const amp=(robe*0.085+hair*0.05)*w*(1+G.swing*0.9);
+    const amp=(robe*0.085+hair*0.05)*w*(1+G.intent*0.18);   // 起劍時衣袂僅微鼓
     const dx=Math.sin(ry*7.4-G.t*0.052)*amp + Math.sin(ry*3.0-G.t*0.029)*amp*0.45;
     ctx.drawImage(src, 0, y0*sDPR, src.width, sh*sDPR+1,
                        -w/2+dx, -h+y0, w, sh+0.7);
   }
   ctx.restore();
-  // 手中的劍:繞握點旋轉,平時斜垂,遇敵指向目標,出劍時揮出
-  const hx=P.x + G.facing*((HERO.handX-0.5)*w);
-  const hy=feet-h+HERO.handY*h + br*1.1;
-  let ang=G.aim - Math.sin(G.swing*Math.PI)*1.15*G.facing;
-  const L=P.r*2.55, Wd=L/(1-HERO.gripX), Hd=Wd*HERO.swAspect;
-  ctx.save(); ctx.translate(hx,hy); ctx.rotate(ang);
-  if(Math.cos(ang)<0) ctx.scale(1,-1);            // 朝左時翻正,刃口不會上下顛倒
-  ctx.globalAlpha=0.96;
-  ctx.drawImage(ART.sword, -Wd*HERO.gripX, -Hd*HERO.gripY, Wd, Hd);
-  ctx.restore();
-  // 揮砍殘影
-  if(G.swing>0.05){
-    ctx.save(); ctx.translate(hx,hy);
-    ctx.strokeStyle='rgba(40,34,28,'+(G.swing*0.30)+')';
-    ctx.lineWidth=2.2; ctx.lineCap='round';
-    ctx.beginPath(); ctx.arc(0,0,L*0.92, ang-0.5*G.facing, ang+0.5*G.facing, G.facing<0);
-    ctx.stroke(); ctx.restore();
-  }
 }
+// 待機時劍不現身 —— 劍令一起,劍才自修士身側浮現而出。
+// 背後不再放一把常駐的劍。
 
 // ---------- 五行元素調色 ----------
 // none=水墨本色 / fire=業火(赤) / ice=寒霜(藍)。決定劍氣、中脊、拖尾、粒子的顏色。
@@ -1121,6 +1111,10 @@ function drawJian(ctx, s){
     if(Math.cos(s.ang)<0) ctx.scale(1,-1);
     ctx.drawImage(swordTint(), -Wd*HERO.gripX, -Hd*HERO.gripY, Wd, Hd);
     ctx.restore();
+    // 劍穗自劍首向後拖曳
+    drawTassel(s.x-Math.cos(s.ang)*Wd*HERO.gripX*0.92,
+               s.y-Math.sin(s.ang)*Wd*HERO.gripX*0.92,
+               s.ang+Math.PI, Wd*0.30, G.t+s.age*2, 0.9);
     return;
   }
   if(!jianSprite || jianKey!==(stat.size+'|'+stat.element+'|'+meta.skin)) buildJian();
@@ -1130,20 +1124,24 @@ function drawJian(ctx, s){
     jianSprite.width/DPR, jianSprite.height/DPR);
   ctx.restore();
 }
-// 依元素/外觀替劍身上色,烘一次重複使用
-let swTintCv=null, swTintKey='';
-function swordTint(){
-  const key=stat.element+'|'+meta.skin;
-  if(swTintCv && swTintKey===key) return swTintCv;
-  const c=document.createElement('canvas');
-  c.width=ART.sword.width; c.height=ART.sword.height;
-  const g=c.getContext('2d');
-  g.drawImage(ART.sword,0,0);
-  const tint = stat.element==='fire' ? 'rgba(198,72,28,0.72)'
-             : stat.element==='ice'  ? 'rgba(84,150,200,0.72)'
-             : (meta.skin==='gold'   ? 'rgba(198,150,60,0.66)' : null);
-  if(tint){ g.globalCompositeOperation='source-atop'; g.fillStyle=tint; g.fillRect(0,0,c.width,c.height); }
-  swTintCv=c; swTintKey=key; return c;
+// 墨劍永遠不改造型、不改配色 —— 元素只表現在劍氣與墨痕上。
+// 「劍沒有變,變的是劍勢。」
+function swordTint(){ return ART.sword; }
+// 劍穗:從劍首垂下的三節繩結,依運動方向拖曳,待機時微微擺動
+function drawTassel(x,y,ang,len,phase,alpha){
+  const seg=3, sw=len*0.34;
+  let px=x, py=y, a=ang;
+  ctx.save(); ctx.lineCap='round';
+  for(let i=0;i<seg;i++){
+    const sway=Math.sin(phase*0.055 - i*0.9)*0.30*(i+1)/seg;
+    a += sway*0.5 + (i?0.12:0.22);
+    const nx=px+Math.cos(a)*sw/seg*1.6, ny=py+Math.sin(a)*sw/seg*1.6;
+    ctx.strokeStyle='rgba(38,34,30,'+(alpha*(0.72-i*0.16))+')';
+    ctx.lineWidth=(2.1-i*0.5)*Math.max(0.4,len/60);
+    ctx.beginPath(); ctx.moveTo(px,py); ctx.lineTo(nx,ny); ctx.stroke();
+    px=nx; py=ny;
+  }
+  ctx.restore();
 }
 // 實際把劍畫在原點朝 +x —— 只在烘貼圖時呼叫一次
 function paintJian(ctx){
@@ -1313,11 +1311,12 @@ function draw(){
   }
   const hpr=Math.max(0,P.hp/P.max), urg=1+(1-hpr)*2.2;
   ctx.save(); ctx.translate(P.x,feet); ctx.scale(1,0.42);
-  ctx.strokeStyle=hpr<0.35?'rgba(176,64,48,'+(0.34+Math.sin(G.t*0.12)*0.18)+')':'rgba(74,90,58,.38)';
+  ctx.strokeStyle=hpr<0.35?'rgba(176,64,48,'+(0.34+Math.sin(G.t*0.12)*0.18)+')'
+                          :'rgba(74,90,58,'+(0.38+G.intent*0.5)+')';
   ctx.lineWidth=1.4/0.42*0.42;
   for(let ring=0;ring<2;ring++){
     ctx.save(); ctx.rotate(G.t*0.004*urg*(ring?-1:1));
-    const rr=P.r+12+ring*10;
+    const rr=P.r+12+ring*10+G.intent*7;           // 意念起,陣紋外擴
     ctx.beginPath(); ctx.arc(0,0,rr,0,6.28); ctx.stroke();
     const seg=ring?6:8;
     for(let i=0;i<seg;i++){ const a=i/seg*6.283;
@@ -1359,6 +1358,13 @@ function draw(){
     if(en.hp<en.max){ const w=en.r*2; ctx.fillStyle='rgba(43,38,32,.4)';
       ctx.fillRect(en.x-w/2,en.y-en.r-8,w,3);
       ctx.fillStyle='#7a2b2b'; ctx.fillRect(en.x-w/2,en.y-en.r-8,w*en.hp/en.max,3); }
+  }
+
+  // 赴筆:劍離背掠向落筆處的細墨痕
+  if(DRAWLV>=5) for(const k of G.streaks){
+    ctx.strokeStyle='rgba(40,34,28,'+(k.life*0.34)+')';
+    ctx.lineWidth=1.6*k.life+0.4; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(k.x1,k.y1); ctx.lineTo(k.x2,k.y2); ctx.stroke();
   }
 
   // 劍氣
@@ -1789,7 +1795,7 @@ function start(){
     kills:0,wave:1,waveTimer:0,spawnAcc:0,xp:0,xpNeed:6,level:1,pendingLevels:0,mana:100,
     auto:false,autoUsed:false,autoTimer:0,
     shake:0,hitstop:0,flash:0,flashC:'255,255,255',banner:null,
-    aim:0.85,facing:1,swing:0,lean:0});
+    aim:0.85,facing:1,intent:0,streaks:[]});
   renderAutoBtn();          // 開新局時 G.auto 已重設為 false,按鈕也要跟著回到「關」
   SND.unlock(); SND.intensity(1); SND.startMusic(); SND.duck(false);
   Object.assign(stat,{count:1,formation:'fan',damage:24,size:9,speed:11,pierce:1,homing:0,explode:0,
