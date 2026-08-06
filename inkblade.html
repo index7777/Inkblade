@@ -113,6 +113,28 @@
   .btnrow { display:flex; gap:clamp(8px,1.6vw,16px); justify-content:center; flex-wrap:wrap; padding:0 12px; }
   .btn.ghost { background:rgba(244,238,224,.12); color:#e6dcc4; border-color:rgba(230,220,196,.5); }
 
+  /* 暫停畫面的設定(宣紙卷軸質感,拉桿為墨條) */
+  #settings { width:min(360px,86vw); margin:0 auto 22px; padding:16px 18px 14px;
+    background:rgba(246,240,226,.93); border:1px solid #b8a888; border-radius:10px;
+    box-shadow:0 10px 30px rgba(0,0,0,.45); }
+  .sethead { font-size:13px; letter-spacing:6px; color:#7a5a2b; text-align:center;
+    border-bottom:1px solid rgba(120,100,70,.3); padding-bottom:6px; margin-bottom:12px; }
+  .setrow { display:flex; align-items:center; gap:10px; margin-bottom:11px; }
+  .setrow label { font-size:13.5px; letter-spacing:2px; color:#3a332a; width:56px; flex:0 0 auto; }
+  .setrow span { font-size:12.5px; color:#6b5d48; width:30px; text-align:right;
+    font-variant-numeric:tabular-nums; flex:0 0 auto; }
+  .setrow input[type=range] { -webkit-appearance:none; appearance:none; flex:1 1 auto;
+    height:5px; border-radius:3px; background:linear-gradient(90deg,#4a4038,#c9bda4);
+    outline:none; cursor:pointer; }
+  .setrow input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; appearance:none;
+    width:17px; height:17px; border-radius:50%; background:linear-gradient(180deg,#4a4038,#2b2620);
+    border:1.5px solid #f6f0e0; box-shadow:0 1px 4px rgba(0,0,0,.45); cursor:pointer; }
+  .setrow input[type=range]::-moz-range-thumb { width:17px; height:17px; border-radius:50%;
+    background:#3a332a; border:1.5px solid #f6f0e0; cursor:pointer; }
+  .setbtn { cursor:pointer; font-size:13px; letter-spacing:3px; padding:6px 18px; border-radius:6px;
+    border:1px solid #b8a888; background:linear-gradient(180deg,#f6f0e0,#e0d4b8); color:#2e2820; }
+  .setbtn.on { background:#8a7a5a; color:#f6f0e0; border-color:#7a6a4a; }
+
   /* 轉世閣 */
   #meta { position:absolute; inset:0; display:none; align-items:center; justify-content:center; z-index:40;
     background:rgba(20,18,14,.72); backdrop-filter:blur(3px); }
@@ -238,7 +260,19 @@
 
   <div id="pause">
     <div class="title" style="font-size:44px;">靜 觀</div>
-    <div class="stitle">劍勢暫歇，凝神再戰</div>
+    <div class="stitle" style="margin-bottom:16px;">劍勢暫歇，凝神再戰</div>
+    <div id="settings">
+      <div class="sethead">音 律</div>
+      <div class="setrow"><label for="volMaster">總音量</label>
+        <input type="range" id="volMaster" min="0" max="100" step="1"><span id="volMasterV">85</span></div>
+      <div class="setrow"><label for="volMusic">音 樂</label>
+        <input type="range" id="volMusic" min="0" max="100" step="1"><span id="volMusicV">62</span></div>
+      <div class="setrow"><label for="volSfx">音 效</label>
+        <input type="range" id="volSfx" min="0" max="100" step="1"><span id="volSfxV">75</span></div>
+      <div class="setrow" style="justify-content:center;margin-top:2px;">
+        <div class="setbtn" id="muteBtn">靜 音:關</div>
+      </div>
+    </div>
     <div class="btnrow">
       <div class="btn" id="resumebtn">繼 續</div>
       <div class="btn ghost" id="pausequitbtn">認輸轉世</div>
@@ -328,6 +362,7 @@ const SND=(function(){
     rvg=ac.createGain(); rvg.gain.value=0.30; rv.connect(rvg); rvg.connect(master);
     sg=ac.createGain(); sg.gain.value=0.72; sg.connect(master); sg.connect(rv);
     noiseBuf=makeNoise(2);
+    api.applyVol();
     return true;
   }
   function resume(){ if(ac&&ac.state==='suspended') ac.resume(); }
@@ -383,7 +418,7 @@ const SND=(function(){
   const BGM=(function(){
     const TRACK='assets/audio/bgm/battle01.mp3';
     const XF=2.8;            // 交叉淡入淡出秒數(曲首曲尾各一段)
-    const BASE=0.62;         // 背景樂基準音量
+    let BASE=0.62;           // 背景樂基準音量(由設定的 總音量 × 音樂 決定)
     let els=null, cur=0, gate=0, gateTo=0, gateSpd=1, raf=null, want=false, ok=true;
 
     function make(){
@@ -443,6 +478,9 @@ const SND=(function(){
       kill(){ want=false; gate=gateTo=0;
         if(els){ for(const el of els){ try{el.pause();}catch(e){} el.volume=0; } }
         if(raf!=null){ clearInterval(raf); raf=null; } },
+      setBase(v){ BASE=v;
+        if(els) for(const el of els) if(!el.paused)
+          el.volume=Math.max(0,Math.min(1, BASE*gate*shape(weight(el)) )); },
       get wanted(){ return want; },
     };
   })();
@@ -454,8 +492,15 @@ const SND=(function(){
     get on(){return S.on;},
     setOn(v){ S.on=v;
               if(!v){ BGM.kill(); if(master) master.gain.value=0; }
-              else { if(master) master.gain.value=0.85; } },
-    unlock(){ if(init()) resume(); },
+              else { api.applyVol(); } },
+    // 三軌音量:總音量分別乘到音樂與音效上
+    applyVol(){
+      const V=(meta&&meta.vol)||{master:0.85,music:0.62,sfx:0.75};
+      const on=S.on && !(meta&&meta.mute);
+      if(master) master.gain.value = on ? V.master*V.sfx*1.15 : 0;
+      BGM.setBase(on ? V.master*V.music : 0);
+    },
+    unlock(){ if(init()) resume(); api.applyVol(); },
     hardMute(v){                       // 診斷用:徹底切斷音訊管線
       if(v){ BGM.kill(); if(ac&&ac.suspend) ac.suspend(); }
       else { if(ac&&ac.resume) ac.resume(); if(S.on&&S.music) BGM.play(0.8); } },
@@ -559,12 +604,16 @@ const META_UNLOCK = [
   {id:'homing',name:'御劍傳承',      desc:'仙品詞條〈御劍追魂〉出現機率提高', cost:150},
 ];
 let meta = { souls:0, best:{kills:0,wave:1,level:1}, up:{}, unlock:{},
-             lastSeen:Date.now(), gems:0, offCap:8, skin:'none', mute:false };
+             lastSeen:Date.now(), gems:0, offCap:8, skin:'none', mute:false,
+             vol:{ master:0.85, music:0.62, sfx:0.75 } };
 function loadMeta(){
   try{ const s=localStorage.getItem('inkjian_meta'); if(s){ meta=Object.assign(meta,JSON.parse(s)); } }catch(e){}
   meta.up=meta.up||{}; meta.unlock=meta.unlock||{}; meta.best=meta.best||{kills:0,wave:1,level:1};
   meta.gems=meta.gems||0; meta.offCap=meta.offCap||8; meta.skin=meta.skin||'none';
   meta.mute=!!meta.mute;
+  meta.vol=Object.assign({master:0.85,music:0.62,sfx:0.75}, meta.vol||{});
+  for(const k of ['master','music','sfx'])
+    meta.vol[k]=Math.max(0,Math.min(1, isFinite(meta.vol[k])?meta.vol[k]:0.7));
 }
 function saveMeta(){ try{ localStorage.setItem('inkjian_meta',JSON.stringify(meta)); }catch(e){} }
 loadMeta();
@@ -1741,6 +1790,7 @@ function start(){
     auto:false,autoUsed:false,autoTimer:0,
     shake:0,hitstop:0,flash:0,flashC:'255,255,255',banner:null,
     aim:0.85,facing:1,swing:0,lean:0});
+  renderAutoBtn();          // 開新局時 G.auto 已重設為 false,按鈕也要跟著回到「關」
   SND.unlock(); SND.intensity(1); SND.startMusic(); SND.duck(false);
   Object.assign(stat,{count:1,formation:'fan',damage:24,size:9,speed:11,pierce:1,homing:0,explode:0,
     element:'none',ember:0,ice:0,
@@ -1771,6 +1821,7 @@ function togglePause(force){
   // 暫停:背景樂完全停止;繼續:重新起奏
   if(now) SND.stopMusic(0.25); else SND.startMusic();
   document.getElementById('pause').classList.toggle('show',now);
+  if(now) renderVol();
   if(!now) tryLevelUp();          // 暫停期間累積的升級,繼續後補選
 }
 function gameOver(){
@@ -1858,18 +1909,62 @@ function renderMeta(){
 function openMeta(){ renderMeta(); document.getElementById('meta').classList.add('show'); }
 function closeMeta(){ document.getElementById('meta').classList.remove('show'); }
 // 自動禦劍開關
+function renderAutoBtn(){
+  const b=document.getElementById('autobtn');
+  b.textContent='⟳ 自動:'+(G.auto?'開':'關'); b.classList.toggle('on',!!G.auto);
+}
 function toggleAuto(){
   if(!G.running) return;
   G.auto=!G.auto; SND.ui();
-  const b=document.getElementById('autobtn');
-  b.textContent='⟳ 自動:'+(G.auto?'開':'關'); b.classList.toggle('on',G.auto);
+  renderAutoBtn();
 }
+// ---------- 音量設定 ----------
+const VOLS=[['volMaster','master'],['volMusic','music'],['volSfx','sfx']];
+function renderVol(){
+  for(const [id,key] of VOLS){
+    const el=document.getElementById(id); if(!el) continue;
+    const v=Math.round(meta.vol[key]*100);
+    el.value=v; document.getElementById(id+'V').textContent=v;
+    el.disabled=meta.mute;
+  }
+  const mb=document.getElementById('muteBtn');
+  if(mb){ mb.textContent='靜 音:'+(meta.mute?'開':'關'); mb.classList.toggle('on',meta.mute); }
+  const st=document.getElementById('settings');
+  if(st) st.style.opacity=meta.mute?0.55:1;
+}
+// 暫停時背景樂是完全停止的,拖音樂拉桿會聽不到。這裡讓它暫時響起試聽,
+// 停止拖曳 1.6 秒後若仍在暫停中就再次靜下。
+let previewT=null;
+function previewMusic(){
+  if(meta.mute) return;
+  SND.unlock(); SND.startMusic();
+  clearTimeout(previewT);
+  previewT=setTimeout(()=>{ if(!G.running||G.paused) SND.stopMusic(0.6); },1600);
+}
+function bindVol(){
+  for(const [id,key] of VOLS){
+    const el=document.getElementById(id); if(!el) continue;
+    el.addEventListener('input',()=>{
+      meta.vol[key]=Math.max(0,Math.min(1,(+el.value||0)/100));
+      document.getElementById(id+'V').textContent=Math.round(meta.vol[key]*100);
+      SND.applyVol();
+      if(key!=='sfx') previewMusic();          // 總音量與音樂都即時試聽
+    });
+    // 放開才存檔,避免拖曳過程狂寫 localStorage
+    const done=()=>{ saveMeta(); if(key!=='music'&&!meta.mute) SND.ui(); };
+    el.addEventListener('change',done);
+  }
+  const mb=document.getElementById('muteBtn');
+  if(mb) mb.onclick=()=>toggleSnd();
+}
+
 // 音律開關(記錄於本機)
 function toggleSnd(){
   meta.mute=!meta.mute; saveMeta();
   SND.setOn(!meta.mute);
   if(!meta.mute){ SND.unlock(); if(G.running) SND.startMusic(); SND.ui(); }
-  renderSndBtn();
+  else SND.applyVol();
+  renderSndBtn(); renderVol();
 }
 function renderSndBtn(){
   const b=document.getElementById('sndbtn');
@@ -1915,7 +2010,7 @@ document.getElementById('metaclosebtn').onclick=closeMeta;
 document.getElementById('pausebtn').onclick=()=>togglePause();
 document.getElementById('autobtn').onclick=toggleAuto;
 document.getElementById('sndbtn').onclick=toggleSnd;
-renderSndBtn();
+renderSndBtn(); bindVol(); renderVol();
 // 首次互動即解鎖音訊(瀏覽器自動播放限制)
 ['pointerdown','keydown','touchstart'].forEach(ev=>
   window.addEventListener(ev,()=>SND.unlock(),{once:true,passive:true}));
