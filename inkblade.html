@@ -1,0 +1,968 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>墨劍訣 Inkblade · 水墨仙俠</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { width:100%; height:100%; overflow:hidden; background:#2b2620;
+    font-family:"Noto Serif TC","STKaiti","KaiTi","LiSu",serif; touch-action:none; user-select:none; }
+  #wrap { position:relative; width:100vw; height:100vh; }
+  canvas { display:block; width:100%; height:100%; }
+
+  /* HUD */
+  #hud { position:absolute; top:0; left:0; right:0; padding:14px 18px; pointer-events:none;
+    display:flex; justify-content:space-between; align-items:flex-start; color:#3a332a; }
+  .panel { background:rgba(244,238,224,.72); border:1px solid rgba(90,70,50,.35);
+    border-radius:6px; padding:6px 12px; backdrop-filter:blur(2px); }
+  #barwrap { width:220px; }
+  .bar { height:9px; background:rgba(90,70,50,.25); border-radius:5px; overflow:hidden; margin-top:4px; }
+  .bar > i { display:block; height:100%; width:0%; transition:width .18s; }
+  #hpfill { background:linear-gradient(90deg,#7a2b2b,#c0392b); }
+  #mpfill { background:linear-gradient(90deg,#2f5f6b,#4aa0b8); }
+  #xpfill { background:linear-gradient(90deg,#4a5a3a,#8aa06a); }
+  #mpfill.low { background:linear-gradient(90deg,#8a5a2b,#c08a2e); }
+  .label { font-size:13px; letter-spacing:2px; }
+  .big { font-size:22px; font-weight:700; letter-spacing:3px; }
+  .sub { font-size:12px; color:#6b5d48; letter-spacing:1px; }
+
+  /* 詞條選單 */
+  #overlay { position:absolute; inset:0; display:none; align-items:center; justify-content:center;
+    background:rgba(25,22,18,.55); backdrop-filter:blur(3px); z-index:20; }
+  #overlay.show { display:flex; }
+  #cardbox { text-align:center; max-width:900px; padding:0 20px; }
+  #cardbox h2 { color:#f3ecd8; font-size:30px; letter-spacing:8px; margin-bottom:6px;
+    text-shadow:0 2px 8px rgba(0,0,0,.5); }
+  #cardbox p.tip { color:#c9bfa6; letter-spacing:2px; margin-bottom:26px; font-size:14px; }
+  #cards { display:flex; gap:20px; justify-content:center; flex-wrap:wrap; }
+  .card { width:210px; min-height:250px; background:linear-gradient(180deg,#f6f0e0,#e6dcc4);
+    border:1px solid #b8a888; border-radius:10px; padding:22px 18px; cursor:pointer;
+    display:flex; flex-direction:column; align-items:center; transition:transform .15s, box-shadow .15s;
+    box-shadow:0 8px 24px rgba(0,0,0,.4); position:relative; overflow:hidden; }
+  .card:hover { transform:translateY(-8px); box-shadow:0 16px 34px rgba(0,0,0,.55); }
+  .card .rune { font-size:52px; margin-bottom:14px; }
+  .card .cname { font-size:22px; font-weight:700; letter-spacing:4px; color:#2e2820; margin-bottom:4px; }
+  .card .rar { font-size:12px; letter-spacing:3px; margin-bottom:12px; }
+  .card .cdesc { font-size:14px; line-height:1.7; color:#4a4033; letter-spacing:1px; }
+  .rar-n { color:#6b7a55; } .rar-r { color:#3f6ea5; } .rar-e { color:#8a5bb0; } .rar-l { color:#c08a2e; }
+  .card.lv-r { border-color:#3f6ea5; } .card.lv-e { border-color:#8a5bb0; } .card.lv-l { border-color:#c08a2e; }
+
+  /* 開始 / 結束 */
+  #pausebtn { position:absolute; top:14px; left:50%; transform:translateX(-50%);
+    pointer-events:auto; cursor:pointer; font-size:14px; letter-spacing:3px; color:#3a332a; }
+  #pausebtn:hover { color:#7a2b2b; }
+  #autobtn { position:absolute; top:14px; left:50%; transform:translateX(calc(-50% + 88px));
+    pointer-events:auto; cursor:pointer; font-size:14px; letter-spacing:2px; color:#3a332a; }
+  #autobtn.on { color:#6b7a55; border-color:#6b7a55; }
+  #autobtn:hover { color:#7a2b2b; }
+  #metaoffline { text-align:center; margin:4px 0 2px; font-size:13.5px; color:#5a4e3c; letter-spacing:1px; }
+  #metaoffline .claim { display:inline-block; cursor:pointer; margin-left:8px; padding:4px 12px; border-radius:6px;
+    background:linear-gradient(180deg,#f0d68a,#d8b24a); border:1px solid #b8912e; color:#4a3a10; letter-spacing:2px; }
+  #shop { position:absolute; inset:0; display:none; align-items:center; justify-content:center; z-index:42;
+    background:rgba(20,18,14,.72); backdrop-filter:blur(3px); }
+  #shop.show { display:flex; }
+  #shopbox { width:min(680px,92vw); max-height:88vh; overflow:auto; background:linear-gradient(180deg,#f6f0e0,#e6dcc4);
+    border:1px solid #b8a888; border-radius:12px; padding:24px 26px; box-shadow:0 18px 50px rgba(0,0,0,.6); }
+  #shopbox h2 { font-size:26px; letter-spacing:8px; color:#2e2820; text-align:center; }
+  #shopgems { text-align:center; color:#3f6ea5; letter-spacing:2px; margin:6px 0 6px; font-size:15px; }
+  #shopgems b { font-size:22px; color:#3f6ea5; }
+  .shopnote { text-align:center; font-size:12px; color:#8a7a5a; letter-spacing:.5px; line-height:1.6; margin:6px 0 10px; }
+  .mtag { display:inline-block; font-size:11px; letter-spacing:1px; color:#7a2b2b; border:1px solid #b06a4a;
+    border-radius:4px; padding:0 5px; margin-left:6px; }
+  #metabonus { text-align:center; color:#5a4e3c; letter-spacing:1px; font-size:13px; margin:-8px 0 6px; }
+  #metabonus b { color:#6b7a55; }
+  #pause { position:absolute; inset:0; display:none; flex-direction:column; align-items:center; justify-content:center;
+    z-index:35; text-align:center; background:rgba(25,22,18,.55); backdrop-filter:blur(3px); }
+  #pause.show { display:flex; }
+  #splash, #gameover { position:absolute; inset:0; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; z-index:30; text-align:center;
+    background:rgba(25,22,18,.6); backdrop-filter:blur(3px); }
+  #gameover { display:none; }
+  .title { color:#f3ecd8; font-size:64px; letter-spacing:16px; text-shadow:0 4px 16px rgba(0,0,0,.6); }
+  .stitle { color:#c9bfa6; font-size:16px; letter-spacing:6px; margin:18px 0 34px; line-height:2.2; }
+  .btn { pointer-events:auto; cursor:pointer; color:#2e2820; font-size:20px; letter-spacing:6px;
+    padding:12px 42px; background:linear-gradient(180deg,#f6f0e0,#e0d4b8); border:1px solid #b8a888;
+    border-radius:8px; box-shadow:0 6px 18px rgba(0,0,0,.4); transition:transform .12s; }
+  .btn:hover { transform:translateY(-3px); }
+  .seal { color:#a44; font-size:13px; letter-spacing:3px; margin-top:28px; opacity:.8; }
+  .btnrow { display:flex; gap:16px; justify-content:center; }
+  .btn.ghost { background:rgba(244,238,224,.12); color:#e6dcc4; border-color:rgba(230,220,196,.5); }
+
+  /* 轉世閣 */
+  #meta { position:absolute; inset:0; display:none; align-items:center; justify-content:center; z-index:40;
+    background:rgba(20,18,14,.72); backdrop-filter:blur(3px); }
+  #meta.show { display:flex; }
+  #metabox { width:min(680px,92vw); max-height:88vh; overflow:auto; background:linear-gradient(180deg,#f6f0e0,#e6dcc4);
+    border:1px solid #b8a888; border-radius:12px; padding:24px 26px; box-shadow:0 18px 50px rgba(0,0,0,.6); }
+  #metabox h2 { font-size:26px; letter-spacing:8px; color:#2e2820; text-align:center; }
+  #metasouls { text-align:center; color:#7a5a2b; letter-spacing:2px; margin:6px 0 18px; font-size:15px; }
+  #metasouls b { font-size:22px; color:#c08a2e; }
+  .mrow { display:flex; align-items:center; gap:14px; padding:11px 12px; border-radius:8px;
+    background:rgba(255,255,255,.4); border:1px solid rgba(120,100,70,.25); margin-bottom:9px; }
+  .mrow .mi { flex:1; }
+  .mrow .mn { font-size:16px; font-weight:700; letter-spacing:2px; color:#2e2820; }
+  .mrow .md { font-size:12.5px; color:#5a4e3c; letter-spacing:.5px; margin-top:2px; }
+  .mrow .ml { font-size:12px; color:#8a7a5a; letter-spacing:1px; }
+  .mbuy { cursor:pointer; white-space:nowrap; font-size:14px; letter-spacing:2px; padding:8px 16px;
+    border-radius:7px; border:1px solid #b8a888; background:linear-gradient(180deg,#f6f0e0,#e0d4b8); color:#2e2820; }
+  .mbuy:hover { transform:translateY(-2px); }
+  .mbuy[disabled] { opacity:.4; cursor:default; transform:none; }
+  .mbuy.done { background:#8aa06a; color:#233018; border-color:#6b7a55; }
+  .mhead { font-size:13px; letter-spacing:3px; color:#7a5a2b; margin:14px 0 8px; border-bottom:1px solid rgba(120,100,70,.3); padding-bottom:4px; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="game"></canvas>
+
+  <div id="hud">
+    <div class="panel" id="barwrap">
+      <div class="label">靈元 <span id="hptxt" class="sub"></span></div>
+      <div class="bar"><i id="hpfill"></i></div>
+      <div class="label" style="margin-top:8px;">靈力 <span id="mptxt" class="sub"></span></div>
+      <div class="bar"><i id="mpfill"></i></div>
+      <div class="label" style="margin-top:8px;">道行 · <span id="lvtxt">一</span> 重</div>
+      <div class="bar"><i id="xpfill"></i></div>
+    </div>
+    <div class="panel" style="text-align:right;">
+      <div class="big" id="killtxt">0</div>
+      <div class="sub">斬妖數</div>
+      <div class="sub" id="wavetxt" style="margin-top:6px;">第 一 波</div>
+    </div>
+    <div class="panel" id="pausebtn">‖ 暫停</div>
+    <div class="panel" id="autobtn">⟳ 自動:關</div>
+  </div>
+
+  <div id="overlay"><div id="cardbox">
+    <h2>悟 · 選一道劍訣</h2>
+    <p class="tip">道行精進，天地賜法。點選一張以承其力。</p>
+    <div id="cards"></div>
+  </div></div>
+
+  <div id="splash">
+    <div class="title">墨劍訣</div>
+    <div style="color:#c9bfa6;letter-spacing:12px;font-size:18px;margin-top:2px;">INKBLADE</div>
+    <div class="stitle">
+      按住畫出一道墨痕，鬆手——劍便從起點沿著你畫的路線疾飛斬妖<br>
+      畫弧線可繞後，畫折線可轉向；靈力決定你能畫多長（見底墨痕轉金）<br>
+      斬妖聚道行，每重悟一道劍訣；護住中央靈石，莫教妖魔近身
+    </div>
+    <div class="btnrow">
+      <div class="btn" id="startbtn">入 局</div>
+      <div class="btn ghost" id="splashmetabtn">轉世閣</div>
+      <div class="btn ghost" id="splashshopbtn">商城</div>
+    </div>
+    <div class="seal">— 水墨仙俠 · 玩法原型 —</div>
+  </div>
+
+  <div id="gameover">
+    <div class="title" style="font-size:52px;">隕 落</div>
+    <div class="stitle" id="finaltxt"></div>
+    <div class="btnrow">
+      <div class="btn" id="againbtn">轉世再戰</div>
+      <div class="btn ghost" id="metabtn">轉世閣</div>
+    </div>
+  </div>
+
+  <div id="pause">
+    <div class="title" style="font-size:44px;">靜 觀</div>
+    <div class="stitle">劍勢暫歇，凝神再戰</div>
+    <div class="btnrow">
+      <div class="btn" id="resumebtn">繼 續</div>
+      <div class="btn ghost" id="pausequitbtn">認輸轉世</div>
+    </div>
+  </div>
+
+  <div id="meta"><div id="metabox">
+    <h2>轉 世 閣</h2>
+    <div id="metasouls"></div>
+    <div id="metabonus"></div>
+    <div id="metaoffline"></div>
+    <div class="mhead">永久修為 · 每世承襲</div>
+    <div id="metalist"></div>
+    <div class="mhead">秘傳 · 一次解鎖</div>
+    <div id="metaunlock"></div>
+    <div class="btnrow" style="margin-top:20px;">
+      <div class="btn" id="metaplaybtn">轉世再戰</div>
+      <div class="btn ghost" id="metashopbtn">商城</div>
+      <div class="btn ghost" id="metaclosebtn">返回</div>
+    </div>
+  </div></div>
+
+  <div id="shop"><div id="shopbox">
+    <h2>商 城</h2>
+    <div id="shopgems"></div>
+    <div class="shopnote">※ 課金點示範:此處不實際扣款,「購買」僅模擬發放靈石。設計上只賣加速與外觀,不賣數值唯一解。</div>
+    <div class="mhead">靈石加值 · 課金點</div>
+    <div id="shopiap"></div>
+    <div class="mhead">靈石消費</div>
+    <div id="shopspend"></div>
+    <div class="btnrow" style="margin-top:20px;">
+      <div class="btn ghost" id="shopclosebtn">返回</div>
+    </div>
+  </div></div>
+</div>
+
+<script>
+(function(){
+'use strict';
+const cv = document.getElementById('game');
+const ctx = cv.getContext('2d');
+let W=0,H=0,DPR=Math.min(window.devicePixelRatio||1,2);
+function resize(){
+  W=window.innerWidth; H=window.innerHeight;
+  cv.width=W*DPR; cv.height=H*DPR; ctx.setTransform(DPR,0,0,DPR,0,0);
+}
+window.addEventListener('resize',resize); resize();
+
+// ---------- 遊戲狀態 ----------
+const G = {
+  running:false, paused:false, t:0,
+  player:null, enemies:[], swords:[], particles:[], inks:[], texts:[],
+  kills:0, wave:1, waveTimer:0, spawnAcc:0,
+  xp:0, xpNeed:6, level:1,
+};
+
+// 詞條(可堆疊)
+const stat = {
+  count:1,          // 同時飛出的劍數
+  formation:'fan',  // 陣型:fan 扇形 / parallel 平行 / inline 連珠
+  damage:24,        // 單劍傷害
+  size:9,           // 劍氣寬度
+  speed:11,         // 飛行速度
+  pierce:1,         // 可貫穿敵人數
+  homing:0,         // 追蹤強度
+  explode:0,        // 爆裂範圍
+  element:'none',   // 劍的元素:none/fire/ice
+  ember:0,          // 業火:灼燒層數
+  ice:0,            // 寒霜:冰緩層數
+  life:1.35,        // 劍存活秒數
+  ret:0,            // 迴劍
+  crit:0.05,        // 暴擊率
+  regen:0,          // 每斬回靈
+  cap:6,            // 同屏飛劍數上限
+  manaMax:100,      // 靈力上限
+  manaRegen:0.34,   // 每幀靈力回復
+  costBase:6,       // 出劍基礎靈力
+  costPerPx:0.13,   // 每單位劍痕長度的靈力(滿靈力約可畫 700px)
+};
+
+// ---------- 轉世 · 永久進度(存本機) ----------
+const META_UP = [
+  {id:'ling', name:'靈根深厚', desc:'開局靈力上限 +15',   max:4, cost:[30,60,120,220]},
+  {id:'gu',   name:'劍骨天成', desc:'開局劍傷 +3',        max:4, cost:[30,60,120,220]},
+  {id:'xing', name:'神行訣',   desc:'開局劍速 +1',        max:3, cost:[40,90,180]},
+  {id:'qi',   name:'養氣訣',   desc:'靈力回復加快',        max:3, cost:[40,90,180]},
+  {id:'twin', name:'雙生劍胎', desc:'開局即帶雙劍(扇形)',max:1, cost:[300]},
+];
+const META_UNLOCK = [
+  {id:'storm', name:'悟 · 萬劍歸宗', desc:'絕品詞條〈萬劍歸宗〉自此入詞條池', cost:250},
+  {id:'homing',name:'御劍傳承',      desc:'仙品詞條〈御劍追魂〉出現機率提高', cost:150},
+];
+let meta = { souls:0, best:{kills:0,wave:1,level:1}, up:{}, unlock:{},
+             lastSeen:Date.now(), gems:0, offCap:8, skin:'none' };
+function loadMeta(){
+  try{ const s=localStorage.getItem('inkjian_meta'); if(s){ meta=Object.assign(meta,JSON.parse(s)); } }catch(e){}
+  meta.up=meta.up||{}; meta.unlock=meta.unlock||{}; meta.best=meta.best||{kills:0,wave:1,level:1};
+  meta.gems=meta.gems||0; meta.offCap=meta.offCap||8; meta.skin=meta.skin||'none';
+}
+function saveMeta(){ try{ localStorage.setItem('inkjian_meta',JSON.stringify(meta)); }catch(e){} }
+loadMeta();
+// 離開時記錄時間,供閉關(離線)收益計算
+function stamp(){ meta.lastSeen=Date.now(); saveMeta(); }
+window.addEventListener('beforeunload',stamp);
+document.addEventListener('visibilitychange',()=>{ if(document.hidden) stamp(); });
+
+// 閉關修煉:離線依歷史最佳波次被動生魂魄(封頂 meta.offCap 小時)
+function offlineRate(){ return 5 + meta.best.wave*2; }         // 每小時魂魄
+function offlinePending(){
+  const hrs=Math.min(meta.offCap, Math.max(0,(Date.now()-(meta.lastSeen||Date.now()))/3600000));
+  return Math.floor(hrs*offlineRate());
+}
+function claimOffline(){ const g=offlinePending(); if(g>0){ meta.souls+=g; } meta.lastSeen=Date.now(); saveMeta(); return g; }
+
+// 課金點(示範,不實際扣款) —— 靈石為硬通貨
+const SHOP_IAP=[
+  {id:'g100', name:'靈石 ×100',  price:'NT$ 60',  gems:100},
+  {id:'g600', name:'靈石 ×600',  price:'NT$ 330', gems:600, tag:'超值'},
+  {id:'pass', name:'修行月卡',    price:'NT$ 170', gems:300, note:'每日登入贈魂魄(示範:此處直接給等值靈石)'},
+];
+const SHOP_SPEND=[
+  {id:'souls', name:'魂魄補給 ×200', desc:'靈石兌換魂魄,加速轉世修為', cost:50, repeat:true, grant:()=>{ meta.souls+=200; }},
+  {id:'offcap',name:'閉關上限 +4 時', desc:'離線收益封頂提高(現 '+'', cost:80, grant:()=>{ meta.offCap+=4; }, capField:true},
+  {id:'skin',  name:'外觀 · 墨金劍痕', desc:'預設墨痕染金芒(純外觀,不影響數值)', cost:120, once:true, grant:()=>{ meta.skin='gold'; }},
+];
+
+// ---------- 玩家(中央靈石) ----------
+function Player(){
+  this.x=W/2; this.y=H/2; this.r=26; this.hp=100; this.max=100; this.pulse=0;
+}
+
+// ---------- 敵人 ----------
+function spawnEnemy(){
+  const edge=Math.floor(Math.random()*4); let x,y;
+  if(edge===0){x=Math.random()*W;y=-30;}
+  else if(edge===1){x=W+30;y=Math.random()*H;}
+  else if(edge===2){x=Math.random()*W;y=H+30;}
+  else {x=-30;y=Math.random()*H;}
+  const tier = G.wave>=6&&Math.random()<0.16 ? 2 : (G.wave>=3&&Math.random()<0.28?1:0);
+  const base=[{hp:14,r:15,sp:0.9,c:'#4a3b3b'},{hp:34,r:20,sp:0.72,c:'#3b2f4a'},{hp:80,r:28,sp:0.55,c:'#2f3b3b'}][tier];
+  const scale=1+(G.wave-1)*0.11;
+  G.enemies.push({x,y,r:base.r,hp:base.hp*scale,max:base.hp*scale,sp:base.sp+G.wave*0.02,
+    c:base.c,tier,ember:0,emberT:0,chill:0,hit:0,wob:Math.random()*7});
+}
+
+// ---------- 劍 ----------
+function pathLen(path){ let L=0; for(let i=1;i<path.length;i++) L+=Math.hypot(path[i].x-path[i-1].x,path[i].y-path[i-1].y); return L; }
+// 平行陣:整條墨痕沿各點法線平移 d
+function offsetPath(path,d){
+  const out=[];
+  for(let i=0;i<path.length;i++){
+    const a=path[Math.max(0,i-1)], b=path[Math.min(path.length-1,i+1)];
+    let nx=-(b.y-a.y), ny=(b.x-a.x); const L=Math.hypot(nx,ny)||1; nx/=L; ny/=L;
+    out.push({x:path[i].x+nx*d, y:path[i].y+ny*d});
+  }
+  return out;
+}
+// 扇形陣:整條墨痕繞起點旋轉 ang
+function rotatePath(path,ang){
+  const o=path[0], c=Math.cos(ang), s=Math.sin(ang), out=[];
+  for(const pt of path){ const dx=pt.x-o.x, dy=pt.y-o.y;
+    out.push({x:o.x+dx*c-dy*s, y:o.y+dx*s+dy*c}); }
+  return out;
+}
+function launchSword(path){
+  if(path.length<2) return;
+  const len=pathLen(path);
+  const cost=stat.costBase + len*stat.costPerPx;
+  const s0=path[0];
+  if(G.mana < cost){
+    floatText(s0.x,s0.y-14,'靈力不足','#c08a2e'); burst(s0.x,s0.y,'#8a7a5a',5); return;
+  }
+  G.mana -= cost;
+  // 同屏上限:優先淘汰最舊的劍
+  const n=stat.count;
+  let room=stat.cap - G.swords.length;
+  if(room<n){ G.swords.splice(0, Math.min(G.swords.length, n-Math.max(room,0))); }
+  const mid=(n-1)/2;
+  const extraLife = len/(stat.speed*60); // 沿線飛完所需的額外壽命
+  for(let i=0;i<n;i++){
+    // 依陣型產生各自的飛行路徑
+    let p2;
+    if(n===1) p2=path.slice();
+    else if(stat.formation==='parallel') p2=offsetPath(path,(i-mid)*(stat.size*2.2+10));
+    else if(stat.formation==='fan'){
+      const spread=Math.min(0.55,0.14*(n-1));
+      p2=rotatePath(path, (i/(n-1)-0.5)*spread*2);
+    } else p2=path.slice(); // inline 連珠:同一條線,靠延遲拉開前後
+    const st=p2[0];
+    const d0=Math.atan2(p2[1].y-st.y, p2[1].x-st.x);
+    G.swords.push({
+      x:st.x, y:st.y, path:p2, seg:1, onPath:true,
+      vx:Math.cos(d0)*stat.speed, vy:Math.sin(d0)*stat.speed, ang:d0,
+      life:stat.life+extraLife, pierceLeft:stat.pierce, hitSet:new Set(),
+      trail:[], age:0, delay: stat.formation==='inline' ? i*7 : 0
+    });
+  }
+  // 起手墨爆
+  for(let i=0;i<10;i++) ink(s0.x,s0.y, (Math.random()-.5)*3,(Math.random()-.5)*3, 8+Math.random()*10);
+}
+
+// ---------- 粒子 / 墨 ----------
+function ink(x,y,vx,vy,r){ G.inks.push({x,y,vx,vy,r,a:0.5,life:1}); }
+function burst(x,y,c,n){ for(let i=0;i<n;i++){const a=Math.random()*6.28,s=1+Math.random()*4;
+  G.particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:1,c});}}
+function floatText(x,y,txt,c){ G.texts.push({x,y,txt,c,life:1}); }
+
+// ---------- 詞條池 ----------
+const AFFIXES=[
+  // 三種增劍陣型:量變多但各有取捨
+  {id:'fan',  name:'分光劍·扇', rar:'r', rune:'扇', desc:'劍數 +1，扇形散開。清雜兵佳，難集火',
+     apply:()=>{stat.count+=1; stat.formation='fan';}},
+  {id:'para', name:'並蒂劍·平行', rar:'r', rune:'雙', desc:'劍數 +1，平行齊飛。可覆蓋一列橫排之敵',
+     apply:()=>{stat.count+=1; stat.formation='parallel';}},
+  {id:'inline',name:'連珠劍·一線', rar:'r', rune:'串', desc:'劍數 +1，沿同一劍痕前後接連。集火單體最強',
+     apply:()=>{stat.count+=1; stat.formation='inline';}},
+  {id:'sharp',name:'凝鋒', rar:'n', rune:'刃', desc:'劍氣傷害 +10', apply:()=>stat.damage+=10},
+  {id:'broad',name:'開闔', rar:'n', rune:'氣', desc:'劍氣加寬，更易命中', apply:()=>stat.size+=4},
+  {id:'swift',name:'疾風', rar:'n', rune:'風', desc:'劍飛更快、更遠', apply:()=>{stat.speed+=3;stat.life+=0.25;}},
+  {id:'pierce',name:'貫穿', rar:'r', rune:'穿', desc:'可多貫穿 2 名敵人', apply:()=>stat.pierce+=2},
+  {id:'homing',name:'御劍追魂', rar:'e', rune:'眼', desc:'劍氣自動追蹤，但傷害 -25% 且不暴擊', apply:()=>stat.homing+=0.06},
+  {id:'explode',name:'裂空', rar:'e', rune:'炸', desc:'命中時炸開，波及周圍', apply:()=>stat.explode+=52},
+  {id:'ember',name:'業火符', rar:'r', rune:'焱', desc:'劍現赤焰,命中附加持續灼燒', apply:()=>{stat.ember+=1; stat.element='fire';}},
+  {id:'frost',name:'寒霜訣', rar:'r', rune:'凍', desc:'劍現寒芒,命中冰緩敵人並附霜傷', apply:()=>{stat.ice+=1; stat.element='ice';}},
+  {id:'ret', name:'迴劍式', rar:'e', rune:'環', desc:'劍飛至盡頭折返再斬', apply:()=>stat.ret=1},
+  {id:'crit',name:'奪魄', rar:'r', rune:'魄', desc:'暴擊率 +15%（暴擊雙倍）', apply:()=>stat.crit+=0.15},
+  {id:'regen',name:'養靈', rar:'n', rune:'靈', desc:'每斬妖回復少許靈元', apply:()=>stat.regen+=0.6},
+  {id:'mana', name:'靈台', rar:'n', rune:'台', desc:'靈力上限 +30、回復加快', apply:()=>{stat.manaMax+=30;stat.manaRegen+=0.12;G.mana+=30;}},
+  {id:'cap',  name:'劍匣', rar:'r', rune:'匣', desc:'同屏飛劍上限 +3', apply:()=>stat.cap+=3},
+  {id:'storm',name:'萬劍歸宗', rar:'l', rune:'劍', desc:'劍數 +2、傷害 +12、同屏上限 +4', apply:()=>{stat.count+=2;stat.damage+=12;stat.cap+=4;}},
+];
+const RARW={n:60,r:30,e:12,l:3};
+const RARNAME={n:'凡品',r:'靈品',e:'仙品',l:'絕品'};
+function affixWeight(a){
+  // 萬劍歸宗須先解鎖才入池;御劍傳承解鎖後追魂更常出現
+  if(a.id==='homing' && meta.unlock.homing) return RARW[a.rar]*2.2;
+  return RARW[a.rar];
+}
+function drawCards(){
+  // 加權抽三張不重複(未解鎖的秘傳詞條不入池)
+  const pool=AFFIXES.filter(a=> !(a.id==='storm' && !meta.unlock.storm)); const pick=[];
+  while(pick.length<3&&pool.length){
+    let tot=pool.reduce((s,a)=>s+affixWeight(a),0), r=Math.random()*tot, idx=0;
+    for(let i=0;i<pool.length;i++){ r-=affixWeight(pool[i]); if(r<=0){idx=i;break;} }
+    pick.push(pool.splice(idx,1)[0]);
+  }
+  const box=document.getElementById('cards'); box.innerHTML='';
+  pick.forEach(a=>{
+    const el=document.createElement('div');
+    el.className='card lv-'+a.rar;
+    el.innerHTML=`<div class="rune">${a.rune}</div>
+      <div class="cname">${a.name}</div>
+      <div class="rar rar-${a.rar}">${RARNAME[a.rar]}</div>
+      <div class="cdesc">${a.desc}</div>`;
+    el.onclick=()=>{ a.apply(); closeLevelUp(); };
+    box.appendChild(el);
+  });
+  document.getElementById('overlay').classList.add('show');
+  G.paused=true;
+}
+function closeLevelUp(){ document.getElementById('overlay').classList.remove('show'); G.paused=false; }
+
+// ---------- 升級 ----------
+function gainXP(n){
+  G.xp+=n;
+  while(G.xp>=G.xpNeed){
+    G.xp-=G.xpNeed; G.level++; G.xpNeed=Math.round(G.xpNeed*1.35+3);
+    drawCards();
+  }
+  updateHUD();
+}
+
+// ---------- 輸入:畫線 ----------
+let drawing=false, path=[], curLen=0, maxed=false;
+function pos(e){
+  const r=cv.getBoundingClientRect();
+  const p=e.touches?e.touches[0]:e;
+  return {x:p.clientX-r.left, y:p.clientY-r.top};
+}
+// 目前靈力還能畫多長的墨痕
+function allowedLen(){ return Math.max(0,(G.mana-stat.costBase)/stat.costPerPx); }
+function down(e){ if(!G.running||G.paused)return; e.preventDefault(); drawing=true; path=[pos(e)]; curLen=0; maxed=false; }
+function move(e){ if(!drawing)return; e.preventDefault(); const p=pos(e);
+  const last=path[path.length-1]; const seg=Math.hypot(p.x-last.x,p.y-last.y);
+  if(seg>4){
+    if(curLen+seg <= allowedLen()){ path.push(p); curLen+=seg; }
+    else { maxed=true; } // 靈力見底,墨痕凍結
+  }
+}
+function up(e){ if(!drawing)return; e.preventDefault(); drawing=false; launchSword(path); path=[]; maxed=false; }
+cv.addEventListener('mousedown',down); cv.addEventListener('mousemove',move); window.addEventListener('mouseup',up);
+cv.addEventListener('touchstart',down,{passive:false}); cv.addEventListener('touchmove',move,{passive:false}); window.addEventListener('touchend',up,{passive:false});
+
+// ---------- 更新 ----------
+function update(){
+  G.t++;
+  const P=G.player;
+  // 靈力回復
+  if(G.mana<stat.manaMax){ G.mana=Math.min(stat.manaMax,G.mana+stat.manaRegen); }
+  // 自動禦劍:定時朝最近之敵直射(收益打折、不計紀錄)
+  if(G.auto){
+    G.autoTimer++;
+    if(G.autoTimer>=34){
+      let best=null,bd=1e9;
+      for(const en of G.enemies){ const dd=(en.x-P.x)**2+(en.y-P.y)**2; if(dd<bd){bd=dd;best=en;} }
+      if(best){
+        const ang=Math.atan2(best.y-P.y,best.x-P.x);
+        const path=[{x:P.x+Math.cos(ang)*P.r,y:P.y+Math.sin(ang)*P.r},
+                    {x:P.x+Math.cos(ang)*(P.r+90),y:P.y+Math.sin(ang)*(P.r+90)}];
+        const before=G.mana; launchSword(path);
+        if(G.mana<before){ G.autoUsed=true; G.autoTimer=0; } else { G.autoTimer=28; }
+      }
+    }
+  }
+  // 波次與生成
+  G.waveTimer++;
+  if(G.waveTimer> 60*14){ G.waveTimer=0; G.wave++; updateHUD(); }
+  G.spawnAcc += (0.55 + G.wave*0.14);
+  while(G.spawnAcc>=60){ G.spawnAcc-=60; if(G.enemies.length<70) spawnEnemy(); }
+
+  // 敵人
+  for(let i=G.enemies.length-1;i>=0;i--){
+    const en=G.enemies[i];
+    const dx=P.x-en.x, dy=P.y-en.y, d=Math.hypot(dx,dy)||1;
+    let sp=en.sp; if(en.chill>0){ en.chill--; sp*=0.45; } // 寒霜冰緩
+    en.x+=dx/d*sp; en.y+=dy/d*sp;
+    en.wob+=0.1;
+    if(en.hit>0)en.hit--;
+    // 業火灼燒
+    if(en.ember>0){ en.emberT++; if(en.emberT%18===0){ en.hp-=2*en.ember;
+      floatText(en.x,en.y-en.r,'焱','#c0662e'); if(en.hp<=0){killEnemy(i);continue;} } }
+    // 寒霜霜傷
+    if(en.chill>0){ if(en.chill%22===0){ en.hp-=1.5*stat.ice;
+      floatText(en.x,en.y-en.r,'凍','#5a9cc0'); if(en.hp<=0){killEnemy(i);continue;} } }
+    // 觸及靈石
+    if(d < en.r+P.r){
+      P.hp -= en.tier===2?18:en.tier===1?11:7; P.pulse=1;
+      burst(en.x,en.y,en.c,10); G.enemies.splice(i,1); updateHUD();
+      if(P.hp<=0){ gameOver(); return; }
+    }
+  }
+
+  // 劍
+  for(let i=G.swords.length-1;i>=0;i--){
+    const s=G.swords[i];
+    // 連珠延遲:尚未出鞘,原地蓄勢
+    if(s.delay>0){ s.delay--; s.trail.length=0; continue; }
+    s.age++; s.life-=1/60;
+    if(s.onPath){
+      // 沿墨痕逐段前進(每幀消耗 speed 的行程)
+      let budget=stat.speed;
+      while(budget>0 && s.onPath){
+        const tgt=s.path[s.seg];
+        const dx=tgt.x-s.x, dy=tgt.y-s.y, d=Math.hypot(dx,dy)||0.0001;
+        if(d<=budget){
+          s.x=tgt.x; s.y=tgt.y; budget-=d; s.seg++;
+          if(s.seg>=s.path.length){ // 抵達墨痕盡頭,轉為續飛
+            s.onPath=false;
+            const a=s.path[s.path.length-2], b=s.path[s.path.length-1];
+            s.ang=Math.atan2(b.y-a.y,b.x-a.x);
+            s.vx=Math.cos(s.ang)*stat.speed; s.vy=Math.sin(s.ang)*stat.speed;
+            s.x+=s.vx/stat.speed*budget; s.y+=s.vy/stat.speed*budget; budget=0;
+          }
+        } else { s.x+=dx/d*budget; s.y+=dy/d*budget; s.ang=Math.atan2(dy,dx); budget=0; }
+      }
+    } else {
+      // 續飛階段:追蹤 / 折返生效
+      if(stat.homing>0){
+        let best=null,bd=1e9;
+        for(const en of G.enemies){ const dd=(en.x-s.x)**2+(en.y-s.y)**2; if(dd<bd){bd=dd;best=en;} }
+        if(best){ const ta=Math.atan2(best.y-s.y,best.x-s.x); let da=ta-s.ang;
+          while(da>Math.PI)da-=6.283; while(da<-Math.PI)da+=6.283;
+          s.ang+=da*stat.homing; const sp=Math.hypot(s.vx,s.vy);
+          s.vx=Math.cos(s.ang)*sp; s.vy=Math.sin(s.ang)*sp; }
+      }
+      s.x+=s.vx; s.y+=s.vy;
+      if(stat.ret){
+        if((s.x<0&&s.vx<0)||(s.x>W&&s.vx>0)){s.vx*=-1;s.ang=Math.atan2(s.vy,s.vx);}
+        if((s.y<0&&s.vy<0)||(s.y>H&&s.vy>0)){s.vy*=-1;s.ang=Math.atan2(s.vy,s.vx);}
+      }
+    }
+    s.trail.push({x:s.x,y:s.y}); if(s.trail.length>14)s.trail.shift();
+    // 命中
+    for(let j=G.enemies.length-1;j>=0;j--){
+      const en=G.enemies[j];
+      if(s.hitSet.has(en)) continue;
+      if(Math.hypot(en.x-s.x,en.y-s.y) < en.r+stat.size){
+        // 追蹤劍以「便利」換「威力」:降傷且不可暴擊
+        let dmg=stat.damage * (stat.homing>0 ? 0.75 : 1);
+        let isCrit = stat.homing>0 ? false : Math.random()<stat.crit;
+        if(isCrit)dmg*=2;
+        en.hp-=dmg; en.hit=6; s.hitSet.add(en);
+        if(stat.ember>0){ en.ember=Math.max(en.ember,stat.ember); }
+        if(stat.ice>0){ en.chill=100; }
+        floatText(en.x,en.y-en.r, Math.round(dmg)+(isCrit?'!':''), isCrit?'#c0392b':'#f3ecd8');
+        burst(s.x,s.y,(ELEM[stat.element]||ELEM.none).hit,6);
+        if(stat.explode>0){
+          burst(s.x,s.y,'#c0662e',18);
+          for(const e2 of G.enemies){ if(e2!==en && Math.hypot(e2.x-s.x,e2.y-s.y)<stat.explode){
+            e2.hp-=stat.damage*0.6; e2.hit=6; }}
+          for(let k=0;k<8;k++)ink(s.x,s.y,(Math.random()-.5)*4,(Math.random()-.5)*4,10+Math.random()*14);
+        }
+        if(en.hp<=0){ killEnemy(j); }
+        s.pierceLeft--; if(s.pierceLeft<=0){ s.life=0; break; }
+      }
+    }
+    if(s.life<=0 || s.age>600){ G.swords.splice(i,1); }
+  }
+
+  // 粒子/墨/浮字
+  for(let i=G.particles.length-1;i>=0;i--){const p=G.particles[i];p.x+=p.vx;p.y+=p.vy;p.vx*=0.92;p.vy*=0.92;p.life-=0.03;if(p.life<=0)G.particles.splice(i,1);}
+  for(let i=G.inks.length-1;i>=0;i--){const p=G.inks[i];p.x+=p.vx;p.y+=p.vy;p.vx*=0.9;p.vy*=0.9;p.r*=1.02;p.a-=0.012;p.life-=0.01;if(p.a<=0)G.inks.splice(i,1);}
+  for(let i=G.texts.length-1;i>=0;i--){const t=G.texts[i];t.y-=0.7;t.life-=0.02;if(t.life<=0)G.texts.splice(i,1);}
+  if(P.pulse>0)P.pulse-=0.05;
+  if(G.t%5===0) updateHUD();
+}
+function killEnemy(idx){
+  const en=G.enemies[idx]; burst(en.x,en.y,en.c,16);
+  for(let k=0;k<6;k++)ink(en.x,en.y,(Math.random()-.5)*3,(Math.random()-.5)*3,8+Math.random()*10);
+  G.kills++; G.player.hp=Math.min(G.player.max,G.player.hp+stat.regen);
+  gainXP(en.tier===2?4:en.tier===1?2:1);
+  G.enemies.splice(idx,1); updateHUD();
+}
+
+// ---------- 五行元素調色 ----------
+// none=水墨本色 / fire=業火(赤) / ice=寒霜(藍)。決定劍氣、中脊、拖尾、粒子的顏色。
+const ELEM = {
+  none:{ halo0:'rgba(70,64,56,0)',  halo1:'rgba(70,64,56,0.26)',  halo2:'rgba(120,110,96,0)',
+         spine:'rgba(60,52,44,0.6)', trail:'40,34,28',  hit:'#3a332a' },
+  fire:{ halo0:'rgba(200,80,36,0)', halo1:'rgba(214,96,42,0.40)', halo2:'rgba(244,182,88,0)',
+         spine:'rgba(198,72,28,0.9)', trail:'206,92,40', hit:'#c0532e' },
+  ice: {halo0:'rgba(120,178,218,0)',halo1:'rgba(150,200,235,0.40)',halo2:'rgba(224,242,255,0)',
+         spine:'rgba(84,150,200,0.9)', trail:'150,196,230', hit:'#5a9cc0' },
+};
+
+// ---------- 程序化水墨劍造型(東方素雅劍) ----------
+// 本地座標:劍尖朝 +x,劍柄在 -x。比例隨劍氣寬度 stat.size 縮放。
+function drawJian(ctx, s){
+  ctx.save();
+  ctx.translate(s.x, s.y);
+  ctx.rotate(s.ang);
+  ctx.lineCap='round'; ctx.lineJoin='round';
+  const k   = stat.size;
+  const BL  = 30 + k*1.9;        // 刃長(修長)
+  const bw  = 1.8 + k*0.24;      // 刃半寬
+  const guardX  = -2;
+  const gripEnd = guardX - (9 + k*0.6);
+  const pommelX = gripEnd - 2;
+  const EL = ELEM[stat.element] || ELEM.none;
+
+  // 1) 劍氣光暈(依元素:墨/火/冰)
+  const halo = ctx.createLinearGradient(pommelX,0,BL+8,0);
+  halo.addColorStop(0,EL.halo0); halo.addColorStop(0.45,EL.halo1); halo.addColorStop(1,EL.halo2);
+  ctx.strokeStyle=halo; ctx.lineWidth=bw*3.4;
+  ctx.beginPath(); ctx.moveTo(gripEnd,0); ctx.lineTo(BL+8,0); ctx.stroke();
+
+  // 2) 劍首(素環)
+  ctx.fillStyle='#3a352d'; ctx.strokeStyle='#1e1c17'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.arc(pommelX+1,0,bw*0.85,0,6.28); ctx.fill(); ctx.stroke();
+
+  // 3) 劍柄(纏繩)
+  ctx.fillStyle='#4a4038'; ctx.fillRect(gripEnd,-bw*0.7,guardX-gripEnd,bw*1.4);
+  ctx.strokeStyle='rgba(20,18,14,0.55)'; ctx.lineWidth=1;
+  for(let gx=gripEnd+2; gx<guardX-1; gx+=2.6){
+    ctx.beginPath(); ctx.moveTo(gx,-bw*0.7); ctx.lineTo(gx+1.3,bw*0.7); ctx.stroke();
+  }
+
+  // 4) 護手(素雅新月劍格,無鑲飾)
+  ctx.fillStyle='#2f2b26'; ctx.strokeStyle='#181611'; ctx.lineWidth=1;
+  ctx.beginPath();
+  ctx.moveTo(guardX,-bw*2.2);
+  ctx.quadraticCurveTo(guardX+bw*1.5,-bw*1.4, guardX+bw*1.7,0);
+  ctx.quadraticCurveTo(guardX+bw*1.5, bw*1.4, guardX, bw*2.2);
+  ctx.quadraticCurveTo(guardX-3,0, guardX,-bw*2.2);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+
+  // 5) 劍身(宣紙白刃,上刃微弧,毛筆濃淡墨邊)
+  const blade = ctx.createLinearGradient(0,-bw,0,bw);
+  blade.addColorStop(0,'#d6cebc'); blade.addColorStop(0.5,'#fbf7ee'); blade.addColorStop(1,'#d6cebc');
+  ctx.fillStyle=blade;
+  ctx.beginPath();
+  ctx.moveTo(guardX,-bw);
+  ctx.quadraticCurveTo(BL*0.6,-bw*0.95, BL,0);   // 劍尖
+  ctx.quadraticCurveTo(BL*0.6, bw*0.95, guardX,bw);
+  ctx.closePath(); ctx.fill();
+  const edge = ctx.createLinearGradient(guardX,0,BL,0); // 近柄墨濃、近尖墨淡
+  edge.addColorStop(0,'rgba(28,24,20,0.9)'); edge.addColorStop(1,'rgba(28,24,20,0.22)');
+  ctx.strokeStyle=edge; ctx.lineWidth=1.4; ctx.stroke();
+
+  // 6) 中脊(依元素:墨線/火線/冰線)
+  ctx.strokeStyle=EL.spine; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(guardX+1,0); ctx.lineTo(BL*0.92,0); ctx.stroke();
+
+  // 7) 飛白(乾筆斷續白痕)
+  ctx.strokeStyle='rgba(255,255,255,0.7)'; ctx.lineWidth=1;
+  ctx.beginPath();
+  ctx.moveTo(BL*0.32,-bw*0.15); ctx.lineTo(BL*0.55,-bw*0.1);
+  ctx.moveTo(BL*0.66,-bw*0.02); ctx.lineTo(BL*0.95,-bw*0.02);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+// ---------- 繪製 ----------
+function draw(){
+  // 宣紙底
+  ctx.fillStyle='#e9e0cc'; ctx.fillRect(0,0,W,H);
+  // 紙紋暈染
+  ctx.globalAlpha=0.06; ctx.fillStyle='#8a7a5a';
+  for(let i=0;i<3;i++){ ctx.beginPath();
+    ctx.arc((i*0.37+0.2)*W,(i*0.29+0.25)*H, 180+i*60,0,6.28); ctx.fill(); }
+  ctx.globalAlpha=1;
+
+  // 墨暈
+  for(const p of G.inks){ ctx.globalAlpha=Math.max(0,p.a); ctx.fillStyle='#2b2620';
+    ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,6.28); ctx.fill(); }
+  ctx.globalAlpha=1;
+
+  const P=G.player;
+  // 靈石
+  ctx.save();
+  const glow=ctx.createRadialGradient(P.x,P.y,4,P.x,P.y,P.r+18+P.pulse*30);
+  glow.addColorStop(0,'rgba(120,150,110,.9)'); glow.addColorStop(1,'rgba(120,150,110,0)');
+  ctx.fillStyle=glow; ctx.beginPath(); ctx.arc(P.x,P.y,P.r+18+P.pulse*30,0,6.28); ctx.fill();
+  ctx.fillStyle=P.pulse>0.3?'#b04030':'#4a5a3a'; ctx.beginPath(); ctx.arc(P.x,P.y,P.r,0,6.28); ctx.fill();
+  ctx.strokeStyle='#2b2620'; ctx.lineWidth=2; ctx.stroke();
+  ctx.fillStyle='#e9e0cc'; ctx.font='22px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText('靈',P.x,P.y+1);
+  ctx.restore();
+
+  // 敵人(墨團妖魔)
+  for(const en of G.enemies){
+    ctx.save();
+    ctx.translate(en.x,en.y);
+    const wob=Math.sin(en.wob)*2;
+    ctx.fillStyle=en.hit>0?'#d8cdb0':en.c;
+    ctx.beginPath();
+    for(let a=0;a<6.28;a+=0.5){ const rr=en.r+Math.sin(a*3+en.wob)*2.5+wob;
+      const x=Math.cos(a)*rr,y=Math.sin(a)*rr; a===0?ctx.moveTo(x,y):ctx.lineTo(x,y);}
+    ctx.closePath(); ctx.fill();
+    // 眼
+    ctx.fillStyle='#e9e0cc'; ctx.beginPath(); ctx.arc(-en.r*0.3,-2,2.4,0,6.28);
+    ctx.arc(en.r*0.3,-2,2.4,0,6.28); ctx.fill();
+    if(en.ember>0){ ctx.strokeStyle='rgba(200,102,46,.8)'; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.arc(0,0,en.r+3,0,6.28); ctx.stroke(); }
+    if(en.chill>0){ ctx.strokeStyle='rgba(120,180,220,.85)'; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.arc(0,0,en.r+3,0,6.28); ctx.stroke(); }
+    ctx.restore();
+    // 血條
+    if(en.hp<en.max){ const w=en.r*2; ctx.fillStyle='rgba(43,38,32,.4)';
+      ctx.fillRect(en.x-w/2,en.y-en.r-8,w,3);
+      ctx.fillStyle='#7a2b2b'; ctx.fillRect(en.x-w/2,en.y-en.r-8,w*en.hp/en.max,3); }
+  }
+
+  // 劍氣
+  for(const s of G.swords){
+    // 墨痕拖尾:沿飛行軌跡的毛筆掃痕,近劍身濃寬、末端漸淡收(依元素著色)
+    ctx.lineCap='round'; ctx.lineJoin='round';
+    let rgb=(ELEM[stat.element]||ELEM.none).trail;
+    if(stat.element==='none' && meta.skin==='gold') rgb='198,150,60'; // 外觀:墨金劍痕
+    for(let k=1;k<s.trail.length;k++){
+      const a=k/s.trail.length;
+      ctx.strokeStyle='rgba('+rgb+','+(a*0.55)+')';
+      ctx.lineWidth=stat.size*1.7*a;
+      ctx.beginPath(); ctx.moveTo(s.trail[k-1].x,s.trail[k-1].y); ctx.lineTo(s.trail[k].x,s.trail[k].y); ctx.stroke();
+    }
+    // 劍身(程序化水墨劍)
+    drawJian(ctx, s);
+  }
+
+  // 當前畫痕
+  if(drawing&&path.length>1){
+    ctx.lineCap='round'; ctx.lineJoin='round';
+    ctx.strokeStyle= maxed ? 'rgba(192,138,46,.85)' : 'rgba(43,38,32,.75)';
+    for(let k=1;k<path.length;k++){
+      ctx.lineWidth = 2 + (k/path.length)*(stat.size+4);
+      ctx.beginPath(); ctx.moveTo(path[k-1].x,path[k-1].y); ctx.lineTo(path[k].x,path[k].y); ctx.stroke();
+    }
+    // 箭頭指示
+    const a=path[Math.max(0,path.length-4)],b=path[path.length-1];
+    const ang=Math.atan2(b.y-a.y,b.x-a.x);
+    ctx.save(); ctx.translate(b.x,b.y); ctx.rotate(ang); ctx.fillStyle='#7a2b2b';
+    ctx.beginPath(); ctx.moveTo(14,0); ctx.lineTo(2,7); ctx.lineTo(2,-7); ctx.closePath(); ctx.fill(); ctx.restore();
+  }
+
+  // 粒子
+  for(const p of G.particles){ ctx.globalAlpha=Math.max(0,p.life); ctx.fillStyle=p.c;
+    ctx.beginPath(); ctx.arc(p.x,p.y,2.5*p.life+0.5,0,6.28); ctx.fill(); }
+  ctx.globalAlpha=1;
+  // 浮字
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  for(const t of G.texts){ ctx.globalAlpha=Math.max(0,t.life); ctx.fillStyle=t.c;
+    ctx.font='bold 16px serif'; ctx.fillText(t.txt,t.x,t.y); }
+  ctx.globalAlpha=1;
+}
+
+// ---------- HUD ----------
+const CN=['零','一','二','三','四','五','六','七','八','九','十'];
+function num2cn(n){ if(n<=10)return CN[n]; if(n<20)return '十'+CN[n-10];
+  return CN[Math.floor(n/10)]+'十'+(n%10?CN[n%10]:''); }
+function updateHUD(){
+  const P=G.player;
+  document.getElementById('hpfill').style.width=Math.max(0,P.hp/P.max*100)+'%';
+  document.getElementById('hptxt').textContent=Math.max(0,Math.round(P.hp))+' / '+P.max;
+  const mpr=G.mana/stat.manaMax; const mp=document.getElementById('mpfill');
+  mp.style.width=Math.max(0,mpr*100)+'%'; mp.classList.toggle('low',mpr<0.25);
+  document.getElementById('mptxt').textContent=Math.round(G.mana)+' / '+stat.manaMax;
+  document.getElementById('xpfill').style.width=(G.xp/G.xpNeed*100)+'%';
+  document.getElementById('lvtxt').textContent=num2cn(G.level);
+  document.getElementById('killtxt').textContent=G.kills;
+  document.getElementById('wavetxt').textContent='第 '+num2cn(G.wave)+' 波';
+}
+
+// ---------- 迴圈 ----------
+function loop(){
+  if(G.running){
+    if(!G.paused) update();
+    draw();
+  }
+  requestAnimationFrame(loop);
+}
+
+// ---------- 開始/結束 ----------
+function start(){
+  Object.assign(G,{running:true,paused:false,t:0,enemies:[],swords:[],particles:[],inks:[],texts:[],
+    kills:0,wave:1,waveTimer:0,spawnAcc:0,xp:0,xpNeed:6,level:1,mana:100,
+    auto:false,autoUsed:false,autoTimer:0});
+  Object.assign(stat,{count:1,formation:'fan',damage:24,size:9,speed:11,pierce:1,homing:0,explode:0,
+    element:'none',ember:0,ice:0,
+    life:1.35,ret:0,crit:0.05,regen:0,cap:6,manaMax:100,manaRegen:0.34,costBase:6,costPerPx:0.13});
+  // 套用轉世永久修為
+  const u=meta.up;
+  stat.manaMax  += (u.ling||0)*15;
+  stat.damage   += (u.gu||0)*3;
+  stat.speed    += (u.xing||0)*1;
+  stat.manaRegen+= (u.qi||0)*0.05;
+  stat.count     = 1 + (u.twin||0);
+  G.mana=stat.manaMax;
+  G.player=new Player();
+  pausedByUser=false;
+  document.getElementById('splash').style.display='none';
+  document.getElementById('gameover').style.display='none';
+  document.getElementById('meta').classList.remove('show');
+  document.getElementById('pause').classList.remove('show');
+  updateHUD();
+}
+// ---------- 暫停 / 繼續 ----------
+let pausedByUser=false;
+function togglePause(force){
+  if(!G.running) return;
+  if(document.getElementById('overlay').classList.contains('show')) return; // 悟劍訣選卡時不干涉
+  const now = (typeof force==='boolean') ? force : !pausedByUser;
+  pausedByUser=now; G.paused=now;
+  document.getElementById('pause').classList.toggle('show',now);
+}
+function gameOver(){
+  G.running=false;
+  // 魂魄結算(用過自動禦劍:收益減半且不計歷史最佳)
+  let earned = G.kills + G.wave*5 + G.level*3;
+  const autoed = G.autoUsed;
+  if(autoed) earned = Math.floor(earned*0.5);
+  meta.souls += earned;
+  let nb=false;
+  if(!autoed){
+    nb = G.kills>meta.best.kills;
+    if(G.kills>meta.best.kills) meta.best.kills=G.kills;
+    if(G.wave >meta.best.wave)  meta.best.wave =G.wave;
+    if(G.level>meta.best.level) meta.best.level=G.level;
+  }
+  saveMeta();
+  // 下一個快解鎖的目標
+  let hint='';
+  const nxt = nextGoal();
+  if(nxt){ const need=Math.max(0,nxt.cost-meta.souls);
+    hint = need>0 ? '再積 <b style="color:#c08a2e">'+need+'</b> 魂魄可習得〈'+nxt.name+'〉'
+                  : '魂魄已足以習得〈'+nxt.name+'〉，速入轉世閣'; }
+  document.getElementById('finaltxt').innerHTML=
+    '此世 · 斬妖 '+G.kills+' 頭 · 道行 '+num2cn(G.level)+' 重 · 抵第 '+num2cn(G.wave)+' 波'
+    + (nb?'　<span style="color:#c08a2e">✦ 斬妖新猷</span>':'')
+    + '<br>歷史最佳 · 斬妖 '+meta.best.kills+' · 道行 '+num2cn(meta.best.level)+' 重 · 第 '+num2cn(meta.best.wave)+' 波'
+    + '<br><br>此世凝魂 <b style="color:#c08a2e">+'+earned+'</b>'+(autoed?' <span style="color:#8a7a5a">(自動禦劍 · 減半不計紀錄)</span>':'')+' · 現有魂魄 <b style="color:#c08a2e">'+meta.souls+'</b>'
+    + (hint?'<br><span style="font-size:13px;color:#c9bfa6">'+hint+'</span>':'');
+  document.getElementById('gameover').style.display='flex';
+}
+// 挑一個「最接近解鎖」的目標(優先秘傳,其次未滿級的修為)
+function nextGoal(){
+  let best=null;
+  for(const m of META_UNLOCK){ if(!meta.unlock[m.id]){ if(!best||m.cost<best.cost) best={name:m.name,cost:m.cost}; } }
+  if(best) return best;
+  for(const m of META_UP){ const lv=meta.up[m.id]||0; if(lv<m.max){ const c=m.cost[lv];
+    if(!best||c<best.cost) best={name:m.name,cost:c}; } }
+  return best;
+}
+
+// ---------- 轉世閣 UI ----------
+function metaBonusText(){
+  const u=meta.up, p=[];
+  if(u.ling) p.push('靈力上限 +'+u.ling*15);
+  if(u.gu)   p.push('劍傷 +'+u.gu*3);
+  if(u.xing) p.push('劍速 +'+u.xing);
+  if(u.qi)   p.push('回復 +'+(u.qi*0.05).toFixed(2));
+  if(u.twin) p.push('開局雙劍');
+  if(meta.unlock.storm)  p.push('萬劍歸宗');
+  if(meta.unlock.homing) p.push('御劍傳承');
+  return p.length ? p.join('、') : '尚無 — 快去凝聚第一縷修為';
+}
+function renderMeta(){
+  document.getElementById('metasouls').innerHTML='魂魄　<b>'+meta.souls+'</b>';
+  document.getElementById('metabonus').innerHTML='承襲修為 · <b>'+metaBonusText()+'</b>';
+  const off=document.getElementById('metaoffline'); const pend=offlinePending();
+  if(pend>0){ off.innerHTML='閉關所得 '+pend+' 魂魄(每時 '+offlineRate()+'，封頂 '+meta.offCap+' 時)<span class="claim" id="claimbtn">領取</span>';
+    document.getElementById('claimbtn').onclick=()=>{ claimOffline(); renderMeta(); }; }
+  else { off.innerHTML='<span style="color:#8a7a5a">閉關修煉中 · 每時凝 '+offlineRate()+' 魂魄(封頂 '+meta.offCap+' 時)</span>'; }
+  const listEl=document.getElementById('metalist'); listEl.innerHTML='';
+  META_UP.forEach(m=>{
+    const lv=meta.up[m.id]||0, maxed=lv>=m.max, cost=maxed?0:m.cost[lv];
+    const can=!maxed && meta.souls>=cost;
+    const row=document.createElement('div'); row.className='mrow';
+    row.innerHTML='<div class="mi"><div class="mn">'+m.name+'　<span class="ml">'+lv+'/'+m.max+'</span></div>'
+      +'<div class="md">'+m.desc+'</div></div>';
+    const btn=document.createElement('button'); btn.className='mbuy';
+    if(maxed){ btn.textContent='圓滿'; btn.classList.add('done'); btn.disabled=true; }
+    else { btn.textContent='習得 · '+cost; btn.disabled=!can; btn.onclick=()=>{ if(meta.souls>=cost){ meta.souls-=cost; meta.up[m.id]=lv+1; saveMeta(); renderMeta(); } }; }
+    row.appendChild(btn); listEl.appendChild(row);
+  });
+  const unEl=document.getElementById('metaunlock'); unEl.innerHTML='';
+  META_UNLOCK.forEach(m=>{
+    const owned=!!meta.unlock[m.id], can=!owned && meta.souls>=m.cost;
+    const row=document.createElement('div'); row.className='mrow';
+    row.innerHTML='<div class="mi"><div class="mn">'+m.name+'</div><div class="md">'+m.desc+'</div></div>';
+    const btn=document.createElement('button'); btn.className='mbuy';
+    if(owned){ btn.textContent='已悟'; btn.classList.add('done'); btn.disabled=true; }
+    else { btn.textContent='參悟 · '+m.cost; btn.disabled=!can; btn.onclick=()=>{ if(meta.souls>=m.cost){ meta.souls-=m.cost; meta.unlock[m.id]=true; saveMeta(); renderMeta(); } }; }
+    row.appendChild(btn); unEl.appendChild(row);
+  });
+}
+function openMeta(){ renderMeta(); document.getElementById('meta').classList.add('show'); }
+function closeMeta(){ document.getElementById('meta').classList.remove('show'); }
+// 自動禦劍開關
+function toggleAuto(){
+  if(!G.running) return;
+  G.auto=!G.auto;
+  const b=document.getElementById('autobtn');
+  b.textContent='⟳ 自動:'+(G.auto?'開':'關'); b.classList.toggle('on',G.auto);
+}
+
+// ---------- 商城 ----------
+function renderShop(){
+  document.getElementById('shopgems').innerHTML='靈石　<b>'+meta.gems+'</b>　·　魂魄 '+meta.souls;
+  const iap=document.getElementById('shopiap'); iap.innerHTML='';
+  SHOP_IAP.forEach(m=>{
+    const row=document.createElement('div'); row.className='mrow';
+    row.innerHTML='<div class="mi"><div class="mn">'+m.name+(m.tag?'<span class="mtag">'+m.tag+'</span>':'')
+      +'</div><div class="md">'+(m.note||('獲得靈石 ×'+m.gems))+'</div></div>';
+    const btn=document.createElement('button'); btn.className='mbuy';
+    btn.textContent=m.price+' · 購買';
+    btn.onclick=()=>{ meta.gems+=m.gems; if(m.id==='pass') meta.souls+=120; saveMeta(); renderShop(); };
+    row.appendChild(btn); iap.appendChild(row);
+  });
+  const sp=document.getElementById('shopspend'); sp.innerHTML='';
+  SHOP_SPEND.forEach(m=>{
+    const owned = m.once && meta.skin==='gold' && m.id==='skin';
+    const desc = m.capField ? ('離線收益封頂提高(現 '+meta.offCap+' 時)') : m.desc;
+    const can = !owned && meta.gems>=m.cost;
+    const row=document.createElement('div'); row.className='mrow';
+    row.innerHTML='<div class="mi"><div class="mn">'+m.name+'</div><div class="md">'+desc+'</div></div>';
+    const btn=document.createElement('button'); btn.className='mbuy';
+    if(owned){ btn.textContent='已擁有'; btn.classList.add('done'); btn.disabled=true; }
+    else { btn.textContent='靈石 '+m.cost; btn.disabled=!can;
+      btn.onclick=()=>{ if(meta.gems>=m.cost){ meta.gems-=m.cost; m.grant(); saveMeta(); renderShop(); } }; }
+    row.appendChild(btn); sp.appendChild(row);
+  });
+}
+function openShop(){ renderShop(); document.getElementById('shop').classList.add('show'); }
+function closeShop(){ document.getElementById('shop').classList.remove('show'); }
+
+document.getElementById('startbtn').onclick=start;
+document.getElementById('againbtn').onclick=start;
+document.getElementById('metabtn').onclick=openMeta;
+document.getElementById('splashmetabtn').onclick=openMeta;
+document.getElementById('metaplaybtn').onclick=start;
+document.getElementById('metaclosebtn').onclick=closeMeta;
+document.getElementById('pausebtn').onclick=()=>togglePause();
+document.getElementById('autobtn').onclick=toggleAuto;
+document.getElementById('resumebtn').onclick=()=>togglePause(false);
+document.getElementById('pausequitbtn').onclick=()=>{ togglePause(false); gameOver(); };
+document.getElementById('splashshopbtn').onclick=openShop;
+document.getElementById('metashopbtn').onclick=openShop;
+document.getElementById('shopclosebtn').onclick=closeShop;
+window.addEventListener('keydown',e=>{
+  if(e.key==='Escape'||e.key==='p'||e.key==='P'){ e.preventDefault(); togglePause(); }
+  else if(e.key==='a'||e.key==='A'){ e.preventDefault(); toggleAuto(); }
+});
+loop();
+})();
+</script>
+</body>
+</html>
