@@ -497,6 +497,20 @@ const SND=(function(){
   return api;
 })();
 
+// ---------- 角色美術 ----------
+// 原稿是一張白底剪影,已離線切成「身體」與「劍」兩張透明貼圖,
+// 讓劍能獨立揮舞;身體則在遊戲中以逐列橫切位移做出衣袂與髮絲的風動。
+const ART={ body:new Image(), sword:new Image(), n:0, ok:false };
+['body','sword'].forEach(k=>{
+  ART[k].onload=()=>{ if(++ART.n===2) ART.ok=true; };
+  ART[k].onerror=()=>{ ART.ok=false; };          // 找不到圖就退回原本的靈石畫法
+});
+ART.body.src='assets/art/hero-body.png';
+ART.sword.src='assets/art/hero-sword.png';
+// 貼圖上的錨點(比例):手握位置、劍柄位置
+const HERO={ handX:0.9652, handY:0.5097, gripX:0.1135, gripY:0.375,
+             aspect:417/620, swAspect:60/460 };
+
 // ---------- 遊戲狀態 ----------
 const G = {
   running:false, paused:false, t:0,
@@ -504,6 +518,7 @@ const G = {
   kills:0, wave:1, waveTimer:0, spawnAcc:0,
   xp:0, xpNeed:6, level:1, pendingLevels:0,
   shake:0, hitstop:0, flash:0, flashC:'255,255,255', banner:null,
+  aim:0.85, facing:1, swing:0, lean:0,
 };
 booted=true;
 
@@ -627,6 +642,9 @@ function launchSword(path){
   }
   G.mana -= cost;
   SND.cast(len);
+  G.swing=1;                                       // 觸發揮砍動作
+  { const p1=path[Math.min(3,path.length-1)];
+    G.aim=Math.atan2(p1.y-G.player.y, p1.x-G.player.x); }
   // 同屏上限:優先淘汰最舊的劍
   const n=stat.count;
   let room=stat.cap - G.swords.length;
@@ -929,6 +947,17 @@ function update(){
   if(G.shake>0) G.shake*=0.86; if(G.shake<0.2) G.shake=0;
   if(G.flash>0) G.flash-=0.035;
   if(G.banner){ G.banner.life-=0.0085; if(G.banner.life<=0) G.banner=null; }
+  // 角色朝向:面向最近的妖魔,平時劍斜垂
+  {
+    let best=null,bd=1e9;
+    for(const en of G.enemies){ const dd=(en.x-P.x)**2+(en.y-P.y)**2; if(dd<bd){bd=dd;best=en;} }
+    const want = best ? Math.atan2(best.y-P.y,best.x-P.x) : (G.facing>0?0.8:Math.PI-0.8);
+    let da=want-G.aim; while(da>Math.PI)da-=6.283; while(da<-Math.PI)da+=6.283;
+    G.aim+=da*0.09;
+    G.facing = Math.cos(G.aim)>=0 ? 1 : -1;
+  }
+  if(G.swing>0) G.swing=Math.max(0,G.swing-0.075);
+  G.lean += ((G.swing>0.1?1:0)-G.lean)*0.18;
   if(P.pulse>0)P.pulse-=0.05;
   if(G.t%5===0) updateHUD();
 }
@@ -940,6 +969,64 @@ function killEnemy(idx){
   G.kills++; G.player.hp=Math.min(G.player.max,G.player.hp+stat.regen);
   gainXP(en.tier===2?4:en.tier===1?2:1);
   G.enemies.splice(idx,1); updateHUD();
+}
+
+// ---------- 角色:程序化動態 ----------
+// 呼吸(整體微幅縮放)、逐列風動(衣袂與髮絲)、隨敵轉身、出劍時揮砍與身體前傾。
+let heroCv=null, heroHurtCv=null, heroH=0, heroW=0;
+function bakeHero(h){
+  if(heroCv && heroH===h) return;
+  heroH=h; heroW=Math.round(h*HERO.aspect);
+  const mk=tint=>{
+    const c=document.createElement('canvas');
+    c.width=Math.max(1,heroW*DPR); c.height=Math.max(1,h*DPR);
+    const g=c.getContext('2d'); g.setTransform(DPR,0,0,DPR,0,0);
+    g.drawImage(ART.body,0,0,heroW,h);
+    if(tint){ g.globalCompositeOperation='source-atop'; g.fillStyle=tint; g.fillRect(0,0,heroW,h); }
+    return c;
+  };
+  heroCv=mk(null); heroHurtCv=mk('rgba(176,56,40,0.85)');
+}
+function drawHero(P){
+  const h=P.r*4.7;
+  bakeHero(h);
+  const w=heroW, feet=P.y+P.r*1.05;
+  const br=Math.sin(G.t*0.042);
+  const src=P.pulse>0.15 ? heroHurtCv : heroCv;
+  ctx.save();
+  ctx.translate(P.x, feet+br*1.1);
+  ctx.rotate(G.lean*0.10*G.facing);              // 出劍時的前傾
+  ctx.scale(G.facing, 1+br*0.014);               // 轉身 + 呼吸
+  const N=28, sh=h/N, sDPR=src.height/h;
+  for(let i=0;i<N;i++){
+    const y0=i*sh, ry=(y0+sh*0.5)/h;
+    // 風動幅度:腳下錨定為 0,腰以下的衣袂最大;頭頂髮絲另給一份小幅
+    const robe=Math.max(0,Math.min(1,(ry-0.30)/0.42))*(1-Math.max(0,Math.min(1,(ry-0.87)/0.13)));
+    const hair=Math.max(0,1-Math.abs(ry-0.14)/0.17);
+    const amp=(robe*0.085+hair*0.05)*w*(1+G.swing*0.9);
+    const dx=Math.sin(ry*7.4-G.t*0.052)*amp + Math.sin(ry*3.0-G.t*0.029)*amp*0.45;
+    ctx.drawImage(src, 0, y0*sDPR, src.width, sh*sDPR+1,
+                       -w/2+dx, -h+y0, w, sh+0.7);
+  }
+  ctx.restore();
+  // 手中的劍:繞握點旋轉,平時斜垂,遇敵指向目標,出劍時揮出
+  const hx=P.x + G.facing*((HERO.handX-0.5)*w);
+  const hy=feet-h+HERO.handY*h + br*1.1;
+  let ang=G.aim - Math.sin(G.swing*Math.PI)*1.15*G.facing;
+  const L=P.r*2.55, Wd=L/(1-HERO.gripX), Hd=Wd*HERO.swAspect;
+  ctx.save(); ctx.translate(hx,hy); ctx.rotate(ang);
+  if(Math.cos(ang)<0) ctx.scale(1,-1);            // 朝左時翻正,刃口不會上下顛倒
+  ctx.globalAlpha=0.96;
+  ctx.drawImage(ART.sword, -Wd*HERO.gripX, -Hd*HERO.gripY, Wd, Hd);
+  ctx.restore();
+  // 揮砍殘影
+  if(G.swing>0.05){
+    ctx.save(); ctx.translate(hx,hy);
+    ctx.strokeStyle='rgba(40,34,28,'+(G.swing*0.30)+')';
+    ctx.lineWidth=2.2; ctx.lineCap='round';
+    ctx.beginPath(); ctx.arc(0,0,L*0.92, ang-0.5*G.facing, ang+0.5*G.facing, G.facing<0);
+    ctx.stroke(); ctx.restore();
+  }
 }
 
 // ---------- 五行元素調色 ----------
@@ -971,12 +1058,43 @@ function buildJian(){
 // ---------- 程序化水墨劍造型(東方素雅劍) ----------
 // 本地座標:劍尖朝 +x,劍柄在 -x。比例隨劍氣寬度 stat.size 縮放。
 function drawJian(ctx, s){
+  const EL=ELEM[stat.element]||ELEM.none;
+  if(ART.ok){
+    const BL=30+stat.size*1.9;
+    const Wd=BL/(1-HERO.gripX), Hd=Math.max(6,Wd*HERO.swAspect);
+    ctx.save(); ctx.translate(s.x,s.y); ctx.rotate(s.ang);
+    // 劍氣:沿刃身的光暈,近柄濃、近尖散,顏色由元素決定
+    const hal=ctx.createLinearGradient(-Wd*HERO.gripX,0,BL*1.06,0);
+    hal.addColorStop(0,EL.halo0); hal.addColorStop(0.42,EL.halo1); hal.addColorStop(1,EL.halo2);
+    ctx.lineCap='round'; ctx.strokeStyle=hal;
+    ctx.lineWidth=Hd*(stat.element==='none'?0.9:1.5);
+    ctx.beginPath(); ctx.moveTo(-Wd*HERO.gripX*0.5,0); ctx.lineTo(BL*1.02,0); ctx.stroke();
+    if(Math.cos(s.ang)<0) ctx.scale(1,-1);
+    ctx.drawImage(swordTint(), -Wd*HERO.gripX, -Hd*HERO.gripY, Wd, Hd);
+    ctx.restore();
+    return;
+  }
   if(!jianSprite || jianKey!==(stat.size+'|'+stat.element+'|'+meta.skin)) buildJian();
   ctx.save();
   ctx.translate(s.x, s.y); ctx.rotate(s.ang);
   ctx.drawImage(jianSprite, jianOX, jianOY,
     jianSprite.width/DPR, jianSprite.height/DPR);
   ctx.restore();
+}
+// 依元素/外觀替劍身上色,烘一次重複使用
+let swTintCv=null, swTintKey='';
+function swordTint(){
+  const key=stat.element+'|'+meta.skin;
+  if(swTintCv && swTintKey===key) return swTintCv;
+  const c=document.createElement('canvas');
+  c.width=ART.sword.width; c.height=ART.sword.height;
+  const g=c.getContext('2d');
+  g.drawImage(ART.sword,0,0);
+  const tint = stat.element==='fire' ? 'rgba(198,72,28,0.72)'
+             : stat.element==='ice'  ? 'rgba(84,150,200,0.72)'
+             : (meta.skin==='gold'   ? 'rgba(198,150,60,0.66)' : null);
+  if(tint){ g.globalCompositeOperation='source-atop'; g.fillStyle=tint; g.fillRect(0,0,c.width,c.height); }
+  swTintCv=c; swTintKey=key; return c;
 }
 // 實際把劍畫在原點朝 +x —— 只在烘貼圖時呼叫一次
 function paintJian(ctx){
@@ -1133,35 +1251,40 @@ function draw(){
   ctx.globalAlpha=1;
 
   const P=G.player;
-  // 靈石
+  // 中央:劍客本人(法陣落在腳下,呈橢圓像地面陣紋)
   if(DRAWLV>=3){
   ctx.save();
+  const feet=P.y+P.r*1.05;
   if(FX.glow){
-    const glow=ctx.createRadialGradient(P.x,P.y,4,P.x,P.y,P.r+18+P.pulse*30);
-    glow.addColorStop(0,'rgba(120,150,110,.9)'); glow.addColorStop(1,'rgba(120,150,110,0)');
-    ctx.fillStyle=glow; ctx.beginPath(); ctx.arc(P.x,P.y,P.r+18+P.pulse*30,0,6.28); ctx.fill();
+    const glow=ctx.createRadialGradient(P.x,feet,4,P.x,feet,P.r+22+P.pulse*30);
+    glow.addColorStop(0,'rgba(120,150,110,.55)'); glow.addColorStop(1,'rgba(120,150,110,0)');
+    ctx.save(); ctx.translate(P.x,feet); ctx.scale(1,0.42); ctx.translate(-P.x,-feet);
+    ctx.fillStyle=glow; ctx.beginPath(); ctx.arc(P.x,feet,P.r+22+P.pulse*30,0,6.28); ctx.fill();
+    ctx.restore();
   }
-  // 護石法陣:雙環反向緩轉,低血時轉紅加速
   const hpr=Math.max(0,P.hp/P.max), urg=1+(1-hpr)*2.2;
-  ctx.translate(P.x,P.y);
-  ctx.strokeStyle=hpr<0.35?'rgba(176,64,48,'+(0.30+Math.sin(G.t*0.12)*0.16)+')':'rgba(74,90,58,.34)';
-  ctx.lineWidth=1.2;
+  ctx.save(); ctx.translate(P.x,feet); ctx.scale(1,0.42);
+  ctx.strokeStyle=hpr<0.35?'rgba(176,64,48,'+(0.34+Math.sin(G.t*0.12)*0.18)+')':'rgba(74,90,58,.38)';
+  ctx.lineWidth=1.4/0.42*0.42;
   for(let ring=0;ring<2;ring++){
     ctx.save(); ctx.rotate(G.t*0.004*urg*(ring?-1:1));
-    const rr=P.r+11+ring*8;
+    const rr=P.r+12+ring*10;
     ctx.beginPath(); ctx.arc(0,0,rr,0,6.28); ctx.stroke();
     const seg=ring?6:8;
     for(let i=0;i<seg;i++){ const a=i/seg*6.283;
-      ctx.beginPath(); ctx.moveTo(Math.cos(a)*(rr-3),Math.sin(a)*(rr-3));
-      ctx.lineTo(Math.cos(a)*(rr+3),Math.sin(a)*(rr+3)); ctx.stroke(); }
+      ctx.beginPath(); ctx.moveTo(Math.cos(a)*(rr-4),Math.sin(a)*(rr-4));
+      ctx.lineTo(Math.cos(a)*(rr+4),Math.sin(a)*(rr+4)); ctx.stroke(); }
     ctx.restore();
   }
-  ctx.translate(-P.x,-P.y);
-  const bre=Math.sin(G.t*0.05)*0.9;
-  ctx.fillStyle=P.pulse>0.3?'#b04030':'#4a5a3a'; ctx.beginPath(); ctx.arc(P.x,P.y,P.r+bre,0,6.28); ctx.fill();
-  ctx.strokeStyle='#2b2620'; ctx.lineWidth=2; ctx.stroke();
-  ctx.fillStyle='#e9e0cc'; ctx.font='22px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.fillText('靈',P.x,P.y+1);
+  ctx.restore();
+  if(ART.ok) drawHero(P);
+  else {                                            // 貼圖沒載到:退回原本的靈石
+    ctx.fillStyle=P.pulse>0.3?'#b04030':'#4a5a3a';
+    ctx.beginPath(); ctx.arc(P.x,P.y,P.r,0,6.28); ctx.fill();
+    ctx.strokeStyle='#2b2620'; ctx.lineWidth=2; ctx.stroke();
+    ctx.fillStyle='#e9e0cc'; ctx.font='22px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('靈',P.x,P.y+1);
+  }
   ctx.restore();
   }
 
@@ -1616,7 +1739,8 @@ function start(){
   Object.assign(G,{running:true,paused:false,t:0,enemies:[],swords:[],particles:[],inks:[],texts:[],stains:[],
     kills:0,wave:1,waveTimer:0,spawnAcc:0,xp:0,xpNeed:6,level:1,pendingLevels:0,mana:100,
     auto:false,autoUsed:false,autoTimer:0,
-    shake:0,hitstop:0,flash:0,flashC:'255,255,255',banner:null});
+    shake:0,hitstop:0,flash:0,flashC:'255,255,255',banner:null,
+    aim:0.85,facing:1,swing:0,lean:0});
   SND.unlock(); SND.intensity(1); SND.startMusic(); SND.duck(false);
   Object.assign(stat,{count:1,formation:'fan',damage:24,size:9,speed:11,pierce:1,homing:0,explode:0,
     element:'none',ember:0,ice:0,
