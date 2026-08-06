@@ -6,17 +6,34 @@
 <title>墨劍訣 Inkblade · 水墨仙俠</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-  html,body { width:100%; height:100%; overflow:hidden; background:#2b2620;
+  html,body { width:100%; height:100%; height:100dvh; overflow:hidden; background:#2b2620;
     font-family:"Noto Serif TC","STKaiti","KaiTi","LiSu",serif; touch-action:none; user-select:none; }
-  #wrap { position:relative; width:100vw; height:100vh; }
-  canvas { display:block; width:100%; height:100%; }
+  #wrap { position:relative; width:100vw; height:100vh; height:100dvh; }
+  /* 紙層與暈影層改由 CSS 合成:靜態內容交給 GPU 圖層,完全不進每幀繪圖,
+     整頁也只剩一張畫布(先前三張滿版畫布並存 + 每幀滿版 blit 是效能疑點)。*/
+  #paper { position:absolute; inset:0; z-index:0; background-repeat:repeat; }
+  canvas { position:absolute; inset:0; display:block; width:100%; height:100%; z-index:1; }
+  #vig { position:absolute; inset:0; z-index:2; pointer-events:none;
+    background:radial-gradient(ellipse at center,
+      rgba(60,48,34,0) 34%, rgba(60,48,34,.14) 70%, rgba(60,48,34,.30) 100%); }
+  #hud { z-index:5; }
 
-  /* HUD */
-  #hud { position:absolute; top:0; left:0; right:0; padding:14px 18px; pointer-events:none;
-    display:flex; justify-content:space-between; align-items:flex-start; color:#3a332a; }
-  .panel { background:rgba(244,238,224,.72); border:1px solid rgba(90,70,50,.35);
-    border-radius:6px; padding:6px 12px; backdrop-filter:blur(2px); }
-  #barwrap { width:220px; }
+  /* HUD —— 三欄 flex,窄螢幕時控制列自動換行到第二排 */
+  #hud { position:absolute; top:0; left:0; right:0; pointer-events:none; color:#3a332a;
+    padding:calc(10px + env(safe-area-inset-top)) clamp(8px,2.4vw,18px) 0;
+    display:flex; justify-content:space-between; align-items:flex-start;
+    gap:clamp(6px,1.4vw,14px); flex-wrap:wrap; }
+  .panel { background:rgba(246,240,226,.88); border:1px solid rgba(90,70,50,.35);
+    border-radius:6px; padding:6px 12px; }
+  #barwrap { width:clamp(150px,24vw,220px); flex:0 1 auto; }
+  #scorewrap { text-align:right; flex:0 0 auto; }
+  #ctrls { display:flex; gap:clamp(5px,1vw,10px); justify-content:center; flex-wrap:wrap;
+    flex:1 1 auto; order:2; }
+  #scorewrap { order:3; }
+  .ctl { pointer-events:auto; cursor:pointer; font-size:clamp(12px,1.5vw,14px);
+    letter-spacing:2px; color:#3a332a; white-space:nowrap;
+    min-height:32px; display:flex; align-items:center; }
+  .ctl:hover { color:#7a2b2b; }
   .bar { height:9px; background:rgba(90,70,50,.25); border-radius:5px; overflow:hidden; margin-top:4px; }
   .bar > i { display:block; height:100%; width:0%; transition:width .18s; }
   #hpfill { background:linear-gradient(90deg,#7a2b2b,#c0392b); }
@@ -29,42 +46,44 @@
 
   /* 詞條選單 */
   #overlay { position:absolute; inset:0; display:none; align-items:center; justify-content:center;
-    background:rgba(25,22,18,.55); backdrop-filter:blur(3px); z-index:20; }
+    background:rgba(25,22,18,.72); z-index:20; }   /* 選卡頻繁出現,不用 backdrop-filter */
   #overlay.show { display:flex; }
-  #cardbox { text-align:center; max-width:900px; padding:0 20px; }
-  #cardbox h2 { color:#f3ecd8; font-size:30px; letter-spacing:8px; margin-bottom:6px;
-    text-shadow:0 2px 8px rgba(0,0,0,.5); }
-  #cardbox p.tip { color:#c9bfa6; letter-spacing:2px; margin-bottom:26px; font-size:14px; }
-  #cards { display:flex; gap:20px; justify-content:center; flex-wrap:wrap; }
-  .card { width:210px; min-height:250px; background:linear-gradient(180deg,#f6f0e0,#e6dcc4);
-    border:1px solid #b8a888; border-radius:10px; padding:22px 18px; cursor:pointer;
+  #cardbox { text-align:center; max-width:900px; width:100%; padding:0 clamp(10px,3vw,20px);
+    max-height:92dvh; overflow-y:auto; }
+  #cardbox h2 { color:#f3ecd8; font-size:clamp(21px,4.4vw,30px); letter-spacing:clamp(4px,1.2vw,8px);
+    margin-bottom:6px; text-shadow:0 2px 8px rgba(0,0,0,.5); }
+  #cardbox p.tip { color:#c9bfa6; letter-spacing:2px; margin-bottom:clamp(12px,2.6vw,26px);
+    font-size:clamp(12px,1.6vw,14px); }
+  #lvqueue { color:#c08a2e; margin-top:-8px; }
+  #lvqueue:empty { display:none; }
+  #cards { display:flex; gap:clamp(9px,1.8vw,20px); justify-content:center; flex-wrap:wrap; }
+  .card { width:clamp(140px,27vw,210px); min-height:auto; background:linear-gradient(180deg,#f6f0e0,#e6dcc4);
+    border:1px solid #b8a888; border-radius:10px; padding:clamp(12px,2.2vw,22px) clamp(10px,1.8vw,18px);
+    cursor:pointer;
     display:flex; flex-direction:column; align-items:center; transition:transform .15s, box-shadow .15s;
     box-shadow:0 8px 24px rgba(0,0,0,.4); position:relative; overflow:hidden; }
   .card:hover { transform:translateY(-8px); box-shadow:0 16px 34px rgba(0,0,0,.55); }
-  .card .rune { font-size:52px; margin-bottom:14px; }
-  .card .cname { font-size:22px; font-weight:700; letter-spacing:4px; color:#2e2820; margin-bottom:4px; }
-  .card .rar { font-size:12px; letter-spacing:3px; margin-bottom:12px; }
-  .card .cdesc { font-size:14px; line-height:1.7; color:#4a4033; letter-spacing:1px; }
+  .card .rune { font-size:clamp(32px,6vw,52px); margin-bottom:clamp(6px,1.4vw,14px); }
+  .card .cname { font-size:clamp(16px,2.4vw,22px); font-weight:700; letter-spacing:clamp(2px,.5vw,4px);
+    color:#2e2820; margin-bottom:4px; }
+  .card .rar { font-size:clamp(11px,1.3vw,12px); letter-spacing:3px; margin-bottom:clamp(6px,1.2vw,12px); }
+  .card .cdesc { font-size:clamp(12px,1.5vw,14px); line-height:1.65; color:#4a4033; letter-spacing:.5px; }
   .rar-n { color:#6b7a55; } .rar-r { color:#3f6ea5; } .rar-e { color:#8a5bb0; } .rar-l { color:#c08a2e; }
   .card.lv-r { border-color:#3f6ea5; } .card.lv-e { border-color:#8a5bb0; } .card.lv-l { border-color:#c08a2e; }
 
   /* 開始 / 結束 */
-  #pausebtn { position:absolute; top:14px; left:50%; transform:translateX(-50%);
-    pointer-events:auto; cursor:pointer; font-size:14px; letter-spacing:3px; color:#3a332a; }
-  #pausebtn:hover { color:#7a2b2b; }
-  #autobtn { position:absolute; top:14px; left:50%; transform:translateX(calc(-50% + 88px));
-    pointer-events:auto; cursor:pointer; font-size:14px; letter-spacing:2px; color:#3a332a; }
   #autobtn.on { color:#6b7a55; border-color:#6b7a55; }
-  #autobtn:hover { color:#7a2b2b; }
+  #sndbtn.off { color:#9a8f7a; }
   #metaoffline { text-align:center; margin:4px 0 2px; font-size:13.5px; color:#5a4e3c; letter-spacing:1px; }
   #metaoffline .claim { display:inline-block; cursor:pointer; margin-left:8px; padding:4px 12px; border-radius:6px;
     background:linear-gradient(180deg,#f0d68a,#d8b24a); border:1px solid #b8912e; color:#4a3a10; letter-spacing:2px; }
   #shop { position:absolute; inset:0; display:none; align-items:center; justify-content:center; z-index:42;
     background:rgba(20,18,14,.72); backdrop-filter:blur(3px); }
   #shop.show { display:flex; }
-  #shopbox { width:min(680px,92vw); max-height:88vh; overflow:auto; background:linear-gradient(180deg,#f6f0e0,#e6dcc4);
-    border:1px solid #b8a888; border-radius:12px; padding:24px 26px; box-shadow:0 18px 50px rgba(0,0,0,.6); }
-  #shopbox h2 { font-size:26px; letter-spacing:8px; color:#2e2820; text-align:center; }
+  #shopbox { width:min(680px,94vw); max-height:88dvh; overflow:auto; background:linear-gradient(180deg,#f6f0e0,#e6dcc4);
+    border:1px solid #b8a888; border-radius:12px; padding:clamp(16px,3vw,24px) clamp(14px,3vw,26px);
+    box-shadow:0 18px 50px rgba(0,0,0,.6); }
+  #shopbox h2 { font-size:clamp(20px,3.6vw,26px); letter-spacing:clamp(4px,1.4vw,8px); color:#2e2820; text-align:center; }
   #shopgems { text-align:center; color:#3f6ea5; letter-spacing:2px; margin:6px 0 6px; font-size:15px; }
   #shopgems b { font-size:22px; color:#3f6ea5; }
   .shopnote { text-align:center; font-size:12px; color:#8a7a5a; letter-spacing:.5px; line-height:1.6; margin:6px 0 10px; }
@@ -73,48 +92,96 @@
   #metabonus { text-align:center; color:#5a4e3c; letter-spacing:1px; font-size:13px; margin:-8px 0 6px; }
   #metabonus b { color:#6b7a55; }
   #pause { position:absolute; inset:0; display:none; flex-direction:column; align-items:center; justify-content:center;
-    z-index:35; text-align:center; background:rgba(25,22,18,.55); backdrop-filter:blur(3px); }
+    z-index:35; text-align:center; background:rgba(25,22,18,.72); }
   #pause.show { display:flex; }
   #splash, #gameover { position:absolute; inset:0; display:flex; flex-direction:column;
     align-items:center; justify-content:center; z-index:30; text-align:center;
-    background:rgba(25,22,18,.6); backdrop-filter:blur(3px); }
+    background:rgba(25,22,18,.6); backdrop-filter:blur(3px);
+    overflow-y:auto; padding:calc(16px + env(safe-area-inset-top)) 0 calc(16px + env(safe-area-inset-bottom)); }
   #gameover { display:none; }
-  .title { color:#f3ecd8; font-size:64px; letter-spacing:16px; text-shadow:0 4px 16px rgba(0,0,0,.6); }
-  .stitle { color:#c9bfa6; font-size:16px; letter-spacing:6px; margin:18px 0 34px; line-height:2.2; }
-  .btn { pointer-events:auto; cursor:pointer; color:#2e2820; font-size:20px; letter-spacing:6px;
-    padding:12px 42px; background:linear-gradient(180deg,#f6f0e0,#e0d4b8); border:1px solid #b8a888;
-    border-radius:8px; box-shadow:0 6px 18px rgba(0,0,0,.4); transition:transform .12s; }
+  .title { color:#f3ecd8; font-size:clamp(38px,9vw,64px); letter-spacing:clamp(8px,2.4vw,16px);
+    text-shadow:0 4px 16px rgba(0,0,0,.6); }
+  .stitle { color:#c9bfa6; font-size:clamp(13px,1.8vw,16px); letter-spacing:clamp(3px,1vw,6px);
+    margin:clamp(10px,2vw,18px) 0 clamp(18px,3.6vw,34px); line-height:2.1; padding:0 14px; }
+  .btn { pointer-events:auto; cursor:pointer; color:#2e2820; font-size:clamp(15px,2.2vw,20px);
+    letter-spacing:clamp(3px,1vw,6px); padding:clamp(10px,1.6vw,12px) clamp(20px,4.6vw,42px);
+    background:linear-gradient(180deg,#f6f0e0,#e0d4b8); border:1px solid #b8a888;
+    border-radius:8px; box-shadow:0 6px 18px rgba(0,0,0,.4); transition:transform .12s;
+    min-height:44px; display:flex; align-items:center; justify-content:center; white-space:nowrap; }
   .btn:hover { transform:translateY(-3px); }
-  .seal { color:#a44; font-size:13px; letter-spacing:3px; margin-top:28px; opacity:.8; }
-  .btnrow { display:flex; gap:16px; justify-content:center; }
+  .seal { color:#a44; font-size:13px; letter-spacing:3px; margin-top:clamp(14px,2.8vw,28px); opacity:.8; }
+  .btnrow { display:flex; gap:clamp(8px,1.6vw,16px); justify-content:center; flex-wrap:wrap; padding:0 12px; }
   .btn.ghost { background:rgba(244,238,224,.12); color:#e6dcc4; border-color:rgba(230,220,196,.5); }
 
   /* 轉世閣 */
   #meta { position:absolute; inset:0; display:none; align-items:center; justify-content:center; z-index:40;
     background:rgba(20,18,14,.72); backdrop-filter:blur(3px); }
   #meta.show { display:flex; }
-  #metabox { width:min(680px,92vw); max-height:88vh; overflow:auto; background:linear-gradient(180deg,#f6f0e0,#e6dcc4);
-    border:1px solid #b8a888; border-radius:12px; padding:24px 26px; box-shadow:0 18px 50px rgba(0,0,0,.6); }
-  #metabox h2 { font-size:26px; letter-spacing:8px; color:#2e2820; text-align:center; }
+  #metabox { width:min(680px,94vw); max-height:88dvh; overflow:auto; background:linear-gradient(180deg,#f6f0e0,#e6dcc4);
+    border:1px solid #b8a888; border-radius:12px; padding:clamp(16px,3vw,24px) clamp(14px,3vw,26px);
+    box-shadow:0 18px 50px rgba(0,0,0,.6); }
+  #metabox h2 { font-size:clamp(20px,3.6vw,26px); letter-spacing:clamp(4px,1.4vw,8px); color:#2e2820; text-align:center; }
   #metasouls { text-align:center; color:#7a5a2b; letter-spacing:2px; margin:6px 0 18px; font-size:15px; }
   #metasouls b { font-size:22px; color:#c08a2e; }
-  .mrow { display:flex; align-items:center; gap:14px; padding:11px 12px; border-radius:8px;
-    background:rgba(255,255,255,.4); border:1px solid rgba(120,100,70,.25); margin-bottom:9px; }
+  .mrow { display:flex; align-items:center; gap:clamp(8px,1.4vw,14px); padding:11px 12px; border-radius:8px;
+    background:rgba(255,255,255,.4); border:1px solid rgba(120,100,70,.25); margin-bottom:9px; flex-wrap:wrap; }
   .mrow .mi { flex:1; }
   .mrow .mn { font-size:16px; font-weight:700; letter-spacing:2px; color:#2e2820; }
   .mrow .md { font-size:12.5px; color:#5a4e3c; letter-spacing:.5px; margin-top:2px; }
   .mrow .ml { font-size:12px; color:#8a7a5a; letter-spacing:1px; }
-  .mbuy { cursor:pointer; white-space:nowrap; font-size:14px; letter-spacing:2px; padding:8px 16px;
+  .mbuy { cursor:pointer; white-space:nowrap; font-size:clamp(12.5px,1.6vw,14px); letter-spacing:2px;
+    padding:8px clamp(10px,2vw,16px); min-height:38px;
     border-radius:7px; border:1px solid #b8a888; background:linear-gradient(180deg,#f6f0e0,#e0d4b8); color:#2e2820; }
   .mbuy:hover { transform:translateY(-2px); }
   .mbuy[disabled] { opacity:.4; cursor:default; transform:none; }
   .mbuy.done { background:#8aa06a; color:#233018; border-color:#6b7a55; }
+  /* 診斷面板(按 F 開關,或網址加 ?debug) */
+  #diag { position:absolute; right:10px; bottom:10px; max-width:340px; white-space:pre-wrap; z-index:60; display:none;
+    background:rgba(20,18,14,.86); color:#d8ceb4; border:1px solid rgba(200,180,140,.35);
+    border-radius:8px; padding:10px 13px; font:12px/1.65 ui-monospace,Menlo,Consolas,monospace;
+    white-space:pre; letter-spacing:0; pointer-events:none; min-width:210px; }
+  #diag.show { display:block; }
+  #diag b { color:#f0e2b8; font-weight:700; }
+  #diag .warn { color:#e0a050; }
+  #diag .bad { color:#e06a5a; }
   .mhead { font-size:13px; letter-spacing:3px; color:#7a5a2b; margin:14px 0 8px; border-bottom:1px solid rgba(120,100,70,.3); padding-bottom:4px; }
+
+  /* ===== 響應式:窄螢幕把控制列擠到第二排,避免與左右資訊面板重疊 ===== */
+  @media (max-width: 860px){
+    #ctrls { order:4; flex-basis:100%; margin-top:6px; }
+    .panel { padding:5px 9px; }
+    .label { font-size:12px; }
+    .big { font-size:19px; }
+  }
+  @media (max-width: 520px){
+    #hud { padding-left:8px; padding-right:8px; gap:6px; }
+    #barwrap { width:clamp(128px,44vw,190px); }
+    .ctl { letter-spacing:1px; padding:5px 8px; }
+    .sub { font-size:11px; }
+    .bar { height:7px; }
+  }
+  /* 手機橫置:高度吃緊,壓縮上方留白與卡片 */
+  @media (max-height: 460px){
+    #hud { padding-top:6px; }
+    .panel { padding:4px 8px; }
+    #cardbox h2 { font-size:19px; margin-bottom:2px; }
+    #cardbox p.tip { margin-bottom:8px; }
+    .card { min-height:auto; padding:8px 10px; }
+    .card .rune { font-size:26px; margin-bottom:4px; }
+    .title { font-size:34px; }
+    .stitle { margin:8px 0 14px; }
+  }
+  /* 觸控裝置不套用 hover 位移,避免點擊後卡在浮起狀態 */
+  @media (hover: none){
+    .card:hover, .btn:hover, .mbuy:hover { transform:none; }
+  }
 </style>
 </head>
 <body>
 <div id="wrap">
+  <div id="paper"></div>
   <canvas id="game"></canvas>
+  <div id="vig"></div>
 
   <div id="hud">
     <div class="panel" id="barwrap">
@@ -125,18 +192,22 @@
       <div class="label" style="margin-top:8px;">道行 · <span id="lvtxt">一</span> 重</div>
       <div class="bar"><i id="xpfill"></i></div>
     </div>
-    <div class="panel" style="text-align:right;">
+    <div id="ctrls">
+      <div class="panel ctl" id="pausebtn">‖ 暫停</div>
+      <div class="panel ctl" id="autobtn">⟳ 自動:關</div>
+      <div class="panel ctl" id="sndbtn">♪ 音律:開</div>
+    </div>
+    <div class="panel" id="scorewrap">
       <div class="big" id="killtxt">0</div>
       <div class="sub">斬妖數</div>
       <div class="sub" id="wavetxt" style="margin-top:6px;">第 一 波</div>
     </div>
-    <div class="panel" id="pausebtn">‖ 暫停</div>
-    <div class="panel" id="autobtn">⟳ 自動:關</div>
   </div>
 
   <div id="overlay"><div id="cardbox">
     <h2>悟 · 選一道劍訣</h2>
     <p class="tip">道行精進，天地賜法。點選一張以承其力。</p>
+    <p class="tip" id="lvqueue"></p>
     <div id="cards"></div>
   </div></div>
 
@@ -190,6 +261,8 @@
     </div>
   </div></div>
 
+  <div id="diag"></div>
+
   <div id="shop"><div id="shopbox">
     <h2>商 城</h2>
     <div id="shopgems"></div>
@@ -209,20 +282,230 @@
 'use strict';
 const cv = document.getElementById('game');
 const ctx = cv.getContext('2d');
-let W=0,H=0,DPR=Math.min(window.devicePixelRatio||1,2);
+let W=0,H=0,DPR=Math.min(window.devicePixelRatio||1,2), booted=false;
+let jianSprite=null, jianKey='', jianOX=0, jianOY=0;   // 劍身貼圖(在 resize 前就會被參照)
+
 function resize(){
-  W=window.innerWidth; H=window.innerHeight;
+  // 以畫布實際佔位為準(而非 innerWidth),手機瀏覽器工具列伸縮時才不會偏移
+  const r=cv.getBoundingClientRect();
+  W=Math.max(1,Math.round(r.width)||window.innerWidth);
+  H=Math.max(1,Math.round(r.height)||window.innerHeight);
+  DPR=Math.min(window.devicePixelRatio||1,2,DPR||2);   // 已降階過就不再升回
   cv.width=W*DPR; cv.height=H*DPR; ctx.setTransform(DPR,0,0,DPR,0,0);
+  jianSprite=null;
+  if(booted && G.player){ G.player.x=W/2; G.player.y=H/2; }   // 尺寸變動時靈石重新歸中
 }
-window.addEventListener('resize',resize); resize();
+window.addEventListener('resize',resize);
+window.addEventListener('orientationchange',()=>setTimeout(resize,150));
+if(window.visualViewport) window.visualViewport.addEventListener('resize',resize);
+window.addEventListener('load',()=>setTimeout(resize,60));
+resize();
+
+// ---------- 音律 ----------
+// 背景樂:assets/audio/bgm/battle01.mp3,雙元素等功率交叉淡入淡出循環。
+// 音效:WebAudio 程序化合成(五聲音階撥弦 + 噪音掃頻 + 低頻悶擊),無外部音檔。
+const SND=(function(){
+  const S={ on:true, music:true };
+  let ac=null, master=null, sg=null, rvg=null, noiseBuf=null;
+
+  function makeNoise(sec){
+    const b=ac.createBuffer(1,(ac.sampleRate*sec)|0,ac.sampleRate), d=b.getChannelData(0);
+    for(let i=0;i<d.length;i++) d[i]=Math.random()*2-1;
+    return b;
+  }
+  function impulse(sec,decay){
+    const n=(ac.sampleRate*sec)|0, b=ac.createBuffer(2,n,ac.sampleRate);
+    for(let c=0;c<2;c++){ const d=b.getChannelData(c);
+      for(let i=0;i<n;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/n,decay); }
+    return b;
+  }
+  function init(){
+    if(ac) return true;
+    const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return false;
+    try{ ac=new AC(); }catch(e){ return false; }
+    master=ac.createGain(); master.gain.value=0.85; master.connect(ac.destination);
+    const rv=ac.createConvolver(); rv.buffer=impulse(1.05,2.6);   // 縮短:長卷積在弱機上很貴
+    rvg=ac.createGain(); rvg.gain.value=0.30; rv.connect(rvg); rvg.connect(master);
+    sg=ac.createGain(); sg.gain.value=0.72; sg.connect(master); sg.connect(rv);
+    noiseBuf=makeNoise(2);
+    return true;
+  }
+  function resume(){ if(ac&&ac.state==='suspended') ac.resume(); }
+  const now=()=>ac.currentTime;
+
+  // 撥弦(古箏感:基音 + 微失諧泛音 + 極短起音)
+  function pluck(f,t,dur,vol,dest){
+    const g=ac.createGain(); g.connect(dest||sg);
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(vol,t+0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    const o=ac.createOscillator(); o.type='triangle'; o.frequency.setValueAtTime(f,t);
+    o.frequency.exponentialRampToValueAtTime(f*0.997,t+dur);
+    const o2=ac.createOscillator(); o2.type='sine'; o2.frequency.setValueAtTime(f*2.008,t);
+    const g2=ac.createGain(); g2.gain.setValueAtTime(0.0001,t);
+    g2.gain.exponentialRampToValueAtTime(vol*0.4,t+0.004);
+    g2.gain.exponentialRampToValueAtTime(0.0001,t+dur*0.45);
+    o.connect(g); o2.connect(g2); g2.connect(g);
+    o.start(t); o2.start(t); o.stop(t+dur+0.05); o2.stop(t+dur+0.05);
+  }
+  // 噪音掃頻(劍風、墨爆)
+  function noise(t,dur,vol,f0,f1,q,type){
+    const src=ac.createBufferSource(); src.buffer=noiseBuf; src.loop=true;
+    const bp=ac.createBiquadFilter(); bp.type=type||'bandpass'; bp.Q.value=q||1.2;
+    bp.frequency.setValueAtTime(f0,t); bp.frequency.exponentialRampToValueAtTime(Math.max(60,f1),t+dur);
+    const g=ac.createGain();
+    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(vol,t+0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    src.connect(bp); bp.connect(g); g.connect(sg);
+    src.start(t); src.stop(t+dur+0.05);
+  }
+  // 低頻悶擊(受傷、鐘鳴底)
+  function thud(t,dur,vol,f0,f1){
+    const o=ac.createOscillator(); o.type='sine';
+    o.frequency.setValueAtTime(f0,t); o.frequency.exponentialRampToValueAtTime(f1,t+dur);
+    const g=ac.createGain();
+    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(vol,t+0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    o.connect(g); g.connect(sg); o.start(t); o.stop(t+dur+0.05);
+  }
+
+  // 五聲音階:D 羽調 —— 半音位移 0,2,5,7,10(宮商角徵羽)
+  const PENT=[0,2,5,7,10];
+  const ROOT=146.83; // D3
+  function deg(i){ // i 為音階級數(可跨八度,支援負數)
+    const o=Math.floor(i/5), s=((i%5)+5)%5;
+    return ROOT*Math.pow(2,o+PENT[s]/12);
+  }
+
+  // ===== 背景樂:mp3 循環(雙元素等功率交叉淡入淡出,接縫無空隙) =====
+  // 不走 WebAudio(MediaElementSource 在 file:// 下會被視為跨來源而靜音),
+  // 直接操作 HTMLAudioElement.volume,雙擊開啟本機檔也能正常播放。
+  const BGM=(function(){
+    const TRACK='assets/audio/bgm/battle01.mp3';
+    const XF=2.8;            // 交叉淡入淡出秒數(曲首曲尾各一段)
+    const BASE=0.62;         // 背景樂基準音量
+    let els=null, cur=0, gate=0, gateTo=0, gateSpd=1, raf=null, want=false, ok=true;
+
+    function make(){
+      const el=new Audio(); el.preload='auto'; el.loop=false; el.volume=0;
+      el.addEventListener('error',()=>{ ok=false; },{once:true});   // 找不到音檔就靜靜略過,不影響音效
+      el.src=TRACK;
+      return el;
+    }
+    function ensure(){ if(!els) els=[make(),make()]; }
+    // 等功率淡變:線性權重會在交叉點掉約 6dB,改用 sin 曲線維持音量感一致
+    const shape=w=>Math.sin(Math.max(0,Math.min(1,w))*Math.PI/2);
+    function weight(el){
+      const d=el.duration;
+      if(!d||!isFinite(d)) return 1;
+      const t=el.currentTime;
+      return Math.min(1, t/XF, (d-t)/XF);
+    }
+    let last=0;
+    function tick(){
+      const ts=performance.now();
+      const dt=Math.min(0.2,(ts-last)/1000||0.05); last=ts;
+      // 總開關的淡入淡出
+      if(gate<gateTo) gate=Math.min(gateTo,gate+dt/gateSpd);
+      else if(gate>gateTo) gate=Math.max(gateTo,gate-dt/gateSpd);
+      if(!els) return;
+      for(const el of els){
+        if(el.paused) continue;
+        const v=Math.max(0,Math.min(1, BASE*gate*shape(weight(el)) ));
+        if(Math.abs(v-el.volume)>0.004) el.volume=v;   // 變化太小就不寫,省媒體管線往返
+      }
+      // 排程接曲:現行曲目剩餘不足 XF 時,另一軌從頭淡入
+      const a=els[cur], b=els[1-cur];
+      if(!a.paused && a.duration && isFinite(a.duration)){
+        if(a.duration-a.currentTime<=XF && b.paused){
+          try{ b.currentTime=0; b.volume=0; b.play(); cur=1-cur; }catch(e){}
+        }
+      }
+      // 淡出完畢就真的停住,不留背景解碼
+      if(gateTo===0 && gate<=0.001){
+        for(const el of els) if(!el.paused) el.pause();
+        clearInterval(raf); raf=null;
+      }
+    }
+    function loop(){ if(raf==null){ last=performance.now(); raf=setInterval(tick,50); } }
+    return {
+      play(fade){
+        want=true; ensure(); if(!ok) return;
+        gateTo=1; gateSpd=fade||1.8;
+        const a=els[cur];
+        if(a.paused){ a.volume=0; const pr=a.play(); if(pr&&pr.catch) pr.catch(()=>{}); }
+        loop();
+      },
+      stop(fade){
+        want=false; gateTo=0; gateSpd=fade||0.5;
+        if(els) loop();
+      },
+      kill(){ want=false; gate=gateTo=0;
+        if(els){ for(const el of els){ try{el.pause();}catch(e){} el.volume=0; } }
+        if(raf!=null){ clearInterval(raf); raf=null; } },
+      get wanted(){ return want; },
+    };
+  })();
+
+  function startMusic(){ if(S.music) BGM.play(1.8); }
+  function stopMusic(fade){ BGM.stop(fade||0.5); }
+
+  const api={
+    get on(){return S.on;},
+    setOn(v){ S.on=v;
+              if(!v){ BGM.kill(); if(master) master.gain.value=0; }
+              else { if(master) master.gain.value=0.85; } },
+    unlock(){ if(init()) resume(); },
+    hardMute(v){                       // 診斷用:徹底切斷音訊管線
+      if(v){ BGM.kill(); if(ac&&ac.suspend) ac.suspend(); }
+      else { if(ac&&ac.resume) ac.resume(); if(S.on&&S.music) BGM.play(0.8); } },
+    music(v){ S.music=v; if(v) startMusic(); else stopMusic(); },
+    startMusic(){ if(S.on&&S.music){ init(); resume(); startMusic(); } },
+    stopMusic(f){ stopMusic(f); },
+    duck(){},                       // 保留介面;現行設計為暫停即完全停止
+    intensity(){},                  // 預留:日後依波次切換 battle02/03 或 boss01
+
+    cast(len){ if(!S.on||!ac)return; const t=now();
+      const l=Math.min(1,len/600);
+      noise(t,0.16+l*0.14,0.16,900+l*900,260,1.6);
+      pluck(deg(9+Math.floor(l*3)),t,0.5,0.075); },
+    hit(){ if(!S.on||!ac)return; const t=now();
+      noise(t,0.07,0.13,1800,600,2.2); thud(t,0.08,0.10,190,90); },
+    crit(){ if(!S.on||!ac)return; const t=now();
+      noise(t,0.10,0.16,3200,900,3.0); pluck(deg(14),t,0.6,0.12); pluck(deg(16),t+0.03,0.5,0.09); },
+    kill(tier){ if(!S.on||!ac)return; const t=now();
+      noise(t,0.22+tier*0.05,0.15,700-tier*180,120,0.9,'lowpass');
+      thud(t,0.20+tier*0.08,0.13,150-tier*30,52); },
+    boom(){ if(!S.on||!ac)return; const t=now();
+      noise(t,0.42,0.22,1400,120,0.8,'lowpass'); thud(t,0.38,0.20,120,38); },
+    hurt(){ if(!S.on||!ac)return; const t=now();
+      thud(t,0.34,0.26,120,44); noise(t,0.18,0.12,420,110,0.8,'lowpass'); },
+    nomana(){ if(!S.on||!ac)return; const t=now();
+      pluck(deg(2),t,0.22,0.07); noise(t,0.08,0.05,320,180,1.0); },
+    level(){ if(!S.on||!ac)return; const t=now();
+      [7,9,11,14].forEach((d,i)=>pluck(deg(d),t+i*0.075,1.6,0.15)); },
+    pick(){ if(!S.on||!ac)return; const t=now();
+      pluck(deg(12),t,0.9,0.13); pluck(deg(16),t+0.05,0.8,0.09); },
+    wave(){ if(!S.on||!ac)return; const t=now();      // 磬鳴
+      thud(t,1.6,0.20,138,66); pluck(deg(0),t,2.2,0.14); pluck(deg(2),t+0.02,2.0,0.09);
+      noise(t,0.5,0.06,2600,700,1.2); },
+    over(){ stopMusic(1.6); if(!S.on||!ac)return; const t=now();
+      [11,9,7,4,0].forEach((d,i)=>pluck(deg(d),t+i*0.16,2.0,0.16));
+      thud(t+0.1,2.2,0.18,110,40); },
+    ui(){ if(!S.on||!ac)return; pluck(deg(11),now(),0.4,0.08); },
+  };
+  return api;
+})();
 
 // ---------- 遊戲狀態 ----------
 const G = {
   running:false, paused:false, t:0,
-  player:null, enemies:[], swords:[], particles:[], inks:[], texts:[],
+  player:null, enemies:[], swords:[], particles:[], inks:[], texts:[], stains:[],
   kills:0, wave:1, waveTimer:0, spawnAcc:0,
-  xp:0, xpNeed:6, level:1,
+  xp:0, xpNeed:6, level:1, pendingLevels:0,
+  shake:0, hitstop:0, flash:0, flashC:'255,255,255', banner:null,
 };
+booted=true;
 
 // 詞條(可堆疊)
 const stat = {
@@ -261,14 +544,16 @@ const META_UNLOCK = [
   {id:'homing',name:'御劍傳承',      desc:'仙品詞條〈御劍追魂〉出現機率提高', cost:150},
 ];
 let meta = { souls:0, best:{kills:0,wave:1,level:1}, up:{}, unlock:{},
-             lastSeen:Date.now(), gems:0, offCap:8, skin:'none' };
+             lastSeen:Date.now(), gems:0, offCap:8, skin:'none', mute:false };
 function loadMeta(){
   try{ const s=localStorage.getItem('inkjian_meta'); if(s){ meta=Object.assign(meta,JSON.parse(s)); } }catch(e){}
   meta.up=meta.up||{}; meta.unlock=meta.unlock||{}; meta.best=meta.best||{kills:0,wave:1,level:1};
   meta.gems=meta.gems||0; meta.offCap=meta.offCap||8; meta.skin=meta.skin||'none';
+  meta.mute=!!meta.mute;
 }
 function saveMeta(){ try{ localStorage.setItem('inkjian_meta',JSON.stringify(meta)); }catch(e){} }
 loadMeta();
+SND.setOn(!meta.mute);
 // 離開時記錄時間,供閉關(離線)收益計算
 function stamp(){ meta.lastSeen=Date.now(); saveMeta(); }
 window.addEventListener('beforeunload',stamp);
@@ -338,9 +623,10 @@ function launchSword(path){
   const cost=stat.costBase + len*stat.costPerPx;
   const s0=path[0];
   if(G.mana < cost){
-    floatText(s0.x,s0.y-14,'靈力不足','#c08a2e'); burst(s0.x,s0.y,'#8a7a5a',5); return;
+    floatText(s0.x,s0.y-14,'靈力不足','#c08a2e'); burst(s0.x,s0.y,'#8a7a5a',5); SND.nomana(); return;
   }
   G.mana -= cost;
+  SND.cast(len);
   // 同屏上限:優先淘汰最舊的劍
   const n=stat.count;
   let room=stat.cap - G.swords.length;
@@ -374,6 +660,17 @@ function ink(x,y,vx,vy,r){ G.inks.push({x,y,vx,vy,r,a:0.5,life:1}); }
 function burst(x,y,c,n){ for(let i=0;i<n;i++){const a=Math.random()*6.28,s=1+Math.random()*4;
   G.particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:1,c});}}
 function floatText(x,y,txt,c){ G.texts.push({x,y,txt,c,life:1}); }
+// 畫面震動 / 頓幀 / 閃光 —— 打擊感三件套
+function shake(v){ G.shake=Math.min(22,G.shake+v); }
+function hitstop(f){ G.hitstop=Math.max(G.hitstop,f); }
+function flash(a,c){ G.flash=Math.max(G.flash,a); G.flashC=c||'255,255,255'; }
+// 宣紙墨漬:斬妖留痕,用預烘貼圖繪製,可保留緩緩滲淡
+function stain(x,y,r,c){
+  if(!blots) buildBlots();
+  if(G.stains.length>70) G.stains.shift();
+  G.stains.push({x,y,r:r*1.6,rot:Math.random()*6.283,
+                 im:blots[(Math.random()*blots.length)|0], a:0.20});
+}
 
 // ---------- 詞條池 ----------
 const AFFIXES=[
@@ -407,6 +704,7 @@ function affixWeight(a){
   return RARW[a.rar];
 }
 function drawCards(){
+  if(!G.running) return;
   // 加權抽三張不重複(未解鎖的秘傳詞條不入池)
   const pool=AFFIXES.filter(a=> !(a.id==='storm' && !meta.unlock.storm)); const pick=[];
   while(pick.length<3&&pool.length){
@@ -422,20 +720,43 @@ function drawCards(){
       <div class="cname">${a.name}</div>
       <div class="rar rar-${a.rar}">${RARNAME[a.rar]}</div>
       <div class="cdesc">${a.desc}</div>`;
-    el.onclick=()=>{ a.apply(); closeLevelUp(); };
+    el.onclick=()=>{ SND.pick(); a.apply(); closeLevelUp(); };
     box.appendChild(el);
   });
+  // 連升多重時,標示還剩幾次可選
+  const q=document.getElementById('lvqueue');
+  q.textContent = G.pendingLevels>1 ? '連升 '+num2cn(G.pendingLevels)+' 重 · 尚餘 '+num2cn(G.pendingLevels-1)+' 次待選' : '';
   document.getElementById('overlay').classList.add('show');
-  G.paused=true;
+  G.paused=true;   // 選卡時背景樂照常演奏,只凍結戰鬥
 }
-function closeLevelUp(){ document.getElementById('overlay').classList.remove('show'); G.paused=false; }
+// 選完一張:扣掉一次待選,若仍有存量就接著彈下一張(不再互相覆蓋)
+function closeLevelUp(){
+  if(G.pendingLevels>0) G.pendingLevels--;
+  if(G.pendingLevels>0 && G.running){ drawCards(); return; }
+  document.getElementById('overlay').classList.remove('show');
+  G.paused=pausedByUser;
+}
+// 統一入口:有待選且沒被玩家暫停時才開啟
+function tryLevelUp(){
+  if(!G.running || G.pendingLevels<=0) return;
+  if(pausedByUser) return;                                   // 暫停中先不打擾,繼續時再補
+  if(document.getElementById('overlay').classList.contains('show')) return;
+  drawCards();
+}
 
 // ---------- 升級 ----------
 function gainXP(n){
   G.xp+=n;
+  let gained=0;
   while(G.xp>=G.xpNeed){
     G.xp-=G.xpNeed; G.level++; G.xpNeed=Math.round(G.xpNeed*1.35+3);
-    drawCards();
+    G.pendingLevels++; gained++;
+  }
+  if(gained){
+    SND.level(); flash(0.20,'246,240,214');
+    for(let k=0;k<14;k++){ const a=Math.random()*6.283;
+      ink(G.player.x,G.player.y,Math.cos(a)*3.4,Math.sin(a)*3.4,10+Math.random()*12); }
+    tryLevelUp();
   }
   updateHUD();
 }
@@ -474,9 +795,27 @@ function update(){
       let best=null,bd=1e9;
       for(const en of G.enemies){ const dd=(en.x-P.x)**2+(en.y-P.y)**2; if(dd<bd){bd=dd;best=en;} }
       if(best){
-        const ang=Math.atan2(best.y-P.y,best.x-P.x);
-        const path=[{x:P.x+Math.cos(ang)*P.r,y:P.y+Math.sin(ang)*P.r},
-                    {x:P.x+Math.cos(ang)*(P.r+90),y:P.y+Math.sin(ang)*(P.r+90)}];
+        const aim=Math.atan2(best.y-P.y,best.x-P.x);
+        let ang=aim;
+        // 陣型補正:扇形/平行在偶數劍數時左右分岔,原本會夾住目標而全部落空。
+        // 這裡反算出「最接近中線的那把劍」的偏移量,預先反向補償,保證它正中目標。
+        const n=stat.count; let shift=0;
+        if(n>1 && stat.formation==='fan'){
+          const spread=Math.min(0.55,0.14*(n-1));
+          let bo=1e9;
+          for(let i=0;i<n;i++){ const o=(i/(n-1)-0.5)*spread*2; if(Math.abs(o)<Math.abs(bo)) bo=o; }
+          ang-=bo;                                   // 反向預旋
+        } else if(n>1 && stat.formation==='parallel'){
+          const mid=(n-1)/2, gap=stat.size*2.2+10;
+          let bo=1e9;
+          for(let i=0;i<n;i++){ const o=(i-mid)*gap; if(Math.abs(o)<Math.abs(bo)) bo=o; }
+          shift=-bo;                                 // 反向預移(沿法線)
+        }
+        // 出鞘點沿「真實瞄準線」擺放(扇形繞起點旋轉,起點在線上才能完全歸零誤差)
+        const nx=-Math.sin(ang)*shift, ny=Math.cos(ang)*shift;
+        const ox=P.x+Math.cos(aim)*P.r+nx, oy=P.y+Math.sin(aim)*P.r+ny;
+        const path=[{x:ox, y:oy},
+                    {x:ox+Math.cos(ang)*90, y:oy+Math.sin(ang)*90}];
         const before=G.mana; launchSword(path);
         if(G.mana<before){ G.autoUsed=true; G.autoTimer=0; } else { G.autoTimer=28; }
       }
@@ -484,7 +823,9 @@ function update(){
   }
   // 波次與生成
   G.waveTimer++;
-  if(G.waveTimer> 60*14){ G.waveTimer=0; G.wave++; updateHUD(); }
+  if(G.waveTimer> 60*14){ G.waveTimer=0; G.wave++; updateHUD();
+    SND.wave(); SND.intensity(G.wave); flash(0.14,'250,244,226');
+    G.banner={txt:'第 '+num2cn(G.wave)+' 波', life:1}; }
   G.spawnAcc += (0.55 + G.wave*0.14);
   while(G.spawnAcc>=60){ G.spawnAcc-=60; if(G.enemies.length<70) spawnEnemy(); }
 
@@ -506,6 +847,7 @@ function update(){
     if(d < en.r+P.r){
       P.hp -= en.tier===2?18:en.tier===1?11:7; P.pulse=1;
       burst(en.x,en.y,en.c,10); G.enemies.splice(i,1); updateHUD();
+      SND.hurt(); shake(9+en.tier*3); flash(0.22,'176,64,48'); hitstop(4);
       if(P.hp<=0){ gameOver(); return; }
     }
   }
@@ -564,8 +906,10 @@ function update(){
         if(stat.ice>0){ en.chill=100; }
         floatText(en.x,en.y-en.r, Math.round(dmg)+(isCrit?'!':''), isCrit?'#c0392b':'#f3ecd8');
         burst(s.x,s.y,(ELEM[stat.element]||ELEM.none).hit,6);
+        if(isCrit){ SND.crit(); shake(4); hitstop(3); flash(0.12,'240,220,160'); }
+        else { SND.hit(); shake(1.1); }
         if(stat.explode>0){
-          burst(s.x,s.y,'#c0662e',18);
+          burst(s.x,s.y,'#c0662e',18); SND.boom(); shake(7); stain(s.x,s.y,stat.explode*0.5,'170,90,40');
           for(const e2 of G.enemies){ if(e2!==en && Math.hypot(e2.x-s.x,e2.y-s.y)<stat.explode){
             e2.hp-=stat.damage*0.6; e2.hit=6; }}
           for(let k=0;k<8;k++)ink(s.x,s.y,(Math.random()-.5)*4,(Math.random()-.5)*4,10+Math.random()*14);
@@ -581,12 +925,18 @@ function update(){
   for(let i=G.particles.length-1;i>=0;i--){const p=G.particles[i];p.x+=p.vx;p.y+=p.vy;p.vx*=0.92;p.vy*=0.92;p.life-=0.03;if(p.life<=0)G.particles.splice(i,1);}
   for(let i=G.inks.length-1;i>=0;i--){const p=G.inks[i];p.x+=p.vx;p.y+=p.vy;p.vx*=0.9;p.vy*=0.9;p.r*=1.02;p.a-=0.012;p.life-=0.01;if(p.a<=0)G.inks.splice(i,1);}
   for(let i=G.texts.length-1;i>=0;i--){const t=G.texts[i];t.y-=0.7;t.life-=0.02;if(t.life<=0)G.texts.splice(i,1);}
+  for(let i=G.stains.length-1;i>=0;i--){const st=G.stains[i];st.a-=0.00035;if(st.a<=0)G.stains.splice(i,1);}
+  if(G.shake>0) G.shake*=0.86; if(G.shake<0.2) G.shake=0;
+  if(G.flash>0) G.flash-=0.035;
+  if(G.banner){ G.banner.life-=0.0085; if(G.banner.life<=0) G.banner=null; }
   if(P.pulse>0)P.pulse-=0.05;
   if(G.t%5===0) updateHUD();
 }
 function killEnemy(idx){
   const en=G.enemies[idx]; burst(en.x,en.y,en.c,16);
   for(let k=0;k<6;k++)ink(en.x,en.y,(Math.random()-.5)*3,(Math.random()-.5)*3,8+Math.random()*10);
+  stain(en.x,en.y,en.r*1.25,en.c==='#4a3b3b'?'60,48,44':en.c==='#3b2f4a'?'56,44,72':'44,60,58');
+  SND.kill(en.tier); shake(2+en.tier*2.6); if(en.tier===2){ hitstop(4); flash(0.10,'220,210,190'); }
   G.kills++; G.player.hp=Math.min(G.player.max,G.player.hp+stat.regen);
   gainXP(en.tier===2?4:en.tier===1?2:1);
   G.enemies.splice(idx,1); updateHUD();
@@ -603,12 +953,34 @@ const ELEM = {
          spine:'rgba(84,150,200,0.9)', trail:'150,196,230', hit:'#5a9cc0' },
 };
 
+// 劍身每幀每把重畫要建三個漸層加十幾段路徑;造型只跟劍氣寬度/元素/外觀有關,
+// 烘成一張貼圖,之後每把劍只花一次 drawImage。
+function buildJian(){
+  const k=stat.size, BL=30+k*1.9, bw=1.8+k*0.24;
+  const left=-(2+9+k*0.6+4), right=BL+10, half=Math.max(bw*2.6, bw*1.7)+4;
+  const w=right-left, h=half*2;
+  const c=document.createElement('canvas');
+  c.width=Math.ceil(w*DPR); c.height=Math.ceil(h*DPR);
+  const g=c.getContext('2d');
+  g.setTransform(DPR,0,0,DPR,0,0);
+  g.translate(-left, half);
+  paintJian(g);
+  jianSprite=c; jianOX=left; jianOY=-half;
+  jianKey=stat.size+'|'+stat.element+'|'+meta.skin;
+}
 // ---------- 程序化水墨劍造型(東方素雅劍) ----------
 // 本地座標:劍尖朝 +x,劍柄在 -x。比例隨劍氣寬度 stat.size 縮放。
 function drawJian(ctx, s){
+  if(!jianSprite || jianKey!==(stat.size+'|'+stat.element+'|'+meta.skin)) buildJian();
   ctx.save();
-  ctx.translate(s.x, s.y);
-  ctx.rotate(s.ang);
+  ctx.translate(s.x, s.y); ctx.rotate(s.ang);
+  ctx.drawImage(jianSprite, jianOX, jianOY,
+    jianSprite.width/DPR, jianSprite.height/DPR);
+  ctx.restore();
+}
+// 實際把劍畫在原點朝 +x —— 只在烘貼圖時呼叫一次
+function paintJian(ctx){
+  ctx.save();
   ctx.lineCap='round'; ctx.lineJoin='round';
   const k   = stat.size;
   const BL  = 30 + k*1.9;        // 刃長(修長)
@@ -671,35 +1043,130 @@ function drawJian(ctx, s){
   ctx.restore();
 }
 
+// ---------- 靜態圖層 ----------
+// 宣紙底交給 CSS 背景圖(GPU 合成,零每幀成本);暈影是純 CSS 漸層。
+// 畫布只負責會動的東西,每幀用 clearRect 清空。
+function makePaperTile(){
+  const s=200, c=document.createElement('canvas'); c.width=c.height=s;
+  const q=c.getContext('2d');
+  q.fillStyle='#e9e0cc'; q.fillRect(0,0,s,s);
+  for(let i=0;i<520;i++){                                   // 纖維:短促淡色細線
+    const x=Math.random()*s, y=Math.random()*s, a=Math.random()*6.283, l=2+Math.random()*7;
+    q.strokeStyle='rgba('+(Math.random()<0.5?'255,252,242':'150,134,104')+','+(0.03+Math.random()*0.06)+')';
+    q.lineWidth=Math.random()<0.8?0.7:1.3;
+    q.beginPath(); q.moveTo(x,y); q.lineTo(x+Math.cos(a)*l,y+Math.sin(a)*l); q.stroke();
+  }
+  for(let i=0;i<90;i++){                                    // 紙斑
+    q.fillStyle='rgba(140,122,92,'+(0.02+Math.random()*0.05)+')';
+    q.beginPath(); q.arc(Math.random()*s,Math.random()*s,0.6+Math.random()*2.2,0,6.283); q.fill();
+  }
+  return c;
+}
+let paperDone=false;
+function buildPaper(){
+  if(paperDone) return;
+  const tile=makePaperTile();
+  const el=document.getElementById('paper');
+  el.style.backgroundImage='url('+tile.toDataURL('image/png')+')';
+  el.style.backgroundSize=(tile.width/ (window.devicePixelRatio>1?2:1))+'px auto';
+  // 遠山淡墨:再疊一層 CSS 徑向漸層,同樣不進每幀繪圖
+  el.style.backgroundImage=
+    'radial-gradient(circle at 18% 22%, rgba(138,122,90,.085), rgba(138,122,90,0) 42%),'
+   +'radial-gradient(circle at 62% 48%, rgba(138,122,90,.07), rgba(138,122,90,0) 46%),'
+   +'radial-gradient(circle at 88% 78%, rgba(138,122,90,.075), rgba(138,122,90,0) 44%),'
+   +el.style.backgroundImage;
+  paperDone=true;
+}
+
+// 墨漬:預烘六種墨團小貼圖,之後每道墨漬只是一次小 drawImage,可保留漸淡
+let blots=null;
+function buildBlots(){
+  blots=[];
+  for(let b=0;b<6;b++){
+    const S=128, c=document.createElement('canvas'); c.width=c.height=S;
+    const g=c.getContext('2d');
+    const m=7+((Math.random()*3)|0), pts=[];
+    for(let i=0;i<m;i++) pts.push({a:i/m*6.283, r:S*0.5*(0.55+Math.random()*0.42),
+      ox:(Math.random()-.5)*S*0.12, oy:(Math.random()-.5)*S*0.12});
+    g.fillStyle='#000'; g.beginPath();
+    for(let i=0;i<m;i++){
+      const q=pts[i], n=pts[(i+1)%m];
+      const ax=S/2+Math.cos(q.a)*q.r+q.ox, ay=S/2+Math.sin(q.a)*q.r+q.oy;
+      const bx=S/2+Math.cos(n.a)*n.r+n.ox, by=S/2+Math.sin(n.a)*n.r+n.oy;
+      if(i===0) g.moveTo(ax,ay);
+      g.quadraticCurveTo(ax+(bx-ax)*.5+Math.cos(q.a)*q.r*.18,
+                         ay+(by-ay)*.5+Math.sin(q.a)*q.r*.18, bx,by);
+    }
+    g.closePath(); g.fill();
+    blots.push(c);
+  }
+}
+
 // ---------- 繪製 ----------
 function draw(){
-  // 宣紙底
-  ctx.fillStyle='#e9e0cc'; ctx.fillRect(0,0,W,H);
-  // 紙紋暈染
-  ctx.globalAlpha=0.06; ctx.fillStyle='#8a7a5a';
-  for(let i=0;i<3;i++){ ctx.beginPath();
-    ctx.arc((i*0.37+0.2)*W,(i*0.29+0.25)*H, 180+i*60,0,6.28); ctx.fill(); }
-  ctx.globalAlpha=1;
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  buildPaper();
+  ctx.clearRect(0,0,W,H);                    // 紙層在畫布底下,由 CSS 合成
+  // 墨漬:一道一次小貼圖,不再需要滿版圖層
+  if(FX.bg&&DRAWLV>=1&&blots){
+    for(const st of G.stains){
+      ctx.globalAlpha=Math.max(0,st.a);
+      const d=st.r*2;
+      ctx.save(); ctx.translate(st.x,st.y); ctx.rotate(st.rot);
+      ctx.globalCompositeOperation='source-over';
+      ctx.drawImage(st.im,-d/2,-d/2,d,d);
+      ctx.restore();
+    }
+    ctx.globalAlpha=1;
+  }
+
+
+  // 畫面震動:整個戰場位移(HUD 不動)
+  if(G.shake>0){
+    const a=Math.random()*6.283, m=G.shake*0.55;
+    ctx.translate(Math.cos(a)*m, Math.sin(a)*m);
+  }
 
   // 墨暈
-  for(const p of G.inks){ ctx.globalAlpha=Math.max(0,p.a); ctx.fillStyle='#2b2620';
+  if(FX.ink&&DRAWLV>=2) for(const p of G.inks){ ctx.globalAlpha=Math.max(0,p.a); ctx.fillStyle='#2b2620';
     ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,6.28); ctx.fill(); }
   ctx.globalAlpha=1;
 
   const P=G.player;
   // 靈石
+  if(DRAWLV>=3){
   ctx.save();
-  const glow=ctx.createRadialGradient(P.x,P.y,4,P.x,P.y,P.r+18+P.pulse*30);
-  glow.addColorStop(0,'rgba(120,150,110,.9)'); glow.addColorStop(1,'rgba(120,150,110,0)');
-  ctx.fillStyle=glow; ctx.beginPath(); ctx.arc(P.x,P.y,P.r+18+P.pulse*30,0,6.28); ctx.fill();
-  ctx.fillStyle=P.pulse>0.3?'#b04030':'#4a5a3a'; ctx.beginPath(); ctx.arc(P.x,P.y,P.r,0,6.28); ctx.fill();
+  if(FX.glow){
+    const glow=ctx.createRadialGradient(P.x,P.y,4,P.x,P.y,P.r+18+P.pulse*30);
+    glow.addColorStop(0,'rgba(120,150,110,.9)'); glow.addColorStop(1,'rgba(120,150,110,0)');
+    ctx.fillStyle=glow; ctx.beginPath(); ctx.arc(P.x,P.y,P.r+18+P.pulse*30,0,6.28); ctx.fill();
+  }
+  // 護石法陣:雙環反向緩轉,低血時轉紅加速
+  const hpr=Math.max(0,P.hp/P.max), urg=1+(1-hpr)*2.2;
+  ctx.translate(P.x,P.y);
+  ctx.strokeStyle=hpr<0.35?'rgba(176,64,48,'+(0.30+Math.sin(G.t*0.12)*0.16)+')':'rgba(74,90,58,.34)';
+  ctx.lineWidth=1.2;
+  for(let ring=0;ring<2;ring++){
+    ctx.save(); ctx.rotate(G.t*0.004*urg*(ring?-1:1));
+    const rr=P.r+11+ring*8;
+    ctx.beginPath(); ctx.arc(0,0,rr,0,6.28); ctx.stroke();
+    const seg=ring?6:8;
+    for(let i=0;i<seg;i++){ const a=i/seg*6.283;
+      ctx.beginPath(); ctx.moveTo(Math.cos(a)*(rr-3),Math.sin(a)*(rr-3));
+      ctx.lineTo(Math.cos(a)*(rr+3),Math.sin(a)*(rr+3)); ctx.stroke(); }
+    ctx.restore();
+  }
+  ctx.translate(-P.x,-P.y);
+  const bre=Math.sin(G.t*0.05)*0.9;
+  ctx.fillStyle=P.pulse>0.3?'#b04030':'#4a5a3a'; ctx.beginPath(); ctx.arc(P.x,P.y,P.r+bre,0,6.28); ctx.fill();
   ctx.strokeStyle='#2b2620'; ctx.lineWidth=2; ctx.stroke();
   ctx.fillStyle='#e9e0cc'; ctx.font='22px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
   ctx.fillText('靈',P.x,P.y+1);
   ctx.restore();
+  }
 
   // 敵人(墨團妖魔)
-  for(const en of G.enemies){
+  if(DRAWLV>=4) for(const en of G.enemies){
     ctx.save();
     ctx.translate(en.x,en.y);
     const wob=Math.sin(en.wob)*2;
@@ -723,23 +1190,28 @@ function draw(){
   }
 
   // 劍氣
-  for(const s of G.swords){
+  if(DRAWLV>=5) for(const s of G.swords){
     // 墨痕拖尾:沿飛行軌跡的毛筆掃痕,近劍身濃寬、末端漸淡收(依元素著色)
     ctx.lineCap='round'; ctx.lineJoin='round';
     let rgb=(ELEM[stat.element]||ELEM.none).trail;
     if(stat.element==='none' && meta.skin==='gold') rgb='198,150,60'; // 外觀:墨金劍痕
-    for(let k=1;k<s.trail.length;k++){
-      const a=k/s.trail.length;
-      ctx.strokeStyle='rgba('+rgb+','+(a*0.55)+')';
-      ctx.lineWidth=stat.size*1.7*a;
+    if(FX.trail) for(let k=1;k<s.trail.length;k++){
+      const a=k/s.trail.length, ease=a*a;          // 尾端收得更急,像毛筆提起
+      ctx.strokeStyle='rgba('+rgb+','+(ease*0.58)+')';
+      ctx.lineWidth=stat.size*1.8*ease;
       ctx.beginPath(); ctx.moveTo(s.trail[k-1].x,s.trail[k-1].y); ctx.lineTo(s.trail[k].x,s.trail[k].y); ctx.stroke();
+      // 飛白:乾筆刮過的細白絲
+      if(k>s.trail.length-5){
+        ctx.strokeStyle='rgba(250,246,236,'+(ease*0.30)+')'; ctx.lineWidth=stat.size*0.32*ease;
+        ctx.beginPath(); ctx.moveTo(s.trail[k-1].x,s.trail[k-1].y-1); ctx.lineTo(s.trail[k].x,s.trail[k].y-1); ctx.stroke();
+      }
     }
     // 劍身(程序化水墨劍)
     drawJian(ctx, s);
   }
 
   // 當前畫痕
-  if(drawing&&path.length>1){
+  if(DRAWLV>=6 && drawing&&path.length>1){
     ctx.lineCap='round'; ctx.lineJoin='round';
     ctx.strokeStyle= maxed ? 'rgba(192,138,46,.85)' : 'rgba(43,38,32,.75)';
     for(let k=1;k<path.length;k++){
@@ -754,47 +1226,398 @@ function draw(){
   }
 
   // 粒子
-  for(const p of G.particles){ ctx.globalAlpha=Math.max(0,p.life); ctx.fillStyle=p.c;
+  if(FX.part&&DRAWLV>=7) for(const p of G.particles){ ctx.globalAlpha=Math.max(0,p.life); ctx.fillStyle=p.c;
     ctx.beginPath(); ctx.arc(p.x,p.y,2.5*p.life+0.5,0,6.28); ctx.fill(); }
   ctx.globalAlpha=1;
   // 浮字
   ctx.textAlign='center'; ctx.textBaseline='middle';
-  for(const t of G.texts){ ctx.globalAlpha=Math.max(0,t.life); ctx.fillStyle=t.c;
-    ctx.font='bold 16px serif'; ctx.fillText(t.txt,t.x,t.y); }
+  ctx.font='bold 16px serif';
+  if(DRAWLV>=7) for(const t of G.texts){ ctx.globalAlpha=Math.max(0,t.life); ctx.fillStyle=t.c;
+    ctx.fillText(t.txt,t.x,t.y); }
   ctx.globalAlpha=1;
+
+  // ---- 以下不受震動影響 ----
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+
+  // 波次題字:如落款鈐印般淡入淡出
+  if(DRAWLV>=8 && G.banner){
+    const L=G.banner.life, al=Math.min(1,L*2.4)*Math.min(1,(1-L)*6+0.2);
+    ctx.save(); ctx.globalAlpha=Math.max(0,Math.min(1,al))*0.82;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillStyle='#2b2620'; ctx.font='700 46px "Noto Serif TC",serif';
+    ctx.letterSpacing&&(ctx.letterSpacing='10px');
+    ctx.fillText(G.banner.txt, W/2, H*0.22+(1-L)*10);
+    ctx.strokeStyle='rgba(122,43,43,.75)'; ctx.lineWidth=1.4;
+    const bw=120; ctx.beginPath();
+    ctx.moveTo(W/2-bw,H*0.22+34); ctx.lineTo(W/2+bw,H*0.22+34); ctx.stroke();
+    ctx.restore();
+  }
+
+  // 全屏閃光(暴擊、受傷、升級、換波)
+  if(DRAWLV>=8 && G.flash>0){
+    ctx.fillStyle='rgba('+G.flashC+','+Math.max(0,G.flash)+')';
+    ctx.fillRect(0,0,W,H);
+  }
+
+
 }
 
 // ---------- HUD ----------
 const CN=['零','一','二','三','四','五','六','七','八','九','十'];
 function num2cn(n){ if(n<=10)return CN[n]; if(n<20)return '十'+CN[n-10];
   return CN[Math.floor(n/10)]+'十'+(n%10?CN[n%10]:''); }
+const hudCache={};
+function setTxt(id,v){ if(hudCache[id]!==v){ const e=document.getElementById(id); if(!e) return;
+  hudCache[id]=v; e.textContent=v; } }
+function setW(id,v){ if(hudCache['w'+id]!==v){ const e=document.getElementById(id); if(!e) return;
+  hudCache['w'+id]=v; e.style.width=v; } }
 function updateHUD(){
   const P=G.player;
-  document.getElementById('hpfill').style.width=Math.max(0,P.hp/P.max*100)+'%';
-  document.getElementById('hptxt').textContent=Math.max(0,Math.round(P.hp))+' / '+P.max;
-  const mpr=G.mana/stat.manaMax; const mp=document.getElementById('mpfill');
-  mp.style.width=Math.max(0,mpr*100)+'%'; mp.classList.toggle('low',mpr<0.25);
-  document.getElementById('mptxt').textContent=Math.round(G.mana)+' / '+stat.manaMax;
-  document.getElementById('xpfill').style.width=(G.xp/G.xpNeed*100)+'%';
-  document.getElementById('lvtxt').textContent=num2cn(G.level);
-  document.getElementById('killtxt').textContent=G.kills;
-  document.getElementById('wavetxt').textContent='第 '+num2cn(G.wave)+' 波';
+  setW('hpfill',Math.max(0,P.hp/P.max*100).toFixed(1)+'%');
+  setTxt('hptxt',Math.max(0,Math.round(P.hp))+' / '+P.max);
+  const mpr=G.mana/stat.manaMax;
+  setW('mpfill',Math.max(0,mpr*100).toFixed(1)+'%');
+  const mpEl=document.getElementById('mpfill'); if(mpEl) mpEl.classList.toggle('low',mpr<0.25);
+  setTxt('mptxt',Math.round(G.mana)+' / '+stat.manaMax);
+  setW('xpfill',(G.xp/G.xpNeed*100).toFixed(1)+'%');
+  setTxt('lvtxt',num2cn(G.level));
+  setTxt('killtxt',String(G.kills));
+  setTxt('wavetxt','第 '+num2cn(G.wave)+' 波');
 }
 
 // ---------- 迴圈 ----------
-function loop(){
+// ---------- 診斷 ----------
+// 逐項開關,用來在真實機器上二分出瓶頸(數字鍵 1~6 切換,0 全關)
+const FX={ bg:true, vig:true, trail:true, ink:true, part:true, glow:true };
+const FXKEY={'1':['bg','背景層'],'2':['vig','暈影'],'3':['trail','拖尾'],
+             '4':['ink','墨暈'],'5':['part','粒子'],'6':['glow','靈石光暈']};
+// 排除法用:7 停掉所有音訊、9 連 draw() 都不呼叫。
+// 若 9 按下去 fps 仍不變,問題就完全不在畫面繪製,而在瀏覽器合成或環境。
+let NODRAW=false, NOAUDIO=false;
+// 逐段疊加的繪圖層級:0=完全不畫,9=全部畫。用來精準定位是哪一段拖垮 GPU。
+let DRAWLV=9;
+const LVNAME=['0 什麼都不畫','1 背景圖層','2 墨暈','3 靈石法陣','4 敵人',
+              '5 劍(拖尾+劍身)','6 畫痕','7 粒子+浮字','8 題字+閃光','9 暈影圖層'];
+// 硬體加速沒開時 Chrome 會退回 SwiftShader 軟體算圖,全螢幕合成會慢上一個數量級
+let GPU='(未偵測)';
+function detectGPU(){
+  try{
+    const c=document.createElement('canvas');
+    const gl=c.getContext('webgl')||c.getContext('experimental-webgl');
+    if(!gl){ GPU='WebGL 不可用 → 硬體加速應已關閉'; return; }
+    const e=gl.getExtension('WEBGL_debug_renderer_info');
+    let r=e? gl.getParameter(e.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
+    r=String(r).replace(/ANGLE \(|\)$/g,'').slice(0,46);
+    const soft=/swiftshader|software|llvmpipe|basic render/i.test(r);
+    GPU=(soft?'⚠ 軟體算圖 ':'')+r;
+  }catch(err){ GPU='偵測失敗'; }
+}
+detectGPU();
+// 目的是在「你的機器、你的螢幕」上量真實數字,而不是靠開發端推測。
+const DIAG={ on:false, hist:[], upd:0, drw:0, last:0, tAcc:0, tN:0, minD:1e9, el:null, next:0 };
+function diagFrame(ts){
+  if(DIAG.last){
+    const d=ts-DIAG.last;
+    if(d>0.5&&d<500){ DIAG.hist.push(d); if(DIAG.hist.length>180) DIAG.hist.shift();
+      if(d<DIAG.minD) DIAG.minD=d; }
+  }
+  DIAG.last=ts;
+  if(!DIAG.on || ts<DIAG.next) return;
+  DIAG.next=ts+250;
+  const f=DIAG.hist.slice().sort((a,b)=>a-b); if(!f.length) return;
+  const q=x=>f[Math.min(f.length-1,Math.floor(f.length*x))];
+  const p50=q(.5), p95=q(.95), mx=f[f.length-1];
+  const fps=1000/p50;
+  // 用觀察到的最短幀距推估螢幕更新率,才知道 60fps 對你是滿幀還是掉一半
+  const hz=DIAG.minD<1e9 ? Math.round(1000/DIAG.minD) : 0;
+  const cls=v=>v>1000/50?'bad':v>1000/58?'warn':'';
+  const nz=n=>String(n).padStart(4);
+  DIAG.el.innerHTML=
+    '<b>'+fps.toFixed(0)+' fps</b>  <span class="'+cls(p50)+'">p50 '+p50.toFixed(1)+'ms</span>\n'
+    +'p95 '+p95.toFixed(1)+'ms   max '+mx.toFixed(1)+'ms\n'
+    +'螢幕上限 ≈ '+hz+' Hz'+(hz>70?'  <span class="warn">(60fps=掉一半)</span>':'')+'\n'
+    +'update '+DIAG.upd.toFixed(2)+'ms  draw '+DIAG.drw.toFixed(2)+'ms\n'
+    +(hz && p50>1000/hz+3
+        ? '<span class="bad">瀏覽器 '+Math.max(0,p50-DIAG.upd-DIAG.drw).toFixed(1)+'ms</span> ← 合成/點陣化\n'
+        : '其餘 '+Math.max(0,p50-DIAG.upd-DIAG.drw).toFixed(1)+'ms(等 vsync,正常)\n')
+    +'DPR '+DPR+'  畫布 '+(W*DPR|0)+'×'+(H*DPR|0)+'\n'
+    +'<span class="'+(/⚠/.test(GPU)?'bad':'')+'">'+GPU+'</span>\n'
+    +'1背景'+(FX.bg?'✓':'✗')+' 2暈影'+(FX.vig?'✓':'✗')+' 3拖尾'+(FX.trail?'✓':'✗')+'\n'
+    +'4墨暈'+(FX.ink?'✓':'✗')+' 5粒子'+(FX.part?'✓':'✗')+' 6光暈'+(FX.glow?'✓':'✗')+'\n'
+    +'7音訊'+(NOAUDIO?'停':'開')+'　9繪圖'+(NODRAW?'停':'開')+'　0全部特效\n'
+    +'妖'+nz(G.enemies.length)+' 劍'+nz(G.swords.length)+' 粒'+nz(G.particles.length)+'\n'
+    +'墨'+nz(G.inks.length)+' 字'+nz(G.texts.length)+' 波'+nz(G.wave);
+}
+// 一鍵自動二分:依序套用六種設定各量 3 秒,直接印出對照表。
+// 目的是把「該按哪些鍵、記哪些數字」全部自動化,一次就能定位。
+let bisecting=false;
+async function bisect(){
+  if(bisecting) return; bisecting=true;
+  const el=DIAG.el=DIAG.el||document.getElementById('diag');
+  el.classList.add('show'); DIAG.on=false;          // 量測期間停掉面板更新
+  const saveDPR=DPR, saveFX=Object.assign({},FX);
+  const setDPR=v=>{ DPR=v; cv.width=W*DPR; cv.height=H*DPR; ctx.setTransform(DPR,0,0,DPR,0,0);
+                    jianSprite=null; };
+  const styleOff=document.createElement('style');
+  const CASES=[
+    ['1 現狀(全開)',       ()=>{}],
+    ['2 不畫任何東西',      ()=>{ NODRAW=true; }],
+    ['3 音訊全停',          ()=>{ NODRAW=false; SND.hardMute(true); }],
+    ['4 不畫 + 無音訊',     ()=>{ NODRAW=true; }],
+    ['5 DPR 降到 1',        ()=>{ NODRAW=false; SND.hardMute(false); setDPR(1); }],
+    ['6 移除毛玻璃',        ()=>{ setDPR(saveDPR);
+        styleOff.textContent='*{backdrop-filter:none !important}';
+        document.head.appendChild(styleOff); }],
+  ];
+  const rows=[];
+  for(const [name,setup] of CASES){
+    setup();
+    await new Promise(r=>setTimeout(r,400));         // 讓設定生效並穩定
+    const gaps=[]; let last=0;
+    await new Promise(res=>{
+      const t0=performance.now();
+      (function f(ts){
+        if(last) gaps.push(ts-last); last=ts;
+        if(performance.now()-t0<3000) requestAnimationFrame(f); else res();
+      })(performance.now());
+    });
+    gaps.sort((a,b)=>a-b);
+    const p50=gaps[gaps.length>>1]||0;
+    rows.push([name,(1000/p50).toFixed(0),p50.toFixed(1)]);
+    el.textContent='二分中… '+name+'  →  '+(1000/p50).toFixed(0)+' fps';
+  }
+  // 還原
+  NODRAW=false; SND.hardMute(false); setDPR(saveDPR); Object.assign(FX,saveFX);
+  if(styleOff.parentNode) styleOff.parentNode.removeChild(styleOff);
+  const txt='== 自動二分結果 ==\n'
+    + rows.map(r=>r[0].padEnd(16)+String(r[1]).padStart(4)+' fps  '+r[2]+'ms').join('\n')
+    + '\n螢幕上限 ≈ '+(DIAG.minD<1e9?Math.round(1000/DIAG.minD):'?')+' Hz'
+    + '\nDPR '+DPR+'  畫布 '+(W*DPR|0)+'×'+(H*DPR|0)
+    + '\n'+GPU;
+  el.textContent=txt+'\n\n(已複製到剪貼簿,按 F 收起)';
+  try{ navigator.clipboard.writeText(txt); }catch(e){}
+  bisecting=false;
+}
+// 逐段疊加二分:從什麼都不畫,一段一段加回去,fps 在哪一段掉下去就是元凶。
+async function bisectDraw(){
+  if(bisecting) return; bisecting=true;
+  const el=DIAG.el=DIAG.el||document.getElementById('diag');
+  el.classList.add('show'); DIAG.on=false;
+  const rows=[]; let prev=null, culprit=null;
+  for(let lv=0; lv<=9; lv++){
+    DRAWLV=lv; NODRAW=(lv===0);
+    await new Promise(r=>setTimeout(r,300));
+    const gaps=[]; let last=0;
+    await new Promise(res=>{
+      const t0=performance.now();
+      (function f(ts){ if(last) gaps.push(ts-last); last=ts;
+        if(performance.now()-t0<2200) requestAnimationFrame(f); else res(); })(performance.now());
+    });
+    gaps.sort((a,b)=>a-b);
+    const p50=gaps[gaps.length>>1]||0, fps=1000/p50;
+    rows.push(LVNAME[lv].padEnd(15)+String(fps.toFixed(0)).padStart(3)+' fps '+p50.toFixed(1)+'ms');
+    if(prev!==null && !culprit && prev>=45 && fps<45) culprit=LVNAME[lv];
+    prev=fps;
+    el.textContent='逐段二分中… '+LVNAME[lv]+' → '+fps.toFixed(0)+' fps';
+  }
+  DRAWLV=9; NODRAW=false; bisecting=false;
+  const txt='== 逐段疊加二分 ==\n'+rows.join('\n')
+    +(culprit?'\n\n➜ 元凶:'+culprit:'\n\n➜ 沒有單一段落造成落差')
+    +'\nDPR '+DPR+'  畫布 '+(W*DPR|0)+'×'+(H*DPR|0);
+  el.textContent=txt+'\n\n(已複製到剪貼簿,按 F 收起)';
+  try{ navigator.clipboard.writeText(txt); }catch(e){}
+}
+// 微觀二分:第 1 段就崩,代表問題不在「畫多少」,而在「動到畫布」這件事本身,
+// 或畫布上方的 DOM 合成。這裡連塗 4×4 一小塊都測,並試兩種 context 屬性。
+async function bisectMicro(){
+  if(bisecting) return; bisecting=true;
+  const el=DIAG.el=DIAG.el||document.getElementById('diag');
+  el.classList.add('show'); DIAG.on=false;
+  const saveNo=NODRAW; NODRAW=true;                  // 停掉遊戲自己的繪圖
+  const hud=document.getElementById('hud');
+  let alt=null, altx=null;
+  function mkAlt(opts){
+    alt=document.createElement('canvas');
+    alt.style.cssText='position:fixed;inset:0;width:100%;height:100%;z-index:1';
+    alt.width=W*DPR; alt.height=H*DPR;
+    document.getElementById('wrap').appendChild(alt);
+    altx=alt.getContext('2d',opts); altx.setTransform(DPR,0,0,DPR,0,0);
+  }
+  function rmAlt(){ if(alt){ alt.remove(); alt=null; altx=null; } }
+  let off=null;
+  const CASES=[
+    ['A 完全不畫',            null,null],
+    ['B 主畫布 clear 1×1',    null,()=>ctx.clearRect(0,0,1,1)],
+    ['C 主畫布 塗 4×4',       null,()=>{ctx.fillStyle='#e9e0cc';ctx.fillRect(0,0,4,4);}],
+    ['D 主畫布 滿版塗色',      null,()=>{ctx.fillStyle='#e9e0cc';ctx.fillRect(0,0,W,H);}],
+    ['E 主畫布 滿版貼圖',      null,()=>{ if(!off){off=document.createElement('canvas');
+        off.width=W*DPR;off.height=H*DPR;const g=off.getContext('2d');
+        g.fillStyle='#e9e0cc';g.fillRect(0,0,off.width,off.height);}
+        ctx.drawImage(off,0,0,W,H); }],
+    ['F 塗 4×4 + 隱藏 HUD',   ()=>{hud.style.display='none';},
+                              ()=>{ctx.fillStyle='#e9e0cc';ctx.fillRect(0,0,4,4);}],
+    ['G 新畫布 alpha:false',  ()=>{hud.style.display='';rmAlt();mkAlt({alpha:false});},
+                              ()=>{altx.fillStyle='#e9e0cc';altx.fillRect(0,0,W,H);}],
+    ['H 新畫布 +低延遲',       ()=>{rmAlt();mkAlt({alpha:false,desynchronized:true});},
+                              ()=>{altx.fillStyle='#e9e0cc';altx.fillRect(0,0,W,H);}],
+  ];
+  const rows=[];
+  for(const [name,pre,paint] of CASES){
+    if(pre) pre();
+    await new Promise(r=>setTimeout(r,300));
+    const gaps=[]; let last=0;
+    await new Promise(res=>{
+      const t0=performance.now();
+      (function f(ts){ if(last) gaps.push(ts-last); last=ts;
+        if(paint) paint();
+        if(performance.now()-t0<2200) requestAnimationFrame(f); else res(); })(performance.now());
+    });
+    gaps.sort((a,b)=>a-b);
+    const p50=gaps[gaps.length>>1]||0;
+    rows.push(name.padEnd(20)+String((1000/p50).toFixed(0)).padStart(3)+' fps '+p50.toFixed(1)+'ms');
+    el.textContent='微觀二分中… '+name+' → '+(1000/p50).toFixed(0)+' fps';
+  }
+  rmAlt(); hud.style.display=''; NODRAW=saveNo; bisecting=false;
+  const txt='== 微觀二分 ==\n'+rows.join('\n')
+    +'\nDPR '+DPR+'  畫布 '+(W*DPR|0)+'×'+(H*DPR|0)+'\n'+GPU;
+  el.textContent=txt+'\n\n(已複製到剪貼簿,按 F 收起)';
+  try{ navigator.clipboard.writeText(txt); }catch(e){}
+}
+// 頁面級二分:碰一個像素就崩,代表問題在「呈現這張畫布」而非畫什麼。
+// 這裡逐項把頁面剝乾淨,最後測畫布尺寸,看成本是否隨面積線性成長。
+async function bisectPage(){
+  if(bisecting) return; bisecting=true;
+  const el=DIAG.el=DIAG.el||document.getElementById('diag');
+  el.classList.add('show'); DIAG.on=false;
+  const saveNo=NODRAW, savePause=G.paused; NODRAW=true; G.paused=true;
+  const wrap=document.getElementById('wrap');
+  const stash=[]; const auEls=[];
+  const saveW=cv.width, saveH=cv.height, saveCss=cv.style.cssText;
+  const measure=async(name)=>{
+    await new Promise(r=>setTimeout(r,300));
+    const gaps=[]; let last=0;
+    await new Promise(res=>{
+      const t0=performance.now();
+      (function f(ts){ if(last) gaps.push(ts-last); last=ts;
+        ctx.clearRect(0,0,2,2);                     // 只碰畫布,不畫東西
+        if(performance.now()-t0<2000) requestAnimationFrame(f); else res(); })(performance.now());
+    });
+    gaps.sort((a,b)=>a-b);
+    const p50=gaps[gaps.length>>1]||0;
+    el.textContent='頁面二分中… '+name+' → '+(1000/p50).toFixed(0)+' fps';
+    return name.padEnd(24)+String((1000/p50).toFixed(0)).padStart(3)+' fps '+p50.toFixed(1)+'ms';
+  };
+  const rows=[];
+  // 對照組:完全不碰畫布(rAF 本身是否正常)
+  {
+    const gaps=[]; let last=0;
+    await new Promise(res=>{ const t0=performance.now();
+      (function f(ts){ if(last) gaps.push(ts-last); last=ts;
+        if(performance.now()-t0<2000) requestAnimationFrame(f); else res(); })(performance.now()); });
+    gaps.sort((a,b)=>a-b); const p50=gaps[gaps.length>>1]||0;
+    rows.push('0 完全不碰畫布(對照)'.padEnd(24)+String((1000/p50).toFixed(0)).padStart(3)+' fps '+p50.toFixed(1)+'ms');
+  }
+  rows.push(await measure('1 現狀'));
+  jianSprite=null; blots=null; G.stains.length=0;
+  rows.push(await measure('2 釋放離屏畫布'));
+  document.querySelectorAll('audio').forEach(a=>{ try{a.pause();}catch(e){} a.removeAttribute('src'); a.load(); auEls.push(a); });
+  rows.push(await measure('3 移除音訊元素'));
+  [...wrap.children].forEach(c=>{ if(c!==cv && c.id!=='diag'){ stash.push([c,c.nextSibling]); c.remove(); } });
+  rows.push(await measure('4 移除畫布以外的 DOM'));
+  cv.style.cssText='position:absolute;left:0;top:0;width:640px;height:400px;z-index:1';
+  cv.width=640; cv.height=400; ctx.setTransform(1,0,0,1,0,0);
+  rows.push(await measure('5 畫布縮到 640×400'));
+  cv.style.cssText='position:absolute;left:0;top:0;width:320px;height:200px;z-index:1';
+  cv.width=320; cv.height=200;
+  rows.push(await measure('6 畫布縮到 320×200'));
+  cv.style.cssText='position:absolute;left:0;top:0;width:64px;height:40px;z-index:1';
+  cv.width=64; cv.height=40;
+  rows.push(await measure('7 畫布縮到 64×40'));
+  // 對照組:同分頁開一個空白 iframe,在裡面用全新畫布量
+  try{
+    const fr=document.createElement('iframe');
+    fr.style.cssText='position:absolute;left:0;top:0;width:320px;height:200px;border:0;z-index:1';
+    document.body.appendChild(fr);
+    const d=fr.contentDocument, w2=fr.contentWindow;
+    const c2=d.createElement('canvas'); c2.width=320; c2.height=200;
+    c2.style.cssText='width:320px;height:200px;display:block';
+    d.body.style.margin='0'; d.body.appendChild(c2);
+    const x2=c2.getContext('2d');
+    const gaps=[]; let last=0;
+    await new Promise(res=>{ const t0=performance.now();
+      (function f(ts){ if(last) gaps.push(ts-last); last=ts;
+        x2.clearRect(0,0,2,2);
+        if(performance.now()-t0<2000) w2.requestAnimationFrame(f); else res(); })(performance.now()); });
+    gaps.sort((a,b)=>a-b); const p50=gaps[gaps.length>>1]||0;
+    rows.push('8 空白 iframe 內畫布'.padEnd(24)+String((1000/p50).toFixed(0)).padStart(3)+' fps '+p50.toFixed(1)+'ms');
+    fr.remove();
+  }catch(err){ rows.push('8 空白 iframe 內畫布      (失敗)'); }
+  // 還原
+  cv.style.cssText=saveCss; cv.width=saveW; cv.height=saveH; ctx.setTransform(DPR,0,0,DPR,0,0);
+  stash.reverse().forEach(([c,ref])=>wrap.insertBefore(c,ref));
+  NODRAW=saveNo; G.paused=savePause; bisecting=false; paperDone=false; hudCache.__reset=1;
+  Object.keys(hudCache).forEach(k=>delete hudCache[k]);
+  const txt='== 頁面級二分(每幀只 clearRect 2×2)==\n'+rows.join('\n')
+    +'\n原畫布 '+saveW+'×'+saveH+'\n'+GPU
+    +'\n※ 音訊已停,重新整理即恢復';
+  el.textContent=txt+'\n\n(已複製到剪貼簿,按 F 收起)';
+  try{ navigator.clipboard.writeText(txt); }catch(e){}
+}
+function toggleDiag(){
+  DIAG.on=!DIAG.on; DIAG.hist.length=0; DIAG.minD=1e9;
+  DIAG.el=DIAG.el||document.getElementById('diag');
+  DIAG.el.classList.toggle('show',DIAG.on);
+}
+if(location.search.indexOf('debug')>=0) setTimeout(toggleDiag,0);
+
+// 自適應畫質:真的持續跑不動才調降算圖解析度。
+// 用中位數(不吃暖機/GC 造成的單點尖峰)、跳過開場兩秒、且要連兩個觀察窗都不合格才降。
+let idleFrame=0, perfBuf=[], perfBad=0, perfStart=0;
+function watchPerf(ts){
+  if(!perfStart){ perfStart=ts; return; }
+  if(ts-perfStart<2000) return;                    // 開場暖機不計
+  perfBuf.push(ts);
+  if(perfBuf.length<91) return;
+  const d=[];
+  for(let i=1;i<perfBuf.length;i++) d.push(perfBuf[i]-perfBuf[i-1]);
+  perfBuf.length=0;
+  d.sort((a,b)=>a-b);
+  const med=d[d.length>>1];
+  if(med>22){                                      // 中位低於 ~45fps
+    if(++perfBad>=2 && DPR>1){
+      DPR=Math.max(1,+(DPR-0.5).toFixed(2));
+      cv.width=W*DPR; cv.height=H*DPR; ctx.setTransform(DPR,0,0,DPR,0,0);
+      jianSprite=null;
+      perfBad=0;
+    }
+  } else perfBad=0;
+}
+function loop(ts){
+  ts=ts||performance.now();
+  diagFrame(ts);
   if(G.running){
-    if(!G.paused) update();
-    draw();
+    watchPerf(ts);
+    const m=DIAG.on?performance.now():0;
+    if(!G.paused){
+      if(G.hitstop>0) G.hitstop--;   // 頓幀:命中瞬間凍結一兩格,讓斬擊有份量
+      else update();
+      const m2=DIAG.on?performance.now():0;
+      if(!NODRAW) draw();
+      if(DIAG.on){ DIAG.upd=DIAG.upd*0.9+(m2-m)*0.1; DIAG.drw=DIAG.drw*0.9+(performance.now()-m2)*0.1; }
+    } else if((idleFrame++ & 3)===0){
+      if(!NODRAW) draw();                        // 暫停/選卡:畫面靜止,降頻重繪省下遮罩模糊成本
+    }
   }
   requestAnimationFrame(loop);
 }
 
 // ---------- 開始/結束 ----------
 function start(){
-  Object.assign(G,{running:true,paused:false,t:0,enemies:[],swords:[],particles:[],inks:[],texts:[],
-    kills:0,wave:1,waveTimer:0,spawnAcc:0,xp:0,xpNeed:6,level:1,mana:100,
-    auto:false,autoUsed:false,autoTimer:0});
+  Object.assign(G,{running:true,paused:false,t:0,enemies:[],swords:[],particles:[],inks:[],texts:[],stains:[],
+    kills:0,wave:1,waveTimer:0,spawnAcc:0,xp:0,xpNeed:6,level:1,pendingLevels:0,mana:100,
+    auto:false,autoUsed:false,autoTimer:0,
+    shake:0,hitstop:0,flash:0,flashC:'255,255,255',banner:null});
+  SND.unlock(); SND.intensity(1); SND.startMusic(); SND.duck(false);
   Object.assign(stat,{count:1,formation:'fan',damage:24,size:9,speed:11,pierce:1,homing:0,explode:0,
     element:'none',ember:0,ice:0,
     life:1.35,ret:0,crit:0.05,regen:0,cap:6,manaMax:100,manaRegen:0.34,costBase:6,costPerPx:0.13});
@@ -820,11 +1643,15 @@ function togglePause(force){
   if(!G.running) return;
   if(document.getElementById('overlay').classList.contains('show')) return; // 悟劍訣選卡時不干涉
   const now = (typeof force==='boolean') ? force : !pausedByUser;
-  pausedByUser=now; G.paused=now;
+  pausedByUser=now; G.paused=now; SND.ui();
+  // 暫停:背景樂完全停止;繼續:重新起奏
+  if(now) SND.stopMusic(0.25); else SND.startMusic();
   document.getElementById('pause').classList.toggle('show',now);
+  if(!now) tryLevelUp();          // 暫停期間累積的升級,繼續後補選
 }
 function gameOver(){
-  G.running=false;
+  G.running=false; G.pendingLevels=0; SND.over();
+  document.getElementById('overlay').classList.remove('show');
   // 魂魄結算(用過自動禦劍:收益減半且不計歷史最佳)
   let earned = G.kills + G.wave*5 + G.level*3;
   const autoed = G.autoUsed;
@@ -909,9 +1736,20 @@ function closeMeta(){ document.getElementById('meta').classList.remove('show'); 
 // 自動禦劍開關
 function toggleAuto(){
   if(!G.running) return;
-  G.auto=!G.auto;
+  G.auto=!G.auto; SND.ui();
   const b=document.getElementById('autobtn');
   b.textContent='⟳ 自動:'+(G.auto?'開':'關'); b.classList.toggle('on',G.auto);
+}
+// 音律開關(記錄於本機)
+function toggleSnd(){
+  meta.mute=!meta.mute; saveMeta();
+  SND.setOn(!meta.mute);
+  if(!meta.mute){ SND.unlock(); if(G.running) SND.startMusic(); SND.ui(); }
+  renderSndBtn();
+}
+function renderSndBtn(){
+  const b=document.getElementById('sndbtn');
+  b.textContent='♪ 音律:'+(meta.mute?'關':'開'); b.classList.toggle('off',meta.mute);
 }
 
 // ---------- 商城 ----------
@@ -952,6 +1790,11 @@ document.getElementById('metaplaybtn').onclick=start;
 document.getElementById('metaclosebtn').onclick=closeMeta;
 document.getElementById('pausebtn').onclick=()=>togglePause();
 document.getElementById('autobtn').onclick=toggleAuto;
+document.getElementById('sndbtn').onclick=toggleSnd;
+renderSndBtn();
+// 首次互動即解鎖音訊(瀏覽器自動播放限制)
+['pointerdown','keydown','touchstart'].forEach(ev=>
+  window.addEventListener(ev,()=>SND.unlock(),{once:true,passive:true}));
 document.getElementById('resumebtn').onclick=()=>togglePause(false);
 document.getElementById('pausequitbtn').onclick=()=>{ togglePause(false); gameOver(); };
 document.getElementById('splashshopbtn').onclick=openShop;
@@ -960,6 +1803,22 @@ document.getElementById('shopclosebtn').onclick=closeShop;
 window.addEventListener('keydown',e=>{
   if(e.key==='Escape'||e.key==='p'||e.key==='P'){ e.preventDefault(); togglePause(); }
   else if(e.key==='a'||e.key==='A'){ e.preventDefault(); toggleAuto(); }
+  else if(e.key==='m'||e.key==='M'){ e.preventDefault(); toggleSnd(); }
+  else if(e.key==='f'||e.key==='F'){ e.preventDefault(); toggleDiag(); }
+  else if(FXKEY[e.key]){ e.preventDefault(); const k=FXKEY[e.key][0]; FX[k]=!FX[k];
+    DIAG.hist.length=0; if(!DIAG.on) toggleDiag(); }
+  else if(e.key==='7'){ e.preventDefault(); NOAUDIO=!NOAUDIO;
+    SND.hardMute(NOAUDIO); DIAG.hist.length=0; if(!DIAG.on) toggleDiag(); }
+  else if(e.key==='b'||e.key==='B'){ e.preventDefault(); bisect(); }
+  else if(e.key==='v'||e.key==='V'){ e.preventDefault(); bisectDraw(); }
+  else if(e.key==='n'||e.key==='N'){ e.preventDefault(); bisectMicro(); }
+  else if(e.key==='k'||e.key==='K'){ e.preventDefault(); bisectPage(); }   // P 已是暫停,改用 K
+  else if(e.key==='9'){ e.preventDefault(); NODRAW=!NODRAW;
+    DIAG.hist.length=0; if(!DIAG.on) toggleDiag(); }
+  else if(e.key==='0'){ e.preventDefault();
+    const off=Object.keys(FX).some(k=>FX[k]);
+    Object.keys(FX).forEach(k=>FX[k]=!off);
+    DIAG.hist.length=0; if(!DIAG.on) toggleDiag(); }
 });
 loop();
 })();

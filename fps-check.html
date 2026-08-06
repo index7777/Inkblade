@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>幀率環境檢測</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:#14120f;color:#ddd4c0;font:14px/1.7 ui-monospace,Menlo,Consolas,monospace;padding:22px}
+  h1{font-size:17px;letter-spacing:2px;color:#f0e2b8;margin-bottom:4px}
+  .sub{color:#8a8070;font-size:12.5px;margin-bottom:16px}
+  table{border-collapse:collapse;width:100%;max-width:760px;margin-bottom:18px}
+  th,td{border:1px solid #3a352c;padding:7px 10px;text-align:left}
+  th{background:#221f19;color:#c8bda0;font-weight:400;font-size:12.5px}
+  td.n{text-align:right;font-variant-numeric:tabular-nums}
+  .ok{color:#8ec07c}.warn{color:#e0a050}.bad{color:#e06a5a}
+  #env{max-width:760px;background:#1c1a15;border:1px solid #3a352c;border-radius:6px;
+       padding:12px 14px;white-space:pre-wrap;font-size:12.5px;color:#b8ae98;margin-bottom:18px}
+  #stage{position:fixed;right:0;bottom:0;width:1px;height:1px;opacity:0;pointer-events:none}
+  #run{cursor:pointer;background:#2e2a22;border:1px solid #5a5244;color:#f0e2b8;
+       padding:9px 20px;border-radius:6px;font:inherit;letter-spacing:2px}
+  #note{max-width:760px;color:#8a8070;font-size:12.5px;margin-top:14px}
+</style>
+</head>
+<body>
+<h1>幀率環境檢測</h1>
+<div class="sub">四個階段,由「完全不畫」逐步加重,看瓶頸出現在哪一階。每階 3 秒。</div>
+<div id="env">偵測中…</div>
+<button id="run">開始檢測</button>
+<table id="tb" style="margin-top:18px">
+  <tr><th>階段</th><th>內容</th><th class="n">fps</th><th class="n">p50</th><th class="n">p95</th><th class="n">JS</th></tr>
+</table>
+<div id="note"></div>
+<canvas id="stage"></canvas>
+<script>
+(function(){
+'use strict';
+const tb=document.getElementById('tb'), envEl=document.getElementById('env');
+const cv=document.getElementById('stage'), ctx=cv.getContext('2d');
+let off=null;
+
+function gpu(){
+  try{
+    const c=document.createElement('canvas');
+    const gl=c.getContext('webgl')||c.getContext('experimental-webgl');
+    if(!gl) return 'WebGL 不可用';
+    const e=gl.getExtension('WEBGL_debug_renderer_info');
+    return String(e?gl.getParameter(e.UNMASKED_RENDERER_WEBGL):gl.getParameter(gl.RENDERER));
+  }catch(err){ return '偵測失敗'; }
+}
+envEl.textContent=
+  'DPR            '+(window.devicePixelRatio||1)+'\n'+
+  '視窗           '+innerWidth+'×'+innerHeight+'\n'+
+  '螢幕           '+screen.width+'×'+screen.height+
+    (screen.isExtended?'  (多螢幕)':'')+'\n'+
+  '分頁可見       '+document.visibilityState+'\n'+
+  'GPU            '+gpu()+'\n'+
+  '硬體執行緒     '+(navigator.hardwareConcurrency||'?')+'\n'+
+  'UA             '+navigator.userAgent.slice(0,90);
+
+// 四個階段:逐步加重負擔
+const W=()=>Math.min(innerWidth,1600), H=()=>Math.min(innerHeight,1000);
+const STAGES=[
+  {name:'A', desc:'完全不畫(只跑 requestAnimationFrame)', fn:null},
+  {name:'B', desc:'小畫布 300×200 清空一次', fn(){
+      cv.width=300;cv.height=200; ctx.fillStyle='#345';ctx.fillRect(0,0,300,200); }},
+  {name:'C', desc:'滿視窗畫布填滿純色(依 DPR)', fn(){
+      const d=window.devicePixelRatio||1;
+      if(cv.width!==W()*d){ cv.width=W()*d; cv.height=H()*d; }
+      ctx.setTransform(d,0,0,d,0,0);
+      ctx.fillStyle='#345'; ctx.fillRect(0,0,W(),H()); }},
+  {name:'D', desc:'滿視窗 drawImage 離屏圖層 ×2(等同遊戲背景+暈影)', fn(){
+      const d=window.devicePixelRatio||1;
+      if(!off||off.width!==W()*d){
+        off=document.createElement('canvas'); off.width=W()*d; off.height=H()*d;
+        const g=off.getContext('2d'); g.fillStyle='#453'; g.fillRect(0,0,off.width,off.height);
+      }
+      if(cv.width!==W()*d){ cv.width=W()*d; cv.height=H()*d; }
+      ctx.setTransform(d,0,0,d,0,0);
+      ctx.drawImage(off,0,0,W(),H()); ctx.drawImage(off,0,0,W(),H()); }},
+];
+
+function runStage(st){
+  return new Promise(res=>{
+    const gaps=[]; let jsT=0, jsN=0, last=0, t0=0;
+    function frame(ts){
+      if(!t0) t0=ts;
+      if(last) gaps.push(ts-last);
+      last=ts;
+      if(st.fn){ const a=performance.now(); st.fn(); jsT+=performance.now()-a; jsN++; }
+      if(ts-t0<3000) requestAnimationFrame(frame);
+      else{
+        gaps.sort((a,b)=>a-b);
+        const q=x=>gaps[Math.min(gaps.length-1,Math.floor(gaps.length*x))]||0;
+        res({p50:q(.5),p95:q(.95),js:jsN?jsT/jsN:0});
+      }
+    }
+    requestAnimationFrame(frame);
+  });
+}
+function cls(fps){ return fps>=55?'ok':fps>=40?'warn':'bad'; }
+
+document.getElementById('run').onclick=async function(){
+  this.disabled=true; this.textContent='檢測中…';
+  while(tb.rows.length>1) tb.deleteRow(1);
+  const out=[];
+  for(const st of STAGES){
+    const r=await runStage(st);
+    const fps=1000/r.p50; out.push({st,r,fps});
+    const tr=tb.insertRow();
+    tr.innerHTML='<td>'+st.name+'</td><td>'+st.desc+'</td>'
+      +'<td class="n '+cls(fps)+'">'+fps.toFixed(0)+'</td>'
+      +'<td class="n">'+r.p50.toFixed(1)+'</td>'
+      +'<td class="n">'+r.p95.toFixed(1)+'</td>'
+      +'<td class="n">'+r.js.toFixed(2)+'</td>';
+  }
+  cv.width=1;cv.height=1;
+  const A=out[0].fps, D=out[3].fps;
+  let msg;
+  if(A<40) msg='⚠ 階段 A 就跑不到 40fps —— 完全沒有畫任何東西,問題不在繪圖也不在遊戲程式碼。\n'
+    +'  方向:Chrome 節能模式(chrome://settings/performance)、視窗被其他視窗遮蔽而觸發節流、\n'
+    +'  多螢幕不同更新率、或顯卡驅動。可試:把視窗移到主螢幕、關掉節能模式、以無痕視窗且停用擴充功能再測一次。';
+  else if(D<40) msg='階段 A 正常但 D 掉下來 —— 瓶頸在全螢幕點陣化/合成,是解析度與填充率問題,\n  可從降低 DPR 或減少全螢幕繪製著手。';
+  else msg='四階都正常。此頁量不出問題,瓶頸應在遊戲中的其他環節。';
+  document.getElementById('note').textContent=msg;
+  this.disabled=false; this.textContent='再測一次';
+};
+})();
+</script>
+</body>
+</html>
