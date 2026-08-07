@@ -65,7 +65,10 @@
     padding:calc(var(--scroll-top-safe) + env(safe-area-inset-top)) 10px 0; }
   .panel { background:rgba(246,240,226,.88); border:1px solid rgba(90,70,50,.35);
     border-radius:7px; padding:7px 10px; box-shadow:0 3px 12px rgba(45,37,26,.12); }
-  #barwrap { width:clamp(150px,46vw,205px); }
+  /* 左上狀態列:半透明不擋怪。去掉不透明卡片底,靠文字白暈與加深的軌道維持可讀性。 */
+  #barwrap { width:clamp(150px,46vw,205px); background:none; border:none; box-shadow:none; padding:2px 4px;
+    text-shadow:0 1px 2px rgba(246,240,226,.92), 0 0 7px rgba(246,240,226,.75); }
+  #barwrap .bar { box-shadow:0 0 0 1px rgba(246,240,226,.5); }
   #scorewrap { position:absolute; top:calc(var(--scroll-top-safe) + 54px + env(safe-area-inset-top)); right:10px;
     min-width:86px; text-align:right; padding:6px 9px; }
   #ctrls { position:absolute; top:calc(var(--scroll-top-safe) + env(safe-area-inset-top)); right:10px;
@@ -114,17 +117,21 @@
   #lvqueue:empty { display:none; }
   #cards { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:clamp(8px,1.8vw,16px);
     width:min(100%,620px); margin:0 auto; }
-  .card { width:100%; min-height:190px; background:#f3ecdb;
-    border:1px solid #aa9a7c; border-radius:5px; padding:clamp(11px,2vw,18px) clamp(7px,1.5vw,14px);
+  /* 卡片固定高度、內容置頂對齊 —— 字數不同也不會造成格子縮放或標題上下位移 */
+  .card { width:100%; height:clamp(172px,27vw,194px); box-sizing:border-box; background:#f3ecdb;
+    border:1px solid #aa9a7c; border-radius:5px; padding:clamp(11px,2vw,18px) clamp(9px,1.6vw,14px);
     cursor:pointer;
-    display:flex; flex-direction:column; align-items:center; transition:transform .15s, box-shadow .15s;
+    display:flex; flex-direction:column; align-items:stretch; justify-content:flex-start;
+    transition:transform .15s, box-shadow .15s;
     box-shadow:0 6px 14px rgba(0,0,0,.34); position:relative; overflow:hidden; }
   .card:hover { transform:translateY(-5px); box-shadow:0 11px 24px rgba(0,0,0,.48); }
-  .card .rune { color:#17130f; font-size:clamp(34px,6vw,48px); margin-bottom:5px; line-height:1.05; }
+  .card .rune { color:#17130f; font-size:clamp(34px,6vw,48px); margin:0 0 5px; line-height:1.05; text-align:center; }
+  /* 中標名稱:置中、套品階色(納息紫/透墨藍/…),固定行高不隨字數位移 */
   .card .cname { font-size:clamp(15px,2.4vw,20px); font-weight:700; letter-spacing:clamp(1px,.5vw,3px);
-    color:#2e2820; margin-bottom:4px; }
-  .card .rar { font-size:clamp(10px,1.3vw,12px); letter-spacing:2px; margin-bottom:8px; }
-  .card .cdesc { font-size:clamp(10px,1.45vw,13px); line-height:1.55; color:#4a4033; letter-spacing:.3px; }
+    margin:0 0 8px; text-align:center; min-height:1.4em; line-height:1.4; }
+  /* 功能說明:靠左對齊,佔滿剩餘空間 */
+  .card .cdesc { font-size:clamp(10px,1.45vw,13px); line-height:1.55; color:#4a4033; letter-spacing:.3px;
+    text-align:left; align-self:stretch; flex:1 1 auto; overflow:hidden; }
   #rerollbtn { margin:12px auto 3px; min-height:38px; padding:7px 16px; display:inline-flex;
     align-items:center; justify-content:center; gap:7px; color:#2e2820; background:#eee6d4;
     border:1px solid #95866d; border-radius:5px; box-shadow:0 3px 9px rgba(0,0,0,.28);
@@ -282,10 +289,9 @@
     #barwrap { width:min(52vw,194px); }
     #cardbox { padding:16px 10px calc(var(--scroll-bottom-safe) + 18px + env(safe-area-inset-bottom)); max-height:74dvh; }
     #cards { grid-template-columns:repeat(3,minmax(0,1fr)); gap:7px; }
-    .card { min-height:178px; padding:11px 6px 10px; }
+    .card { height:172px; padding:11px 8px 10px; }
     .card .rune { margin:0 0 5px; font-size:38px; }
-    .card .cname { margin:0 0 3px; font-size:15px; letter-spacing:1px; }
-    .card .rar { margin:0 0 7px; font-size:9px; }
+    .card .cname { margin:0 0 6px; font-size:15px; letter-spacing:1px; }
     .card .cdesc { font-size:10px; line-height:1.5; }
     #cardbox h2 { font-size:21px; margin-bottom:4px; }
     #cardbox p.tip { margin-bottom:10px; font-size:11px; }
@@ -309,7 +315,7 @@
     .panel { padding:4px 8px; }
     #cardbox h2 { font-size:19px; margin-bottom:2px; }
     #cardbox p.tip { margin-bottom:8px; }
-    .card { min-height:auto; padding:8px 10px; }
+    .card { height:150px; padding:8px 10px; }
     .card .rune { font-size:26px; margin-bottom:4px; }
     .title { font-size:34px; }
     .stitle { margin:8px 0 14px; }
@@ -333,9 +339,9 @@
 
   <div id="hud">
     <div class="panel" id="barwrap">
-      <div class="label">靈元 <span id="hptxt" class="sub"></span></div>
+      <div class="label">神識 <span id="hptxt" class="sub"></span></div>
       <div class="bar"><i id="hpfill"></i></div>
-      <div class="label" style="margin-top:8px;">靈力 <span id="mptxt" class="sub"></span></div>
+      <div class="label" style="margin-top:8px;">劍意 <span id="mptxt" class="sub"></span></div>
       <div class="bar"><i id="mpfill"></i></div>
       <div class="label" style="margin-top:8px;">道行 · <span id="lvtxt">一</span> 重</div>
       <div class="bar"><i id="xpfill"></i></div>
@@ -387,6 +393,7 @@
       <div id="settings">
       <div class="sethead">行 劍 設 定</div>
       <div class="setbtn" id="sndbtn">♪ 音律：開</div>
+      <div class="setbtn" id="herobtn" style="min-height:38px;margin-bottom:12px;display:flex;align-items:center;justify-content:center;">執筆者：劍客</div>
       <div id="audioControls">
       <div class="sethead">音 律</div>
       <div class="setrow"><label for="volMaster">總音量</label>
@@ -702,6 +709,17 @@ const HEROSPR={ idle:[], hurt:[], cast:[], death:[], ok:false, aspect:0.9917, fo
   for(let i=1;i<=6;i++) add(HEROSPR.cast,'assets/hero/HERO_cast_'+pad(i)+'.png');
   for(let i=1;i<=7;i++) add(HEROSPR.death,'assets/hero/HERO_death_'+pad(i)+'.png');
 })();
+// 女修士:待機 7 幀(執筆者外觀之一)。動作幀(受擊/施放/隕落)尚未提供,
+// 切到此外觀時所有狀態暫時都用待機幀,補齊後只要加對應陣列即可。
+const HEROF={ idle:[], ok:false, aspect:0.9944, foot:0.9823, n:0, need:7 };
+(function loadHeroF(){
+  for(let i=1;i<=7;i++){ const im=new Image();
+    im.onload=()=>{ HEROF.aspect=im.naturalWidth/im.naturalHeight;
+                    if(++HEROF.n>=HEROF.need) HEROF.ok=true; };
+    im.onerror=()=>{ HEROF.ok=false; };
+    im.src='assets/hero-f/HEROF_idle_'+String(i).padStart(2,'0')+'.png';
+    HEROF.idle.push(im); }
+})();
 // 墨劍 sprite:待機 8 幀 + 攻擊 6 幀。素材已離線做「主軸正規化」——
 // 刀身水平、劍尖朝 +X、護手固定在畫布 grip 比例處,所以引擎只要照 s.ang 旋轉即可。
 const SWDSPR={ idle:[], atk:[], ok:false, aspect:2.504, grip:0.22, blade:0.645, n:0, need:14 };
@@ -747,7 +765,7 @@ const G = {
   xp:0, xpNeed:6, level:1, pendingLevels:0,
   shake:0, hitstop:0, flash:0, flashC:'255,255,255', banner:null,
   aim:0.85, facing:1, intent:0, streaks:[], cuts:[], firstStrikeDone:false, respecWave:0,
-  hurtT:0, castT:0, deathT:0, heroPhase:0,
+  hurtT:0, castT:0, deathT:0, deathMax:56, heroPhase:0,
 };
 booted=true;
 
@@ -769,10 +787,10 @@ const stat = {
   crit:0.05,        // 暴擊率
   regen:0,          // 每斬回靈
   cap:6,            // 同屏飛劍數上限
-  manaMax:100,      // 靈力上限
-  manaRegen:0.34,   // 每幀靈力回復
-  costBase:6,       // 出劍基礎靈力(開局值由 config.baseRunState.stats.manaCostBase 決定)
-  costPerPx:0.13,   // 每單位劍痕長度的靈力(同上 manaCostPerPixel;滿靈力約可畫 700px)
+  manaMax:100,      // 劍意上限
+  manaRegen:0.34,   // 每幀劍意回復
+  costBase:6,       // 出劍基礎劍意(開局值由 config.baseRunState.stats.manaCostBase 決定)
+  costPerPx:0.13,   // 每單位劍痕長度的劍意(同上 manaCostPerPixel;滿劍意約可畫 700px)
 };
 
 // ---------- 轉世 · 永久進度(存本機) ----------
@@ -786,7 +804,7 @@ function loadMeta(){
   try{ const s=localStorage.getItem('inkjian_meta'); if(s){ meta=Object.assign(meta,JSON.parse(s)); } }catch(e){}
   meta.up=meta.up||{}; meta.unlock=meta.unlock||{}; meta.best=meta.best||{kills:0,wave:1,level:1};
   meta.gems=meta.gems||0; meta.offCap=meta.offCap||8; meta.skin=meta.skin||'none';
-  meta.mute=!!meta.mute;
+  meta.mute=!!meta.mute; meta.heroSkin = (meta.heroSkin==='m')?'m':'f';   // 預設女修
   meta.vol=Object.assign({master:0.85,music:0.62,sfx:0.75}, meta.vol||{});
   for(const k of ['master','music','sfx'])
     meta.vol[k]=Math.max(0,Math.min(1, isFinite(meta.vol[k])?meta.vol[k]:0.7));
@@ -800,8 +818,8 @@ function stamp(){ meta.lastSeen=Date.now(); saveMeta(); }
 window.addEventListener('beforeunload',stamp);
 document.addEventListener('visibilitychange',()=>{ if(document.hidden) stamp(); });
 
-// 閉關修煉:離線依歷史最佳波次被動生魂魄(封頂 meta.offCap 小時)
-function offlineRate(){ return 5 + meta.best.wave*2; }         // 每小時魂魄
+// 閉關修煉:離線依歷史最佳波次被動生墨魂(封頂 meta.offCap 小時)
+function offlineRate(){ return 5 + meta.best.wave*2; }         // 每小時墨魂
 function offlinePending(){
   const hrs=Math.min(meta.offCap, Math.max(0,(Date.now()-(meta.lastSeen||Date.now()))/3600000));
   return Math.floor(hrs*offlineRate());
@@ -812,13 +830,13 @@ function claimOffline(){ const g=offlinePending(); if(g>0){ meta.souls+=g; } met
 const SHOP_IAP=[
   {id:'g100', name:'靈石 ×100',  price:'NT$ 60',  gems:100},
   {id:'g600', name:'靈石 ×600',  price:'NT$ 330', gems:600, tag:'超值'},
-  {id:'pass', name:'修行月卡',    price:'NT$ 170', gems:300, note:'每日登入贈魂魄(示範:此處直接給等值靈石)'},
+  {id:'pass', name:'修行月卡',    price:'NT$ 170', gems:300, note:'每日登入贈墨魂(示範:此處直接給等值靈石)'},
 ];
 const SHOP_SPEND=[
-  {id:'souls', name:'魂魄補給 ×200', desc:'靈石兌換魂魄,加速轉世修為', cost:50, repeat:true, grant:()=>{ meta.souls+=200; }},
+  {id:'souls', name:'墨魂補給 ×200', desc:'靈石兌換墨魂,加速轉世修為', cost:50, repeat:true, grant:()=>{ meta.souls+=200; }},
   {id:'offcap',name:'閉關上限 +4 時', desc:'離線收益封頂提高(現 '+'', cost:80, grant:()=>{ meta.offCap+=4; }, capField:true},
   {id:'skin',  name:'外觀 · 墨金劍痕', desc:'預設墨痕染金芒(純外觀,不影響數值)', cost:120, once:true, grant:()=>{ meta.skin='gold'; }},
-  {id:'pill',  name:'洗墨丹 ×1', desc:'重塑劍意時抵免魂魄耗費(局內暫停可用)', cost:40, repeat:true, pillField:true, grant:()=>{ meta.inkPills=(meta.inkPills||0)+1; }},
+  {id:'pill',  name:'洗墨丹 ×1', desc:'重塑劍意時抵免墨魂耗費(局內暫停可用)', cost:40, repeat:true, pillField:true, grant:()=>{ meta.inkPills=(meta.inkPills||0)+1; }},
 ];
 
 // ---------- 玩家(中央靈石) ----------
@@ -870,7 +888,7 @@ function launchSword(path){
   const cost=stat.costBase + len*stat.costPerPx;
   const s0=path[0];
   if(G.mana < cost){
-    floatText(s0.x,s0.y-14,'靈力不足','#c08a2e'); burst(s0.x,s0.y,'#8a7a5a',5); SND.nomana(); return;
+    floatText(s0.x,s0.y-14,'劍意不足','#c08a2e'); burst(s0.x,s0.y,'#8a7a5a',5); SND.nomana(); return;
   }
   G.mana -= cost;
   SND.cast(len);
@@ -1100,8 +1118,7 @@ function drawCards(isReroll=false){
     const el=document.createElement('div');
     el.className='card lv-'+leg;
     el.innerHTML=`<div class="rune">${a.rune}</div>
-      <div class="cname">${a.name}</div>
-      <div class="rar rar-${leg}">${RARNAME[a.rarity]}</div>
+      <div class="cname rar-${leg}">${a.name}</div>
       <div class="cdesc">${a.description}</div>`;
     el.onclick=()=>{
       if(levelChoiceLocked || !G.running) return;
@@ -1162,14 +1179,14 @@ function pos(e){
   const p=e.touches?e.touches[0]:e;
   return {x:p.clientX-r.left, y:p.clientY-r.top};
 }
-// 目前靈力還能畫多長的墨痕
+// 目前劍意還能畫多長的墨痕
 function allowedLen(){ return Math.max(0,(G.mana-stat.costBase)/stat.costPerPx); }
 function down(e){ if(!G.running||G.paused||levelChoiceOpen())return; e.preventDefault(); drawing=true; path=[pos(e)]; curLen=0; maxed=false; }
 function move(e){ if(!drawing)return; e.preventDefault(); const p=pos(e);
   const last=path[path.length-1]; const seg=Math.hypot(p.x-last.x,p.y-last.y);
   if(seg>4){
     if(curLen+seg <= allowedLen()){ path.push(p); curLen+=seg; }
-    else { maxed=true; } // 靈力見底,墨痕凍結
+    else { maxed=true; } // 劍意見底,墨痕凍結
   }
 }
 function up(e){ if(!drawing)return; e.preventDefault(); drawing=false; launchSword(path); path=[]; maxed=false; }
@@ -1186,10 +1203,20 @@ function update(){
     if(G.shake>0) G.shake*=0.86;
     if(G.flash>0) G.flash-=0.035;
     for(let i=G.splashes.length-1;i>=0;i--){const sp=G.splashes[i];sp.age++;if(sp.age>=sp.dur)G.splashes.splice(i,1);}
+    // 程式消散期間:續噴墨滴、推進墨/潑墨/浮字,讓角色化為一攤散墨
+    const hasDeath=(()=>{const S=heroSet();return !!(S.death&&S.death.length);})();
+    if(!hasDeath){
+      const P=G.player;
+      if(G.deathT>G.deathMax*0.45 && G.t%2===0)
+        ink(P.x+(Math.random()-.5)*30, P.y-P.r*1.4+(Math.random()-.5)*60,
+            (Math.random()-.5)*4.5,(Math.random()-.5)*4.5-0.5, 8+Math.random()*16);
+      for(let i=G.inks.length-1;i>=0;i--){const p=G.inks[i];p.x+=p.vx;p.y+=p.vy;p.vx*=0.9;p.vy*=0.9;p.r*=1.02;p.a-=0.012;p.life-=0.01;if(p.a<=0)G.inks.splice(i,1);}
+      for(let i=G.texts.length-1;i>=0;i--){const t=G.texts[i];t.age++;t.x+=t.dx||0;t.y+=t.vy||-0.7;if(t.damage)t.vy*=0.94;t.life-=t.damage?0.026:0.02;if(t.life<=0)G.texts.splice(i,1);}
+    }
     if(G.deathT<=0) gameOver();
     return;
   }
-  // 靈力回復
+  // 劍意回復
   if(G.mana<stat.manaMax){ G.mana=Math.min(stat.manaMax,G.mana+stat.manaRegen); }
   // 自動禦劍:定時朝最近之敵直射(收益打折、不計紀錄)
   if(G.auto){
@@ -1437,39 +1464,58 @@ function bakeHero(h){
   };
   heroCv=mk(null); heroHurtCv=mk('rgba(176,56,40,0.85)');
 }
+function heroSet(){ return (meta.heroSkin==='f' && HEROF.ok) ? HEROF : HEROSPR; }
 function drawHero(P){
-  if(HEROSPR.ok){ drawHeroSprite(P); return; }
+  if(heroSet().ok){ drawHeroSprite(P); return; }
   drawHeroProc(P);
 }
 // Sprite 版:呼吸(整體微縮放 + 上下浮動)、轉身、待機 9 幀慢速交叉淡入、受擊 4 幀連播。
+// 受擊紅光:把 sprite 幀畫進離屏、source-atop 填紅,回貼主畫布(不需為每幀預烘)
+const _tintCv=document.createElement('canvas'), _tintCtx=_tintCv.getContext('2d');
+function tintFrame(im,col){
+  const W=im.naturalWidth, H=im.naturalHeight;
+  if(_tintCv.width!==W||_tintCv.height!==H){ _tintCv.width=W; _tintCv.height=H; }
+  _tintCtx.globalCompositeOperation='source-over'; _tintCtx.clearRect(0,0,W,H);
+  _tintCtx.drawImage(im,0,0);
+  _tintCtx.globalCompositeOperation='source-atop'; _tintCtx.fillStyle=col; _tintCtx.fillRect(0,0,W,H);
+  _tintCtx.globalCompositeOperation='source-over';
+  return _tintCv;
+}
 function drawHeroSprite(P){
-  const h=P.r*5.0, w=h*HEROSPR.aspect, feet=P.y+P.r*1.18;
+  const S=heroSet();
+  const h=P.r*5.0, w=h*S.aspect, feet=P.y+P.r*1.18;
   const dying=G.deathT>0;
+  const hasDeath=!!(S.death&&S.death.length), hasHurt=!!(S.hurt&&S.hurt.length), hasCast=!!(S.cast&&S.cast.length);
   const br=dying?0:Math.sin(G.t*0.042);
+  // 程式消散(沒有 death 幀的角色,如女修):sprite 隨 deathT 淡出
+  const fade = (dying && !hasDeath) ? Math.max(0, G.deathT/G.deathMax) : 1;
+  // 受擊紅光(沒有 hurt 幀時啟用;有專屬受擊幀的角色不疊紅)
+  const glow = (!hasHurt) ? Math.min(1, P.pulse||0) : 0;
   ctx.save();
   ctx.translate(P.x, feet+br*1.1);
   ctx.scale(dying?1:G.facing, 1+br*0.013);            // 轉身 + 呼吸(死亡時定住)
   // 素材為全域統一裁切,腳底落在畫布 foot 比例處 → 以此對齊地面
   const put=(im,a)=>{ if(!im||!im.complete||!im.naturalWidth) return;
-    ctx.globalAlpha=a; ctx.drawImage(im,-w/2,-h*HEROSPR.foot,w,h); };
-  if(dying){
-    // 隕落:7 幀連續播放(每幀 9 影格),最後一幀是落地的墨漬
+    ctx.globalAlpha=a*fade; ctx.drawImage(im,-w/2,-h*S.foot,w,h);
+    if(glow>0){ ctx.globalAlpha=a*fade*glow*0.72;
+      ctx.drawImage(tintFrame(im,'#c83828'),-w/2,-h*S.foot,w,h); ctx.globalAlpha=a; } };
+  if(dying && hasDeath){
+    // 隕落幀:7 幀連續播放(每幀 9 影格),最後一幀是落地的墨漬
     const k=Math.min(6, 6-Math.floor(G.deathT/9));
-    put(HEROSPR.death[Math.max(0,k)],1);
-  } else if(G.hurtT>0){
-    // 受擊:4 幀連續播放(每幀 5 影格),整體壓暗偏紅由 flash/震屏負責
+    put(S.death[Math.min(S.death.length-1,Math.max(0,k))],1);
+  } else if(G.hurtT>0 && hasHurt){
     const k=Math.min(3, 3-Math.floor(G.hurtT/5));
-    put(HEROSPR.hurt[Math.max(0,k)],1);
-  } else if(G.castT>0){
-    // 施放:6 幀連續播放(每幀 4 影格),出劍時觸發
+    put(S.hurt[Math.min(S.hurt.length-1,Math.max(0,k))],1);
+  } else if(G.castT>0 && hasCast){
     const k=Math.min(5, 5-Math.floor(G.castT/4));
-    put(HEROSPR.cast[Math.max(0,k)],1);
+    put(S.cast[Math.min(S.cast.length-1,Math.max(0,k))],1);
   } else {
-    // 待機:9 幀慢速晨變(相鄰兩幀交叉淡入),起劍時略快
+    // 待機:多幀慢速晨變(相鄰兩幀交叉淡入),起劍時略快。
+    // 無 cast/hurt 幀的角色(女修)施放/受擊時一律走這裡:施放不切幀、受擊只疊紅光。
     const sp=0.0042*(1+G.intent*0.6), t=G.t*sp+G.heroPhase;
-    const n=HEROSPR.idle.length, f=((t%n)+n)%n, i0=Math.floor(f), i1=(i0+1)%n, m=f-i0;
-    put(HEROSPR.idle[i0],1);
-    put(HEROSPR.idle[i1],m);
+    const n=S.idle.length, f=((t%n)+n)%n, i0=Math.floor(f), i1=(i0+1)%n, m=f-i0;
+    put(S.idle[i0],1);
+    put(S.idle[i1],m);
   }
   ctx.globalAlpha=1;
   ctx.restore();
@@ -1588,7 +1634,7 @@ function drawInkFlyingSword(ctx,s){
   ctx.restore();
 }
 function drawJian(ctx, s){
-  if(SWDSPR.ok){ drawSwordSprite(ctx,s); return; }
+  // 飛出去的是「劍氣墨痕」,一律用程序化水墨畫(sprite 那把實劍改用於腳下結界)。
   drawInkFlyingSword(ctx,s); return;
   const EL=ELEM[stat.element]||ELEM.none;
   if(ART.ok){
@@ -1792,34 +1838,44 @@ function draw(){
   ctx.globalAlpha=1;
 
   const P=G.player;
-  // 中央:劍客本人(法陣落在腳下,呈橢圓像地面陣紋)
+  // 中央:劍客本人。腳下改為「墨劍環繞的結界」——待機劍幀沿橢圓軌道旋繞,取代綠色地陣。
   if(DRAWLV>=3){
   ctx.save();
   const feet=P.y+P.r*1.05;
+  const hpr=Math.max(0,P.hp/P.max), urg=1+(1-hpr)*2.0, low=hpr<0.4;
+  // 地面淡墨暈(取代原本的綠色光暈)
   if(FX.glow){
-    const glow=ctx.createRadialGradient(P.x,feet,4,P.x,feet,P.r+22+P.pulse*30);
-    glow.addColorStop(0,'rgba(120,150,110,.55)'); glow.addColorStop(1,'rgba(120,150,110,0)');
-    ctx.save(); ctx.translate(P.x,feet); ctx.scale(1,0.42); ctx.translate(-P.x,-feet);
-    ctx.fillStyle=glow; ctx.beginPath(); ctx.arc(P.x,feet,P.r+22+P.pulse*30,0,6.28); ctx.fill();
+    const glow=ctx.createRadialGradient(P.x,feet,4,P.x,feet,P.r+30+P.pulse*26);
+    const gc=low?'176,64,48':'40,34,28';
+    glow.addColorStop(0,'rgba('+gc+',.26)'); glow.addColorStop(1,'rgba('+gc+',0)');
+    ctx.save(); ctx.translate(P.x,feet); ctx.scale(1,0.4); ctx.translate(-P.x,-feet);
+    ctx.fillStyle=glow; ctx.beginPath(); ctx.arc(P.x,feet,P.r+30+P.pulse*26,0,6.28); ctx.fill();
     ctx.restore();
   }
-  const hpr=Math.max(0,P.hp/P.max), urg=1+(1-hpr)*2.2;
-  ctx.save(); ctx.translate(P.x,feet); ctx.scale(1,0.42);
-  ctx.strokeStyle=hpr<0.35?'rgba(176,64,48,'+(0.34+Math.sin(G.t*0.12)*0.18)+')'
-                          :'rgba(74,90,58,'+(0.38+G.intent*0.5)+')';
-  ctx.lineWidth=1.4/0.42*0.42;
-  for(let ring=0;ring<2;ring++){
-    ctx.save(); ctx.rotate(G.t*0.004*urg*(ring?-1:1));
-    const rr=P.r+12+ring*10+G.intent*7;           // 意念起,陣紋外擴
-    ctx.beginPath(); ctx.arc(0,0,rr,0,6.28); ctx.stroke();
-    const seg=ring?6:8;
-    for(let i=0;i<seg;i++){ const a=i/seg*6.283;
-      ctx.beginPath(); ctx.moveTo(Math.cos(a)*(rr-4),Math.sin(a)*(rr-4));
-      ctx.lineTo(Math.cos(a)*(rr+4),Math.sin(a)*(rr+4)); ctx.stroke(); }
-    ctx.restore();
+  // 劍環結界:待機劍幀環繞,劍尖朝外、護手朝內;軌道壓扁貼地,前大後小做出景深。
+  if(SWDSPR.ok && FX.glow){
+    const N=6, spin=G.t*0.006*urg;
+    const rx=P.r+26+G.intent*8, ry=rx*0.42;
+    ctx.save(); ctx.translate(P.x,feet);
+    const order=[]; for(let i=0;i<N;i++) order.push(i);
+    order.sort((p,q)=>Math.sin(spin+p/N*6.283)-Math.sin(spin+q/N*6.283)); // 後方先畫
+    for(const i of order){
+      const a=spin+i/N*6.283, px=Math.cos(a)*rx, py=Math.sin(a)*ry;
+      const depth=(Math.sin(a)+1)/2;                       // 0 後 → 1 前
+      const im=SWDSPR.idle[(i*2+Math.floor(G.t*0.04))%SWDSPR.idle.length];
+      if(!im||!im.complete||!im.naturalWidth) continue;
+      const L=P.r*(0.95+depth*0.5);                        // 劍長:前排略長
+      const w=L/SWDSPR.blade, hh=w/SWDSPR.aspect;
+      const dir=Math.atan2(py,px);                         // 離心方向(劍尖朝外)
+      ctx.save(); ctx.translate(px,py); ctx.rotate(dir);
+      ctx.globalAlpha=0.24+depth*0.5;
+      ctx.drawImage(low?tintFrame(im,'#a2422b'):im, -w*SWDSPR.grip, -hh/2, w, hh);
+      ctx.restore();
+    }
+    ctx.globalAlpha=1; ctx.restore();
   }
   ctx.restore();
-  if(ART.ok || HEROSPR.ok) drawHero(P);
+  if(ART.ok || heroSet().ok) drawHero(P);
   else {                                            // 貼圖沒載到:退回原本的靈石
     ctx.fillStyle=P.pulse>0.3?'#b04030':'#4a5a3a';
     ctx.beginPath(); ctx.arc(P.x,P.y,P.r,0,6.28); ctx.fill();
@@ -2410,7 +2466,7 @@ function start(){
     auto:false,autoUsed:false,autoTimer:0,
     shake:0,hitstop:0,flash:0,flashC:'255,255,255',banner:null,
     aim:0.85,facing:1,intent:0,streaks:[],cuts:[],firstStrikeDone:false,respecWave:0,
-    hurtT:0,castT:0,deathT:0,heroPhase:Math.random()*9});
+    hurtT:0,castT:0,deathT:0,deathMax:56,heroPhase:Math.random()*9});
   renderAutoBtn();          // 開新局時 G.auto 已重設為 false,按鈕也要跟著回到「關」
   SND.unlock(); SND.intensity(1); SND.startMusic(); SND.duck(false);
   // 以 runtime 建立本局狀態(含永久問道加成),再映射回 stat.*
@@ -2440,23 +2496,35 @@ function togglePause(force){
   // 暫停:背景樂完全停止;繼續:重新起奏
   if(now) SND.stopMusic(0.25); else SND.startMusic();
   document.getElementById('pause').classList.toggle('show',now);
-  if(now){ renderVol(); respecArmed=false; renderRespec(); }
+  if(now){ renderVol(); renderHeroBtn(); respecArmed=false; renderRespec(); }
   if(!now) tryLevelUp();          // 暫停期間累積的升級,繼續後補選
 }
-// 隕落:先播 7 幀消散動畫,播完才進結算畫面(沒有 sprite 就直接結算)
+// 隕落:有專屬 death 幀 → 播 7 幀;否則(女修)→ 程式化墨消散(sprite 淡出 + 潑墨爆散)。
+// 播完才進結算畫面;完全無 sprite 時直接結算。
 function beginDeath(){
   if(G.deathT>0) return;
   drawing=false; path=[]; G.hurtT=0; G.castT=0;
-  if(!HEROSPR.ok){ gameOver(); return; }
-  G.deathT=63;                                       // 7 幀 × 9 影格
+  const S=heroSet();
+  if(!S.ok){ gameOver(); return; }
+  const hasDeath=!!(S.death&&S.death.length);
+  G.deathMax = hasDeath ? 63 : 56;                   // 有幀 7×9;程式消散 ~56 影格
+  G.deathT = G.deathMax;
+  if(!hasDeath){                                     // 程式消散:當場炸開一團墨,再由 update 續噴
+    const P=G.player;
+    splash(P.x, P.y-P.r*1.4, '#2b2620', 2.8);
+    for(let k=0;k<30;k++) ink(P.x+(Math.random()-.5)*34, P.y-P.r*1.6+(Math.random()-.5)*70,
+      (Math.random()-.5)*5.5, (Math.random()-.5)*5.5-0.8, 10+Math.random()*20);
+    stain(P.x, P.y+P.r*0.6, P.r*1.6, '44,38,32');
+    shake(10); flash(0.14,'40,34,28');
+  }
   SND.over();
 }
 function gameOver(){
-  G.running=false; G.pendingLevels=0; if(!HEROSPR.ok) SND.over();
+  G.running=false; G.pendingLevels=0; if(!heroSet().ok) SND.over();
   levelChoiceLocked=false;
   drawing=false; path=[]; curLen=0; maxed=false;
   document.getElementById('overlay').classList.remove('show');
-  // 魂魄結算(用過自動禦劍:收益減半且不計歷史最佳)
+  // 墨魂結算(用過自動禦劍:收益減半且不計歷史最佳)
   let earned = G.kills + G.wave*5 + G.level*3;
   const autoed = G.autoUsed;
   if(autoed) earned = Math.floor(earned*0.5);
@@ -2473,13 +2541,13 @@ function gameOver(){
   let hint='';
   const nxt = nextGoal();
   if(nxt){ const need=Math.max(0,nxt.cost-meta.souls);
-    hint = need>0 ? '再積 <b style="color:#c08a2e">'+need+'</b> 魂魄可習得〈'+nxt.name+'〉'
-                  : '魂魄已足以習得〈'+nxt.name+'〉，速入轉世閣'; }
+    hint = need>0 ? '再積 <b style="color:#c08a2e">'+need+'</b> 墨魂可習得〈'+nxt.name+'〉'
+                  : '墨魂已足以習得〈'+nxt.name+'〉，速入轉世閣'; }
   document.getElementById('finaltxt').innerHTML=
     '此世 · 斬妖 '+G.kills+' 頭 · 道行 '+num2cn(G.level)+' 重 · 抵第 '+num2cn(G.wave)+' 波'
     + (nb?'　<span style="color:#c08a2e">✦ 斬妖新猷</span>':'')
     + '<br>歷史最佳 · 斬妖 '+meta.best.kills+' · 道行 '+num2cn(meta.best.level)+' 重 · 第 '+num2cn(meta.best.wave)+' 波'
-    + '<br><br>此世凝魂 <b style="color:#c08a2e">+'+earned+'</b>'+(autoed?' <span style="color:#8a7a5a">(自動禦劍 · 減半不計紀錄)</span>':'')+' · 現有魂魄 <b style="color:#c08a2e">'+meta.souls+'</b>'
+    + '<br><br>此世凝魂 <b style="color:#c08a2e">+'+earned+'</b>'+(autoed?' <span style="color:#8a7a5a">(自動禦劍 · 減半不計紀錄)</span>':'')+' · 現有墨魂 <b style="color:#c08a2e">'+meta.souls+'</b>'
     + (hint?'<br><span style="font-size:13px;color:#c9bfa6">'+hint+'</span>':'');
   document.getElementById('gameover').style.display='flex';
 }
@@ -2525,7 +2593,7 @@ function rebirthRow(v){
   else if(blocked){ btn.textContent='未達'; btn.disabled=true; }
   else{
     btn.textContent = (v.rank>0?'精進 · ':'參悟 · ')+cost;
-    btn.disabled = !v.purchase.ok;                       // 魂魄不足由 runtime 判定
+    btn.disabled = !v.purchase.ok;                       // 墨魂不足由 runtime 判定
     btn.onclick=()=>{
       const r=INK_CONFIG.runtime.purchaseRebirth(buildPermanentSave(), v.id);
       if(r.ok){ storePermanentSave(r.state); SND.ui(); renderMeta(); }
@@ -2534,13 +2602,13 @@ function rebirthRow(v){
   row.appendChild(btn); return row;
 }
 function renderMeta(){
-  document.getElementById('metasouls').innerHTML='魂魄　<b>'+meta.souls+'</b>'
+  document.getElementById('metasouls').innerHTML='墨魂　<b>'+meta.souls+'</b>'
     + ((meta.inkPills||0)>0 ? '　·　洗墨丹 <b>'+meta.inkPills+'</b>' : '');
   document.getElementById('metabonus').innerHTML='承襲修為 · <b>'+metaBonusText()+'</b>';
   const off=document.getElementById('metaoffline'); const pend=offlinePending();
-  if(pend>0){ off.innerHTML='閉關所得 '+pend+' 魂魄(每時 '+offlineRate()+'，封頂 '+meta.offCap+' 時)<span class="claim" id="claimbtn">領取</span>';
+  if(pend>0){ off.innerHTML='閉關所得 '+pend+' 墨魂(每時 '+offlineRate()+'，封頂 '+meta.offCap+' 時)<span class="claim" id="claimbtn">領取</span>';
     document.getElementById('claimbtn').onclick=()=>{ claimOffline(); renderMeta(); }; }
-  else { off.innerHTML='<span style="color:#8a7a5a">閉關修煉中 · 每時凝 '+offlineRate()+' 魂魄(封頂 '+meta.offCap+' 時)</span>'; }
+  else { off.innerHTML='<span style="color:#8a7a5a">閉關修煉中 · 每時凝 '+offlineRate()+' 墨魂(封頂 '+meta.offCap+' 時)</span>'; }
   const view=rebirthView();
   const boxes={foundation:document.getElementById('metalist'),
                mind:document.getElementById('metaunlock'),
@@ -2565,7 +2633,7 @@ function respecInfo(){
   let pay='免費', usePill=false, ok=true, why='';
   if(cost>0){
     if(pills>0){ pay='洗墨丹 ×1(存 '+pills+')'; usePill=true; }
-    else { pay=cost+' 魂魄(存 '+meta.souls+')'; if(meta.souls<cost){ ok=false; why='魂魄不足'; } }
+    else { pay=cost+' 墨魂(存 '+meta.souls+')'; if(meta.souls<cost){ ok=false; why='墨魂不足'; } }
   }
   if(!inRun){ ok=false; why='未在局中'; }
   else if(usedThisWave){ ok=false; why='本波已重塑 · 下一波再凝神'; }
@@ -2619,6 +2687,15 @@ function toggleAuto(){
 }
 // ---------- 音量設定 ----------
 const VOLS=[['volMaster','master'],['volMusic','music'],['volSfx','sfx']];
+function renderHeroBtn(){
+  const b=document.getElementById('herobtn'); if(!b) return;
+  b.textContent='執筆者：'+(meta.heroSkin==='f'?'女修':'劍客');
+  b.classList.toggle('on', meta.heroSkin==='f');
+}
+function toggleHeroSkin(){
+  meta.heroSkin = (meta.heroSkin==='f') ? 'm' : 'f';
+  saveMeta(); SND.ui(); renderHeroBtn();
+}
 function renderVol(){
   for(const [id,key] of VOLS){
     const el=document.getElementById(id); if(!el) continue;
@@ -2672,7 +2749,7 @@ function renderSndBtn(){
 
 // ---------- 商城 ----------
 function renderShop(){
-  document.getElementById('shopgems').innerHTML='靈石　<b>'+meta.gems+'</b>　·　魂魄 '+meta.souls
+  document.getElementById('shopgems').innerHTML='靈石　<b>'+meta.gems+'</b>　·　墨魂 '+meta.souls
     + ((meta.inkPills||0)>0 ? '　·　洗墨丹 '+meta.inkPills : '');
   const iap=document.getElementById('shopiap'); iap.innerHTML='';
   SHOP_IAP.forEach(m=>{
@@ -2735,11 +2812,12 @@ document.getElementById('autobtn').onclick=toggleAuto;
 document.getElementById('rerollbtn').onclick=rerollCards;
 document.getElementById('sndbtn').onclick=toggleSnd;
 renderSndBtn(); bindVol(); renderVol();
-// 首次互動即解鎖音訊(瀏覽器自動播放限制)
+// 首次互動即解鎖音訊(瀏覽器自動播放限制);若還在首頁(未入局),淡入首頁 BGM(game_op,Loop)
 ['pointerdown','keydown','touchstart'].forEach(ev=>
-  window.addEventListener(ev,()=>SND.unlock(),{once:true,passive:true}));
+  window.addEventListener(ev,()=>{ SND.unlock(); if(!G.running && !meta.mute) SND.startMenu(); },{once:true,passive:true}));
 document.getElementById('resumebtn').onclick=()=>togglePause(false);
 document.getElementById('respecbtn').onclick=()=>doRespec();
+document.getElementById('herobtn').onclick=()=>toggleHeroSkin();
 document.getElementById('pausequitbtn').onclick=()=>{ togglePause(false); gameOver(); };
 document.getElementById('splashshopbtn').onclick=openShop;
 document.getElementById('metashopbtn').onclick=openShop;

@@ -6,7 +6,11 @@
   'use strict';
 
   const ROOT = 'assets/audio/sfx/';
-  const TRACK = 'assets/audio/bgm/battle01.mp3';
+  // 戰鬥樂依波次分段:1–20 → battle01,21–40 → battle02,41–60 → battle03。
+  const TRACKS = ['assets/audio/bgm/battle01.mp3','assets/audio/bgm/battle02.mp3','assets/audio/bgm/battle03.mp3'];
+  const TRACK = TRACKS[0];
+  function bandOf(wave){ return wave>=41 ? 2 : wave>=21 ? 1 : 0; }   // 回傳 TRACKS 索引
+  let curBand = 0;
   const BANK = Object.freeze({
     cast:       { files:['cast_01.ogg','cast_02.ogg','cast_03.ogg','cast_04.ogg'], volume:0.42, rate:[0.92,1.08], voices:5, cooldown:22 },
     hit:        { files:['hit_01.ogg','hit_02.ogg','hit_03.ogg'], volume:0.28, rate:[0.96,1.08], voices:6, cooldown:30 },
@@ -92,14 +96,62 @@
 
   function ensureMusic() {
     if (music) return music;
-    music = makeAudio(TRACK);
+    music = makeAudio(TRACKS[curBand]);
     music.loop = true;
     music.addEventListener('error', () => { musicEnabled = false; }, { once:true });
     return music;
   }
+  // 依波次切換戰鬥樂:換段時淡出舊曲、換源、淡入新曲(同一 <audio> 物件換 src)。
+  function setBand(band){
+    band = Math.max(0, Math.min(TRACKS.length-1, band|0));
+    if (band === curBand && music) return;
+    curBand = band;
+    if (!music) { if (enabled && musicEnabled && !hardMuted) startMusic(); return; }
+    const v = settings(), target = enabled && musicEnabled && !hardMuted ? Math.min(1,v.master*v.music) : 0;
+    const swap = () => { try { music.src = TRACKS[curBand]; music.loop = true; music.currentTime = 0;
+        if (enabled && musicEnabled && !hardMuted) { const pr=music.play(); if(pr&&pr.catch)pr.catch(()=>{}); } } catch(_){} };
+    // 0.5s 淡出 → 換源 → 0.8s 淡入
+    let t0=null; const dur=500; const from=music.volume;
+    function fade(ts){ if(t0==null)t0=ts; const k=Math.min(1,(ts-t0)/dur); music.volume=from*(1-k);
+      if(k<1){ requestAnimationFrame(fade); } else { swap();
+        let s0=null; function fin(ts2){ if(s0==null)s0=ts2; const j=Math.min(1,(ts2-s0)/800); music.volume=target*j; if(j<1)requestAnimationFrame(fin);} requestAnimationFrame(fin);
+      } }
+    requestAnimationFrame(fade);
+  }
+
+  // ── 首頁 BGM(game_op):淡入淡出、Loop,與戰鬥樂各自獨立 ──
+  const MENU_TRACK = 'assets/audio/bgm/game_op.mp3';
+  let menu = null, menuRAF = 0;
+  function ensureMenu() {
+    if (menu) return menu;
+    menu = makeAudio(MENU_TRACK); menu.loop = true;
+    menu.addEventListener('error', () => {}, { once:true });
+    return menu;
+  }
+  function fadeVol(audio, to, ms, then) {
+    if (!audio) return;
+    if (menuRAF) cancelAnimationFrame(menuRAF);
+    const from = audio.volume, t0Ref = {}; let t0 = null;
+    function step(ts){ if(t0==null)t0=ts; const k=ms<=0?1:Math.min(1,(ts-t0)/ms);
+      audio.volume = Math.max(0, Math.min(1, from + (to-from)*k));
+      if(k<1){ menuRAF=requestAnimationFrame(step); } else { menuRAF=0; then&&then(); } }
+    menuRAF = requestAnimationFrame(step);
+  }
+  function startMenu() {
+    if (!enabled || !musicEnabled || hardMuted) return;
+    const a = ensureMenu(); const v = settings();
+    const tgt = Math.min(1, v.master*v.music);
+    a.volume = 0; const pr = a.play(); if (pr && pr.catch) pr.catch(()=>{});
+    fadeVol(a, tgt, 1200);
+  }
+  function stopMenu(fadeMs) {
+    if (!menu) return;
+    fadeVol(menu, 0, fadeMs==null?600:fadeMs, () => { try { menu.pause(); } catch(_){} });
+  }
 
   function applyVolume() {
     const v = settings();
+    if (menu && !menu.paused) menu.volume = enabled && musicEnabled && !hardMuted ? Math.min(1,v.master*v.music) : 0;
     if (music) music.volume = enabled && musicEnabled && !hardMuted ? Math.min(1,v.master*v.music) : 0;
     for (const [name,pool] of pools) {
       const spec = BANK[name];
@@ -109,6 +161,7 @@
 
   function startMusic() {
     if (!enabled || !musicEnabled || hardMuted) return;
+    stopMenu(400);                       // 進戰鬥即淡出首頁樂,兩者不重疊
     const audio = ensureMusic();
     applyVolume();
     const promise = audio.play();
@@ -126,15 +179,18 @@
 
   const api = {
     get on() { return enabled; },
-    setOn(value) { enabled = Boolean(value); if (!enabled) { stopMusic(); api.stopAll(); } applyVolume(); },
+    setOn(value) { enabled = Boolean(value); if (!enabled) { stopMusic(); stopMenu(0); api.stopAll(); } applyVolume(); },
     unlock,
     applyVol: applyVolume,
     startMusic,
     stopMusic,
     music(value) { musicEnabled = Boolean(value); musicEnabled ? startMusic() : stopMusic(); },
-    hardMute(value) { hardMuted = Boolean(value); if (hardMuted) { stopMusic(); api.stopAll(); } else { applyVolume(); } },
+    hardMute(value) { hardMuted = Boolean(value); if (hardMuted) { stopMusic(); stopMenu(0); api.stopAll(); } else { applyVolume(); } },
     duck() {},
-    intensity() {},
+    // 首頁 BGM(game_op)
+    startMenu, stopMenu,
+    // 依波次切換戰鬥樂段(1–20 / 21–40 / 41–60)
+    intensity(wave) { setBand(bandOf(Number(wave)||1)); },
     stopAll() { for (const pool of pools.values()) for (const audio of pool) { try { audio.pause(); audio.currentTime=0; } catch (_) {} } },
 
     cast(length) { play('cast',{ rate:0.92 + Math.min(0.14,Number(length||0)/5000) }); },

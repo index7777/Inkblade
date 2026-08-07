@@ -119,15 +119,15 @@
     // ── 修持:當局基礎能力。 ───────────────────────────────────────
     insight({ id: 'cultivate_edge', category: CATEGORY.CULTIVATION, rarity: RARITY.AWAKENING, name: '養鋒', rune: '鋒', maxRank: 10, description: '凝養劍鋒,使每次入墨更深。', effects: [op('add', 'stats.damage', 9)] }),
     insight({ id: 'cultivate_breadth', category: CATEGORY.CULTIVATION, rarity: RARITY.AWAKENING, name: '展鋒', rune: '展', maxRank: 8, description: '展開劍勢,使劍痕更寬、更易觸及墨身。', effects: [op('add', 'stats.swordWidth', 3.5)], fx: { trail: fx.BREAK_INK } }),
-    insight({ id: 'cultivate_breath', category: CATEGORY.CULTIVATION, rarity: RARITY.AWAKENING, name: '納息', rune: '息', maxRank: 8, description: '納劍意入靈府,提高靈力上限與周天回復。', effects: [op('add', 'stats.manaMax', 24), op('add', 'stats.manaRegen', 0.1), op('max', 'stats.mana', 'stats.manaMax')] }),
+    insight({ id: 'cultivate_breath', category: CATEGORY.CULTIVATION, rarity: RARITY.AWAKENING, name: '納息', rune: '息', maxRank: 8, description: '納劍意入靈府,提高劍意上限與周天回復。', effects: [op('add', 'stats.manaMax', 24), op('add', 'stats.manaRegen', 0.1), op('max', 'stats.mana', 'stats.manaMax')] }),
     insight({ id: 'cultivate_sheath', category: CATEGORY.CULTIVATION, rarity: RARITY.CLARITY, name: '開匣', rune: '匣', maxRank: 5, description: '劍匣再開三席,使更多飛劍可同時留於畫中。', effects: [op('add', 'stats.swordCap', 3)] }),
     insight({ id: 'cultivate_focus', category: CATEGORY.CULTIVATION, rarity: RARITY.CLARITY, name: '凝神', rune: '凝', maxRank: 5, description: '心念專一,暴擊劍痕更深。', effects: [op('add', 'stats.critMultiplier', 0.2), op('mul', 'mechanics.trailOpacity', 1.05)] }),
     // ── 真意:改變流派;一局只能啟用一種。 ─────────────────────────
-    insight({ id: 'truth_ten_thousand', category: CATEGORY.TRUTH, rarity: RARITY.TRUTH, name: '萬劍歸宗', rune: '萬', maxRank: 1, description: '萬鋒同歸一念:增三劍、開六席劍匣,但單劍傷害降低。', requires: ['inherit_ten_thousand'], effects: [op('truth', 'activeTruth', 'truth_ten_thousand'), op('add', 'stats.swordCount', 3), op('add', 'stats.swordCap', 6), op('mul', 'stats.damage', 0.82)], fx: { trail: fx.DRY_BRUSH, hit: fx.BREAK_INK } }),
+    insight({ id: 'truth_ten_thousand', category: CATEGORY.TRUTH, rarity: RARITY.TRUTH, name: '萬劍歸宗', rune: '萬', maxRank: 1, description: '增三劍、開六席劍匣;單劍傷害略降。', requires: ['inherit_ten_thousand'], effects: [op('truth', 'activeTruth', 'truth_ten_thousand'), op('add', 'stats.swordCount', 3), op('add', 'stats.swordCap', 6), op('mul', 'stats.damage', 0.82)], fx: { trail: fx.DRY_BRUSH, hit: fx.BREAK_INK } }),
     insight({ id: 'truth_single_stroke', category: CATEGORY.TRUTH, rarity: RARITY.TRUTH, name: '一筆開天', rune: '一', maxRank: 1, description: '萬念歸於一鋒:只留一劍,傷害與劍寬大幅提高。', requires: ['inherit_single_stroke'], effects: [op('truth', 'activeTruth', 'truth_single_stroke'), op('set', 'stats.swordCount', 1), op('mul', 'stats.damage', 2.35), op('mul', 'stats.swordWidth', 1.45), op('add', 'stats.pierce', 4)], fx: { trail: fx.WHITE_CUT, hit: fx.BREAK_INK } }),
-    insight({ id: 'truth_return_hidden', category: CATEGORY.TRUTH, rarity: RARITY.TRUTH, name: '歸藏無痕', rune: '藏', maxRank: 1, description: '劍去無聲,歸時見鋒:所有劍必定折返,回程傷害更高。', requires: ['inherit_return_hidden'], effects: [op('truth', 'activeTruth', 'truth_return_hidden'), op('set', 'mechanics.returnEnabled', true), op('add', 'mechanics.returnHits', 1), op('flag', 'flags.returnLeavesDryBrush', true), op('unlock', 'runUnlocks', 'returnDamageMultiplier:1.65')], fx: { trail: fx.DRY_BRUSH, hit: fx.WHITE_CUT } }),
-    insight({ id: 'truth_ink_sea', category: CATEGORY.TRUTH, rarity: RARITY.TRUTH, name: '墨海無涯', rune: '海', maxRank: 1, description: '每次破墨皆牽動墨海:潑墨範圍與波及傷害大幅提高。', requires: ['inherit_ink_sea'], effects: [op('truth', 'activeTruth', 'truth_ink_sea'), op('add', 'mechanics.splashRadius', 72), op('mul', 'mechanics.splashDamage', 1.65), op('flag', 'flags.splashOnKill', true), op('mul', 'stats.damage', 0.9)], fx: { hit: fx.SPLASH, status: fx.INK_DROP } }),
-    insight({ id: 'truth_dry_peaks', category: CATEGORY.TRUTH, rarity: RARITY.TRUTH, name: '飛白千峰', rune: '白', maxRank: 1, description: '劍行如枯筆過千峰:高速劍痕斷續留白,暴擊後再生一道殘鋒。', requires: ['inherit_dry_peaks'], effects: [op('truth', 'activeTruth', 'truth_dry_peaks'), op('add', 'stats.critChance', 0.18), op('flag', 'flags.whiteCutOnCrit', true), op('unlock', 'runUnlocks', 'criticalEcho:1')], fx: { trail: fx.DRY_BRUSH, hit: fx.WHITE_CUT } })
+    insight({ id: 'truth_return_hidden', category: CATEGORY.TRUTH, rarity: RARITY.TRUTH, name: '歸藏無痕', rune: '藏', maxRank: 1, description: '所有劍必定折返,回程傷害更高。', requires: ['inherit_return_hidden'], effects: [op('truth', 'activeTruth', 'truth_return_hidden'), op('set', 'mechanics.returnEnabled', true), op('add', 'mechanics.returnHits', 1), op('flag', 'flags.returnLeavesDryBrush', true), op('unlock', 'runUnlocks', 'returnDamageMultiplier:1.65')], fx: { trail: fx.DRY_BRUSH, hit: fx.WHITE_CUT } }),
+    insight({ id: 'truth_ink_sea', category: CATEGORY.TRUTH, rarity: RARITY.TRUTH, name: '墨海無涯', rune: '海', maxRank: 1, description: '潑墨範圍與波及傷害大幅提高。', requires: ['inherit_ink_sea'], effects: [op('truth', 'activeTruth', 'truth_ink_sea'), op('add', 'mechanics.splashRadius', 72), op('mul', 'mechanics.splashDamage', 1.65), op('flag', 'flags.splashOnKill', true), op('mul', 'stats.damage', 0.9)], fx: { hit: fx.SPLASH, status: fx.INK_DROP } }),
+    insight({ id: 'truth_dry_peaks', category: CATEGORY.TRUTH, rarity: RARITY.TRUTH, name: '飛白千峰', rune: '白', maxRank: 1, description: '劍痕斷續留白;暴擊後再生一道殘鋒。', requires: ['inherit_dry_peaks'], effects: [op('truth', 'activeTruth', 'truth_dry_peaks'), op('add', 'stats.critChance', 0.18), op('flag', 'flags.whiteCutOnCrit', true), op('unlock', 'runUnlocks', 'criticalEcho:1')], fx: { trail: fx.DRY_BRUSH, hit: fx.WHITE_CUT } })
   ]);
 
   const rebirthNode = (data) => Object.freeze({
@@ -143,10 +143,10 @@
 
   const REBIRTH = Object.freeze([
     // 築基:穩定且有限的永久數值。
-    rebirthNode({ id: 'foundation_spirit_house', branch: REBIRTH_BRANCH.FOUNDATION, name: '靈府初成', description: '每階令開局靈力上限提高十五。', maxRank: 4, costs: [30, 65, 125, 220], effects: [op('add', 'stats.manaMax', 15), op('max', 'stats.mana', 'stats.manaMax')] }),
+    rebirthNode({ id: 'foundation_spirit_house', branch: REBIRTH_BRANCH.FOUNDATION, name: '靈府初成', description: '每階令開局劍意上限提高十五。', maxRank: 4, costs: [30, 65, 125, 220], effects: [op('add', 'stats.manaMax', 15), op('max', 'stats.mana', 'stats.manaMax')] }),
     rebirthNode({ id: 'foundation_sword_bone', branch: REBIRTH_BRANCH.FOUNDATION, name: '劍骨凝成', description: '每階令開局劍傷提高三。', maxRank: 4, costs: [30, 65, 125, 220], effects: [op('add', 'stats.damage', 3)] }),
     rebirthNode({ id: 'foundation_flow', branch: REBIRTH_BRANCH.FOUNDATION, name: '行氣如劍', description: '每階令開局劍速提高一。', maxRank: 3, costs: [40, 95, 190], effects: [op('add', 'stats.swordSpeed', 1)] }),
-    rebirthNode({ id: 'foundation_cycle', branch: REBIRTH_BRANCH.FOUNDATION, name: '周天養息', description: '每階令靈力回復提高。', maxRank: 3, costs: [40, 95, 190], effects: [op('add', 'stats.manaRegen', 0.05)] }),
+    rebirthNode({ id: 'foundation_cycle', branch: REBIRTH_BRANCH.FOUNDATION, name: '周天養息', description: '每階令劍意回復提高。', maxRank: 3, costs: [40, 95, 190], effects: [op('add', 'stats.manaRegen', 0.05)] }),
     rebirthNode({ id: 'foundation_sword_case', branch: REBIRTH_BRANCH.FOUNDATION, name: '劍匣初開', description: '開局增一劍並多開一席劍匣。', maxRank: 1, costs: [320], effects: [op('add', 'stats.swordCount', 1), op('add', 'stats.swordCap', 1), op('set', 'formation', 'fan')] }),
     // 心法:永久改變節奏,不直接堆疊大量傷害。
     rebirthNode({ id: 'mind_clear_strike', branch: REBIRTH_BRANCH.MIND, name: '明心一斬', description: '每局第一道有效劍痕必定暴擊。', costs: [140], requires: ['foundation_sword_bone:2'], effects: [op('flag', 'flags.firstStrikeCrit', true)] }),
@@ -593,6 +593,8 @@
     });
   }
 
+  // 悟道卡片說明的字數硬上限(全形字/String.length)。實測固定卡片最窄版面容量。
+  const DESC_MAX = 22;
   function validateConfig() {
     const errors = [];
     const ids = new Set();
@@ -601,6 +603,10 @@
       ids.add(item.id);
       if (!Object.values(CATEGORY).includes(item.category)) errors.push(`無效分類: ${item.id}`);
       if (!rarity.order.includes(item.rarity)) errors.push(`無效稀有度: ${item.id}`);
+      // 文案長度上限:悟道三選一卡片為固定尺寸,說明超過 DESC_MAX 全形字會被裁切。
+      // 見 docs/技能文案規範.md。超標一律由 AI 縮短文案,不得縮小字級。
+      if (item.description && item.description.length > DESC_MAX)
+        errors.push(`說明超出 ${DESC_MAX} 字(${item.description.length}):${item.name} 需縮短文案`);
       // 真意必須攜帶truth操作
       if (item.category === CATEGORY.TRUTH && !item.effects.some(e => e.op === 'truth')) {
         errors.push(`真意缺少truth操作: ${item.id}`);
