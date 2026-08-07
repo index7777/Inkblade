@@ -120,7 +120,7 @@
   }
 
   // ── 首頁 BGM(game_op):淡入淡出、Loop,與戰鬥樂各自獨立 ──
-  const MENU_TRACK = 'assets/audio/bgm/game_op.mp3';
+  const MENU_TRACK = 'assets/audio/bgm/game_op_loop.mp3';
   let menu = null, menuRAF = 0;
   function ensureMenu() {
     if (menu) return menu;

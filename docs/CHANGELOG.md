@@ -5,6 +5,13 @@
 
 ---
 
+## [2026-08-07] #28 修正首頁 BGM 檔名(播不出來)
+**檔案**:`data/sound-system.js`
+**問題**:`MENU_TRACK` 寫成 `assets/audio/bgm/game_op.mp3`,但實際入庫的檔案是 `game_op_loop.mp3` → 首頁 BGM 一律 404,`startMenu()` 靜默失敗(makeAudio 的 error handler 只是吞掉),聽起來就是「首頁沒有音樂」。
+**修正**:`MENU_TRACK` 改為 `assets/audio/bgm/game_op_loop.mp3`。
+**驗證**:`node --check` 通過;倉庫內確認 `assets/audio/bgm/game_op_loop.mp3` 已入庫(git ls-files),且全庫已無 `game_op.mp3` 殘留引用。
+**還原依據**:把該行改回 `game_op.mp3`。
+
 ## [2026-08-07] #27 主角 26 幀重製 + 隕落動畫、墨劍 14 幀、開場疊合/停頓修正
 **檔案**:`assets/hero/*`(重製 + 死亡 7 幀)、`assets/sword/*`(新)、`inkblade.html`
 
