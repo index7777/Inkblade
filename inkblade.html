@@ -311,6 +311,8 @@
   </div></div>
 </div>
 
+<script src="data/game-config.js"></script>
+<script src="data/sound-system.js"></script>
 <script>
 (function(){
 'use strict';
@@ -338,7 +340,7 @@ resize();
 // ---------- 音律 ----------
 // 背景樂:assets/audio/bgm/battle01.mp3,雙元素等功率交叉淡入淡出循環。
 // 音效:WebAudio 程序化合成(五聲音階撥弦 + 噪音掃頻 + 低頻悶擊),無外部音檔。
-const SND=(function(){
+const SND_LEGACY=(function(){
   const S={ on:true, music:true };
   let ac=null, master=null, sg=null, rvg=null, noiseBuf=null;
 
@@ -560,7 +562,7 @@ const HERO={ handX:0.9652, handY:0.5097, gripX:0.279, gripY:0.50,
 // ---------- 遊戲狀態 ----------
 const G = {
   running:false, paused:false, t:0,
-  player:null, enemies:[], swords:[], particles:[], inks:[], texts:[], stains:[],
+  player:null, enemies:[], swords:[], particles:[], inks:[], texts:[], stains:[], splashes:[],
   kills:0, wave:1, waveTimer:0, spawnAcc:0,
   xp:0, xpNeed:6, level:1, pendingLevels:0,
   shake:0, hitstop:0, flash:0, flashC:'255,255,255', banner:null,
@@ -593,20 +595,13 @@ const stat = {
 };
 
 // ---------- 轉世 · 永久進度(存本機) ----------
-const META_UP = [
-  {id:'ling', name:'靈根深厚', desc:'開局靈力上限 +15',   max:4, cost:[30,60,120,220]},
-  {id:'gu',   name:'劍骨天成', desc:'開局劍傷 +3',        max:4, cost:[30,60,120,220]},
-  {id:'xing', name:'神行訣',   desc:'開局劍速 +1',        max:3, cost:[40,90,180]},
-  {id:'qi',   name:'養氣訣',   desc:'靈力回復加快',        max:3, cost:[40,90,180]},
-  {id:'twin', name:'雙生劍胎', desc:'開局即帶雙劍(扇形)',max:1, cost:[300]},
-];
-const META_UNLOCK = [
-  {id:'storm', name:'悟 · 萬劍歸宗', desc:'絕品詞條〈萬劍歸宗〉自此入詞條池', cost:250},
-  {id:'homing',name:'御劍傳承',      desc:'仙品詞條〈御劍追魂〉出現機率提高', cost:150},
-];
+// 轉世閣資料改由共用設定檔提供(data/game-config.js)
+const META_UP = window.INK_CONFIG.metaUp;
+const META_UNLOCK = window.INK_CONFIG.metaUnlock;
 let meta = { souls:0, best:{kills:0,wave:1,level:1}, up:{}, unlock:{},
              lastSeen:Date.now(), gems:0, offCap:8, skin:'none', mute:false,
              vol:{ master:0.85, music:0.62, sfx:0.75 } };
+window.getInkAudioSettings=()=>meta.vol;
 function loadMeta(){
   try{ const s=localStorage.getItem('inkjian_meta'); if(s){ meta=Object.assign(meta,JSON.parse(s)); } }catch(e){}
   meta.up=meta.up||{}; meta.unlock=meta.unlock||{}; meta.best=meta.best||{kills:0,wave:1,level:1};
@@ -731,7 +726,77 @@ function launchSword(path){
 function ink(x,y,vx,vy,r){ G.inks.push({x,y,vx,vy,r,a:0.5,life:1}); }
 function burst(x,y,c,n){ for(let i=0;i<n;i++){const a=Math.random()*6.28,s=1+Math.random()*4;
   G.particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:1,c});}}
+// 潑墨(Ink Engine Splash primitive 內嵌版):不規則墨團 + 徑向墨刺 + 飛濺墨滴。取代圓形爆裂粒子。
+function splash(x,y,c,power){
+  power=power||1;
+  const spikes=[], nSp=5+((Math.random()*6)|0);
+  for(let i=0;i<nSp;i++) spikes.push({ang:Math.random()*6.283, len:0.8+Math.random()*1.0, w:0.05+Math.random()*0.11, broken:Math.random()<0.4});
+  const corners=[], nC=12+((Math.random()*10)|0);
+  for(let i=0;i<nC;i++) corners.push(0.6+Math.random()*0.55);
+  G.splashes.push({x,y,r:16+power*10, dur:28, age:0, c, spikes, corners, rot:Math.random()*6.283});
+  if(G.splashes.length>16) G.splashes.shift();     // 溢位丟最舊
+  burst(x,y,c, 4+((power*3)|0));                    // 墨滴飛濺沿用粒子系統
+}
+function drawSplash(ctx,sp){
+  const t=sp.age/sp.dur;
+  const grow=t<0.15?(t/0.15):1;                     // 0-15% 快速擴張
+  const a=(t<0.6?1:Math.max(0,1-(t-0.6)/0.4));      // 60-100% 淡出
+  const R=sp.r*(0.6+grow*0.4);
+  ctx.save(); ctx.translate(sp.x,sp.y); ctx.rotate(sp.rot);
+  ctx.globalAlpha=a*0.85; ctx.fillStyle=sp.c;
+  const nC=sp.corners.length;                        // 中央不規則墨團
+  ctx.beginPath();
+  for(let i=0;i<nC;i++){ const th=i/nC*6.283, r=R*0.5*sp.corners[i];
+    const px=Math.cos(th)*r, py=Math.sin(th)*r; i===0?ctx.moveTo(px,py):ctx.lineTo(px,py); }
+  ctx.closePath(); ctx.fill();
+  for(const s of sp.spikes){                         // 徑向墨刺(長短寬窄不一、部分斷裂)
+    const len=R*s.len, midR=s.broken?len*0.6:len;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(s.ang-s.w)*R*0.4, Math.sin(s.ang-s.w)*R*0.4);
+    ctx.lineTo(Math.cos(s.ang)*midR, Math.sin(s.ang)*midR);
+    ctx.lineTo(Math.cos(s.ang+s.w)*R*0.4, Math.sin(s.ang+s.w)*R*0.4);
+    ctx.closePath(); ctx.fill();
+  }
+  ctx.restore(); ctx.globalAlpha=1;
+}
 function floatText(x,y,txt,c){ G.texts.push({x,y,txt,c,life:1}); }
+// 毛筆劍氣拖尾(Ink Engine 筆劃 primitive 的內嵌版):帶錐度毛邊的填充墨緞帶 + 濃芯 + 飛白
+function inkTrail(ctx, tr, size, rgb){
+  const n=tr.length; if(n<2) return;
+  ctx.lineCap='round'; ctx.lineJoin='round';
+  // 1) 主墨緞帶:沿軌跡法線外擴成寬窄變化的封閉形,近劍身寬、末端急收,邊緣加毛邊抖動
+  const left=[], right=[];
+  for(let i=0;i<n;i++){
+    const p=tr[i], a=tr[Math.max(0,i-1)], b=tr[Math.min(n-1,i+1)];
+    let nx=-(b.y-a.y), ny=(b.x-a.x); const L=Math.hypot(nx,ny)||1; nx/=L; ny/=L;
+    const t=i/(n-1), ease=t*t;                       // 0 尾 → 1 頭
+    const w=size*0.95*ease;
+    const j=0.8+(Math.sin(i*12.9898)*0.5+0.5)*0.4;   // 0.8~1.2 毛邊
+    left.push({x:p.x+nx*w*j, y:p.y+ny*w*j});
+    right.push({x:p.x-nx*w*j, y:p.y-ny*w*j});
+  }
+  ctx.fillStyle='rgba('+rgb+',0.48)';
+  ctx.beginPath(); ctx.moveTo(left[0].x,left[0].y);
+  for(let i=1;i<n;i++) ctx.lineTo(left[i].x,left[i].y);
+  for(let i=n-1;i>=0;i--) ctx.lineTo(right[i].x,right[i].y);
+  ctx.closePath(); ctx.fill();
+  // 2) 濃芯線:中央更深一道,讓墨色有濃淡
+  ctx.strokeStyle='rgba('+rgb+',0.5)';
+  for(let i=1;i<n;i++){ const e=(i/(n-1))*(i/(n-1)); ctx.lineWidth=Math.max(0.5,size*0.5*e);
+    ctx.beginPath(); ctx.moveTo(tr[i-1].x,tr[i-1].y); ctx.lineTo(tr[i].x,tr[i].y); ctx.stroke(); }
+  // 3) 飛白:頭段乾筆斷白絲(真缺段,非半透明整線)
+  for(let s=0;s<3;s++){
+    const off=(s-1)*size*0.4;
+    for(let i=Math.max(1,n-6);i<n;i++){
+      if(((i*7+s*13)%3)===0) continue;               // 隨機缺段
+      const p=tr[i], a=tr[i-1];
+      let nx=-(p.y-a.y), ny=(p.x-a.x); const L=Math.hypot(nx,ny)||1; nx/=L; ny/=L;
+      const e=(i/(n-1))*(i/(n-1));
+      ctx.strokeStyle='rgba(250,246,236,'+(e*0.26)+')'; ctx.lineWidth=Math.max(0.5,size*0.14*e);
+      ctx.beginPath(); ctx.moveTo(a.x+nx*off,a.y+ny*off); ctx.lineTo(p.x+nx*off,p.y+ny*off); ctx.stroke();
+    }
+  }
+}
 // 畫面震動 / 頓幀 / 閃光 —— 打擊感三件套
 function shake(v){ G.shake=Math.min(22,G.shake+v); }
 function hitstop(f){ G.hitstop=Math.max(G.hitstop,f); }
@@ -745,40 +810,43 @@ function stain(x,y,r,c){
 }
 
 // ---------- 詞條池 ----------
-const AFFIXES=[
-  // 三種增劍陣型:量變多但各有取捨
-  {id:'fan',  name:'分光劍·扇', rar:'r', rune:'扇', desc:'劍數 +1，扇形散開。清雜兵佳，難集火',
-     apply:()=>{stat.count+=1; stat.formation='fan';}},
-  {id:'para', name:'並蒂劍·平行', rar:'r', rune:'雙', desc:'劍數 +1，平行齊飛。可覆蓋一列橫排之敵',
-     apply:()=>{stat.count+=1; stat.formation='parallel';}},
-  {id:'inline',name:'連珠劍·一線', rar:'r', rune:'串', desc:'劍數 +1，沿同一劍痕前後接連。集火單體最強',
-     apply:()=>{stat.count+=1; stat.formation='inline';}},
-  {id:'sharp',name:'凝鋒', rar:'n', rune:'刃', desc:'劍氣傷害 +10', apply:()=>stat.damage+=10},
-  {id:'broad',name:'開闔', rar:'n', rune:'氣', desc:'劍氣加寬，更易命中', apply:()=>stat.size+=4},
-  {id:'swift',name:'疾風', rar:'n', rune:'風', desc:'劍飛更快、更遠', apply:()=>{stat.speed+=3;stat.life+=0.25;}},
-  {id:'pierce',name:'貫穿', rar:'r', rune:'穿', desc:'可多貫穿 2 名敵人', apply:()=>stat.pierce+=2},
-  {id:'homing',name:'御劍追魂', rar:'e', rune:'眼', desc:'劍氣自動追蹤，但傷害 -25% 且不暴擊', apply:()=>stat.homing+=0.06},
-  {id:'explode',name:'裂空', rar:'e', rune:'炸', desc:'命中時炸開，波及周圍', apply:()=>stat.explode+=52},
-  {id:'ember',name:'業火符', rar:'r', rune:'焱', desc:'劍現赤焰,命中附加持續灼燒', apply:()=>{stat.ember+=1; stat.element='fire';}},
-  {id:'frost',name:'寒霜訣', rar:'r', rune:'凍', desc:'劍現寒芒,命中冰緩敵人並附霜傷', apply:()=>{stat.ice+=1; stat.element='ice';}},
-  {id:'ret', name:'迴劍式', rar:'e', rune:'環', desc:'劍飛至盡頭折返再斬', apply:()=>stat.ret=1},
-  {id:'crit',name:'奪魄', rar:'r', rune:'魄', desc:'暴擊率 +15%（暴擊雙倍）', apply:()=>stat.crit+=0.15},
-  {id:'regen',name:'養靈', rar:'n', rune:'靈', desc:'每斬妖回復少許靈元', apply:()=>stat.regen+=0.6},
-  {id:'mana', name:'靈台', rar:'n', rune:'台', desc:'靈力上限 +30、回復加快', apply:()=>{stat.manaMax+=30;stat.manaRegen+=0.12;G.mana+=30;}},
-  {id:'cap',  name:'劍匣', rar:'r', rune:'匣', desc:'同屏飛劍上限 +3', apply:()=>stat.cap+=3},
-  {id:'storm',name:'萬劍歸宗', rar:'l', rune:'劍', desc:'劍數 +2、傷害 +12、同屏上限 +4', apply:()=>{stat.count+=2;stat.damage+=12;stat.cap+=4;}},
-];
-const RARW={n:60,r:30,e:12,l:3};
-const RARNAME={n:'凡品',r:'靈品',e:'仙品',l:'絕品'};
+// 詞條池與稀有度改由共用設定檔提供(data/game-config.js)
+const AFFIXES = window.INK_CONFIG.affixes;
+const RARW = window.INK_CONFIG.rarity.weight;
+const RARNAME = window.INK_CONFIG.rarity.name;
+// 通用套用器:解讀詞條的宣告式 effect(取代原本每條寫死的 apply 閉包)
+function applyAffix(a){
+  const e=a.effect||{};
+  if(e.count)      stat.count    += e.count;
+  if(e.formation)  stat.formation = e.formation;
+  if(e.damage)     stat.damage    += e.damage;
+  if(e.size)       stat.size      += e.size;
+  if(e.speed)      stat.speed     += e.speed;
+  if(e.life)       stat.life      += e.life;
+  if(e.pierce)     stat.pierce    += e.pierce;
+  if(e.homing)     stat.homing    += e.homing;
+  if(e.explode)    stat.explode   += e.explode;
+  if(e.ember)      stat.ember     += e.ember;
+  if(e.ice)        stat.ice       += e.ice;
+  if(e.element)    stat.element    = e.element;
+  if(e.ret!=null)  stat.ret        = e.ret;
+  if(e.crit)       stat.crit      += e.crit;
+  if(e.regen)      stat.regen     += e.regen;
+  if(e.manaMax)    stat.manaMax   += e.manaMax;
+  if(e.manaRegen)  stat.manaRegen += e.manaRegen;
+  if(e.mana)       G.mana         += e.mana;
+  if(e.cap)        stat.cap       += e.cap;
+}
 function affixWeight(a){
-  // 萬劍歸宗須先解鎖才入池;御劍傳承解鎖後追魂更常出現
-  if(a.id==='homing' && meta.unlock.homing) return RARW[a.rar]*2.2;
+  // 御劍傳承解鎖後,追蹤詞條加權(設定檔 homingBoost)
+  const hb=window.INK_CONFIG.homingBoost;
+  if(hb && a.effect && a.effect.homing && meta.unlock[hb.unlock]) return RARW[a.rar]*hb.mult;
   return RARW[a.rar];
 }
 function drawCards(){
   if(!G.running) return;
   // 加權抽三張不重複(未解鎖的秘傳詞條不入池)
-  const pool=AFFIXES.filter(a=> !(a.id==='storm' && !meta.unlock.storm)); const pick=[];
+  const pool=AFFIXES.filter(a=> !(a.locked && !meta.unlock[a.locked])); const pick=[];
   while(pick.length<3&&pool.length){
     let tot=pool.reduce((s,a)=>s+affixWeight(a),0), r=Math.random()*tot, idx=0;
     for(let i=0;i<pool.length;i++){ r-=affixWeight(pool[i]); if(r<=0){idx=i;break;} }
@@ -792,7 +860,7 @@ function drawCards(){
       <div class="cname">${a.name}</div>
       <div class="rar rar-${a.rar}">${RARNAME[a.rar]}</div>
       <div class="cdesc">${a.desc}</div>`;
-    el.onclick=()=>{ SND.pick(); a.apply(); closeLevelUp(); };
+    el.onclick=()=>{ SND.pick(); applyAffix(a); closeLevelUp(); };
     box.appendChild(el);
   });
   // 連升多重時,標示還剩幾次可選
@@ -918,7 +986,7 @@ function update(){
     // 觸及靈石
     if(d < en.r+P.r){
       P.hp -= en.tier===2?18:en.tier===1?11:7; P.pulse=1;
-      burst(en.x,en.y,en.c,10); G.enemies.splice(i,1); updateHUD();
+      splash(en.x,en.y,en.c,1); G.enemies.splice(i,1); updateHUD();
       SND.hurt(); shake(9+en.tier*3); flash(0.22,'176,64,48'); hitstop(4);
       if(P.hp<=0){ gameOver(); return; }
     }
@@ -977,11 +1045,11 @@ function update(){
         if(stat.ember>0){ en.ember=Math.max(en.ember,stat.ember); }
         if(stat.ice>0){ en.chill=100; }
         floatText(en.x,en.y-en.r, Math.round(dmg)+(isCrit?'!':''), isCrit?'#c0392b':'#f3ecd8');
-        burst(s.x,s.y,(ELEM[stat.element]||ELEM.none).hit,6);
+        splash(s.x,s.y,(ELEM[stat.element]||ELEM.none).hit,1);
         if(isCrit){ SND.crit(); shake(4); hitstop(3); flash(0.12,'240,220,160'); }
         else { SND.hit(); shake(1.1); }
         if(stat.explode>0){
-          burst(s.x,s.y,'#c0662e',18); SND.boom(); shake(7); stain(s.x,s.y,stat.explode*0.5,'170,90,40');
+          splash(s.x,s.y,'#c0662e',2.2); SND.boom(); shake(7); stain(s.x,s.y,stat.explode*0.5,'170,90,40');
           for(const e2 of G.enemies){ if(e2!==en && Math.hypot(e2.x-s.x,e2.y-s.y)<stat.explode){
             e2.hp-=stat.damage*0.6; e2.hit=6; }}
           for(let k=0;k<8;k++)ink(s.x,s.y,(Math.random()-.5)*4,(Math.random()-.5)*4,10+Math.random()*14);
@@ -995,6 +1063,7 @@ function update(){
 
   // 粒子/墨/浮字
   for(let i=G.particles.length-1;i>=0;i--){const p=G.particles[i];p.x+=p.vx;p.y+=p.vy;p.vx*=0.92;p.vy*=0.92;p.life-=0.03;if(p.life<=0)G.particles.splice(i,1);}
+  for(let i=G.splashes.length-1;i>=0;i--){const sp=G.splashes[i];sp.age++;if(sp.age>=sp.dur)G.splashes.splice(i,1);}
   for(let i=G.inks.length-1;i>=0;i--){const p=G.inks[i];p.x+=p.vx;p.y+=p.vy;p.vx*=0.9;p.vy*=0.9;p.r*=1.02;p.a-=0.012;p.life-=0.01;if(p.a<=0)G.inks.splice(i,1);}
   for(let i=G.texts.length-1;i>=0;i--){const t=G.texts[i];t.y-=0.7;t.life-=0.02;if(t.life<=0)G.texts.splice(i,1);}
   for(let i=G.stains.length-1;i>=0;i--){const st=G.stains[i];st.a-=0.00035;if(st.a<=0)G.stains.splice(i,1);}
@@ -1017,7 +1086,7 @@ function update(){
   if(G.t%5===0) updateHUD();
 }
 function killEnemy(idx){
-  const en=G.enemies[idx]; burst(en.x,en.y,en.c,16);
+  const en=G.enemies[idx]; splash(en.x,en.y,en.c,1.8);
   for(let k=0;k<6;k++)ink(en.x,en.y,(Math.random()-.5)*3,(Math.random()-.5)*3,8+Math.random()*10);
   stain(en.x,en.y,en.r*1.25,en.c==='#4a3b3b'?'60,48,44':en.c==='#3b2f4a'?'56,44,72':'44,60,58');
   SND.kill(en.tier); shake(2+en.tier*2.6); if(en.tier===2){ hitstop(4); flash(0.10,'220,210,190'); }
@@ -1230,16 +1299,15 @@ function makePaperTile(){
 let paperDone=false;
 function buildPaper(){
   if(paperDone) return;
-  const tile=makePaperTile();
   const el=document.getElementById('paper');
-  el.style.backgroundImage='url('+tile.toDataURL('image/png')+')';
-  el.style.backgroundSize=(tile.width/ (window.devicePixelRatio>1?2:1))+'px auto';
-  // 遠山淡墨:再疊一層 CSS 徑向漸層,同樣不進每幀繪圖
+  // 關卡背景圖(潑墨山谷):鋪滿 cover;疊一層極淡墨漸層增加層次,並留宣紙底色 fallback
+  el.style.backgroundColor='#e9e0cc';
   el.style.backgroundImage=
-    'radial-gradient(circle at 18% 22%, rgba(138,122,90,.085), rgba(138,122,90,0) 42%),'
-   +'radial-gradient(circle at 62% 48%, rgba(138,122,90,.07), rgba(138,122,90,0) 46%),'
-   +'radial-gradient(circle at 88% 78%, rgba(138,122,90,.075), rgba(138,122,90,0) 44%),'
-   +el.style.backgroundImage;
+    'radial-gradient(circle at 50% 38%, rgba(20,18,14,0), rgba(20,18,14,.10) 80%),'
+   +"url('assets/scenes/level01-bg.png')";
+  el.style.backgroundSize='cover';
+  el.style.backgroundPosition='center center';
+  el.style.backgroundRepeat='no-repeat';
   paperDone=true;
 }
 
@@ -1373,17 +1441,7 @@ function draw(){
     ctx.lineCap='round'; ctx.lineJoin='round';
     let rgb=(ELEM[stat.element]||ELEM.none).trail;
     if(stat.element==='none' && meta.skin==='gold') rgb='198,150,60'; // 外觀:墨金劍痕
-    if(FX.trail) for(let k=1;k<s.trail.length;k++){
-      const a=k/s.trail.length, ease=a*a;          // 尾端收得更急,像毛筆提起
-      ctx.strokeStyle='rgba('+rgb+','+(ease*0.58)+')';
-      ctx.lineWidth=stat.size*1.8*ease;
-      ctx.beginPath(); ctx.moveTo(s.trail[k-1].x,s.trail[k-1].y); ctx.lineTo(s.trail[k].x,s.trail[k].y); ctx.stroke();
-      // 飛白:乾筆刮過的細白絲
-      if(k>s.trail.length-5){
-        ctx.strokeStyle='rgba(250,246,236,'+(ease*0.30)+')'; ctx.lineWidth=stat.size*0.32*ease;
-        ctx.beginPath(); ctx.moveTo(s.trail[k-1].x,s.trail[k-1].y-1); ctx.lineTo(s.trail[k].x,s.trail[k].y-1); ctx.stroke();
-      }
-    }
+    if(FX.trail) inkTrail(ctx, s.trail, stat.size, rgb);
     // 劍身(程序化水墨劍)
     drawJian(ctx, s);
   }
@@ -1404,6 +1462,7 @@ function draw(){
   }
 
   // 粒子
+  if(DRAWLV>=4) for(const sp of G.splashes) drawSplash(ctx,sp);
   if(FX.part&&DRAWLV>=7) for(const p of G.particles){ ctx.globalAlpha=Math.max(0,p.life); ctx.fillStyle=p.c;
     ctx.beginPath(); ctx.arc(p.x,p.y,2.5*p.life+0.5,0,6.28); ctx.fill(); }
   ctx.globalAlpha=1;
@@ -1791,7 +1850,7 @@ function loop(ts){
 
 // ---------- 開始/結束 ----------
 function start(){
-  Object.assign(G,{running:true,paused:false,t:0,enemies:[],swords:[],particles:[],inks:[],texts:[],stains:[],
+  Object.assign(G,{running:true,paused:false,t:0,enemies:[],swords:[],particles:[],inks:[],texts:[],stains:[],splashes:[],
     kills:0,wave:1,waveTimer:0,spawnAcc:0,xp:0,xpNeed:6,level:1,pendingLevels:0,mana:100,
     auto:false,autoUsed:false,autoTimer:0,
     shake:0,hitstop:0,flash:0,flashC:'255,255,255',banner:null,
@@ -1801,13 +1860,13 @@ function start(){
   Object.assign(stat,{count:1,formation:'fan',damage:24,size:9,speed:11,pierce:1,homing:0,explode:0,
     element:'none',ember:0,ice:0,
     life:1.35,ret:0,crit:0.05,regen:0,cap:6,manaMax:100,manaRegen:0.34,costBase:6,costPerPx:0.13});
-  // 套用轉世永久修為
-  const u=meta.up;
-  stat.manaMax  += (u.ling||0)*15;
-  stat.damage   += (u.gu||0)*3;
-  stat.speed    += (u.xing||0)*1;
-  stat.manaRegen+= (u.qi||0)*0.05;
-  stat.count     = 1 + (u.twin||0);
+  // 套用轉世永久修為(依設定檔 META_UP 的 per 逐項加算;count 於重置的基底 1 之上疊加)
+  for(const m of META_UP){ const lv=meta.up[m.id]||0; if(!lv||!m.per) continue;
+    for(const k in m.per){
+      if(k==='mana') G.mana += m.per[k]*lv;
+      else stat[k] += m.per[k]*lv;
+    }
+  }
   G.mana=stat.manaMax;
   G.player=new Player();
   pausedByUser=false;
@@ -1871,15 +1930,17 @@ function nextGoal(){
 }
 
 // ---------- 轉世閣 UI ----------
+const STAT_LABEL={manaMax:'靈力上限',damage:'劍傷',size:'劍氣寬',speed:'劍速',manaRegen:'回復',
+  count:'開局劍數',cap:'同屏上限',pierce:'貫穿',crit:'暴擊',regen:'回氣'};
+const STAT_FIXED={manaRegen:2};
 function metaBonusText(){
-  const u=meta.up, p=[];
-  if(u.ling) p.push('靈力上限 +'+u.ling*15);
-  if(u.gu)   p.push('劍傷 +'+u.gu*3);
-  if(u.xing) p.push('劍速 +'+u.xing);
-  if(u.qi)   p.push('回復 +'+(u.qi*0.05).toFixed(2));
-  if(u.twin) p.push('開局雙劍');
-  if(meta.unlock.storm)  p.push('萬劍歸宗');
-  if(meta.unlock.homing) p.push('御劍傳承');
+  const p=[];
+  for(const m of META_UP){ const lv=meta.up[m.id]||0; if(!lv) continue;
+    if(m.bonusText){ p.push(m.bonusText); continue; }
+    const k=Object.keys(m.per)[0], tot=m.per[k]*lv, fx=m.fixed||STAT_FIXED[k];
+    p.push((m.label||STAT_LABEL[k]||k)+' +'+(fx?tot.toFixed(fx):tot));
+  }
+  for(const m of META_UNLOCK){ if(meta.unlock[m.id]) p.push(m.name.replace(/^.*·\s*/,'')); }
   return p.length ? p.join('、') : '尚無 — 快去凝聚第一縷修為';
 }
 function renderMeta(){

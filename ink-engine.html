@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>墨劍訣 · Ink Engine PoC</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{width:100%;height:100%;overflow:hidden;background:#2b2620;font-family:"Noto Serif TC",serif;touch-action:none;}
+  #stage{position:relative;width:100vw;height:100vh;}
+  canvas{position:absolute;inset:0;width:100%;height:100%;display:block;}
+  #worldCanvas{z-index:1;}
+  #inkCanvas{z-index:2;pointer-events:none;}
+  #hud{position:absolute;z-index:3;top:10px;left:12px;color:#3a332a;font-size:13px;letter-spacing:1px;
+    background:rgba(244,238,224,.7);border:1px solid rgba(90,70,50,.3);border-radius:6px;padding:8px 12px;line-height:1.7;}
+  #hud b{color:#7a2b2b;}
+  #panel{position:absolute;z-index:3;top:10px;right:12px;display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;}
+  .btn{cursor:pointer;pointer-events:auto;font-size:13px;letter-spacing:2px;color:#2e2820;padding:7px 12px;
+    background:linear-gradient(180deg,#f6f0e0,#e0d4b8);border:1px solid #b8a888;border-radius:6px;}
+  .btn:hover{transform:translateY(-2px);}
+  #hint{position:absolute;z-index:3;bottom:14px;left:50%;transform:translateX(-50%);color:#6b5d48;
+    font-size:13px;letter-spacing:2px;background:rgba(244,238,224,.6);padding:6px 14px;border-radius:20px;}
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="worldCanvas"></canvas>
+  <canvas id="inkCanvas"></canvas>
+  <div id="hud"></div>
+  <div id="panel">
+    <div class="btn" id="qbtn">品質:auto</div>
+    <div class="btn" id="spawnbtn">補妖</div>
+    <div class="btn" id="clearbtn">清墨</div>
+    <div class="btn" id="pausebtn">暫停</div>
+  </div>
+  <div id="hint">按住畫一道墨痕,鬆手 —— 劍沿筆勢飛出,命中即潑墨</div>
+</div>
+
+<script>
+"use strict";
+/* ============================================================
+   墨劍訣 · Ink Engine PoC(單檔、非模組、可雙擊執行)
+   架構對應規格:分層 Canvas / 物件池 / SeededRandom /
+   五 Primitive / SwordTrail / HitInk / 品質分級 / 離屏烘焙。
+   ============================================================ */
+
+/* ---------- Seeded Random(mulberry32) ---------- */
+class SeededRandom{
+  constructor(seed){ this.s = (seed>>>0)||1; }
+  next(){ let t=(this.s+=0x6D2B79F5); t=Math.imul(t^(t>>>15),t|1); t^=t+Math.imul(t^(t>>>7),t|61); return ((t^(t>>>14))>>>0)/4294967296; }
+  range(a,b){ return a+(b-a)*this.next(); }
+  int(a,b){ return Math.floor(this.range(a,b+1)); }
+  chance(p){ return this.next()<p; }
+  pick(arr){ return arr[Math.floor(this.next()*arr.length)]; }
+}
+
+/* ---------- 幾何工具 ---------- */
+const Geo = {
+  dist(a,b){ return Math.hypot(a.x-b.x,a.y-b.y); },
+  // Catmull-Rom 取樣成平滑折線
+  smooth(points, perSeg=8){
+    if(points.length<3) return points.slice();
+    const out=[];
+    const p=[points[0],...points,points[points.length-1]];
+    for(let i=1;i<p.length-2;i++){
+      const p0=p[i-1],p1=p[i],p2=p[i+1],p3=p[i+2];
+      for(let t=0;t<perSeg;t++){
+        const s=t/perSeg, s2=s*s, s3=s2*s;
+        out.push({
+          x:0.5*((2*p1.x)+(-p0.x+p2.x)*s+(2*p0.x-5*p1.x+4*p2.x-p3.x)*s2+(-p0.x+3*p1.x-3*p2.x+p3.x)*s3),
+          y:0.5*((2*p1.y)+(-p0.y+p2.y)*s+(2*p0.y-5*p1.y+4*p2.y-p3.y)*s2+(-p0.y+3*p1.y-3*p2.y+p3.y)*s3)
+        });
+      }
+    }
+    out.push(points[points.length-1]);
+    return out;
+  },
+  // 距離過濾簡化
+  simplify(points, minDist){
+    if(points.length<2) return points.slice();
+    const out=[points[0]];
+    for(let i=1;i<points.length;i++){ if(Geo.dist(out[out.length-1],points[i])>=minDist) out.push(points[i]); }
+    if(out[out.length-1]!==points[points.length-1]) out.push(points[points.length-1]);
+    return out;
+  }
+};
+const easeOut = t=>1-Math.pow(1-t,3);
+
+/* ---------- 物件池 ---------- */
+class Pool{
+  constructor(Ctor){ this.Ctor=Ctor; this.free=[]; this.active=[]; }
+  spawn(opts){
+    const o = this.free.pop() || new this.Ctor();
+    o.reset(opts); o.active=true; this.active.push(o); return o;
+  }
+  update(dt){
+    for(let i=this.active.length-1;i>=0;i--){
+      const o=this.active[i]; o.update(dt);
+      if(!o.active){ this.active.splice(i,1); this.free.push(o); } // 回池,不等 GC
+    }
+  }
+  render(ctx){ for(const o of this.active) o.render(ctx); }
+  clear(){ while(this.active.length){ const o=this.active.pop(); o.active=false; this.free.push(o); } }
+  get count(){ return this.active.length; }
+}
+
+/* 墨色調色(灰階墨,絕無發光/霓虹) */
+const INK = {
+  black:'16,16,16', ink:'26,24,20', gray:'70,66,58', light:'120,112,98'
+};
+
+/* ============================================================
+   Primitive 1:Brush Stroke(筆劃)—— 帶起收筆、毛邊、reveal、離屏烘焙
+   ============================================================ */
+class BrushStroke{
+  reset(o){
+    this.pts = Geo.smooth(o.points, 10);
+    this.width=o.width??18; this.duration=o.duration??0.45;
+    this.opacity=o.opacity??0.85; this.color=o.color??INK.black;
+    this.taperStart=o.taperStart??0.25; this.taperEnd=o.taperEnd??0.9;
+    this.roughness=o.roughness??0.35; this.reveal=o.reveal!==false; this.fade=o.fade!==false;
+    this.rnd=new SeededRandom(o.seed??12345);
+    this.edgeLayers=o.edgeLayers??2;
+    this.age=0; this.baked=null; this.bakeBox=null;
+    // 預先算每點的壓感寬度係數
+    this.press=this.pts.map(()=>0.75+this.rnd.next()*0.5);
+  }
+  update(dt){ this.age+=dt; if(this.age>=this.duration+0.35) this.active=false; }
+  // 建立帶毛邊的填充緞帶多邊形
+  _ribbon(ctx, upto, jitterSeed){
+    const n=this.pts.length; const last=Math.max(1,Math.floor(n*upto));
+    const rnd=new SeededRandom(jitterSeed);
+    const left=[], right=[];
+    for(let i=0;i<last;i++){
+      const p=this.pts[i];
+      const a=this.pts[Math.max(0,i-1)], b=this.pts[Math.min(n-1,i+1)];
+      let nx=-(b.y-a.y), ny=(b.x-a.x); const L=Math.hypot(nx,ny)||1; nx/=L; ny/=L;
+      const f=i/(n-1);
+      // 起收筆漸尖
+      let taper=1;
+      if(f<this.taperStart) taper=f/this.taperStart;
+      if(f>this.taperEnd) taper=Math.max(0,(1-f)/(1-this.taperEnd));
+      const w=this.width*0.5*taper*this.press[i];
+      const jl=1+(rnd.next()-0.5)*this.roughness;
+      const jr=1+(rnd.next()-0.5)*this.roughness;
+      left.push({x:p.x+nx*w*jl, y:p.y+ny*w*jl});
+      right.push({x:p.x-nx*w*jr, y:p.y-ny*w*jr});
+    }
+    ctx.beginPath();
+    ctx.moveTo(left[0].x,left[0].y);
+    for(let i=1;i<left.length;i++) ctx.lineTo(left[i].x,left[i].y);
+    for(let i=right.length-1;i>=0;i--) ctx.lineTo(right[i].x,right[i].y);
+    ctx.closePath();
+  }
+  _drawFull(ctx, alpha){
+    // 主墨團
+    ctx.fillStyle='rgba('+this.color+','+alpha+')';
+    this._ribbon(ctx,1,this.rnd.s^0x9e3779b9); ctx.fill();
+    // 毛邊層(不規則輪廓偏移,非 blur)
+    for(let e=0;e<this.edgeLayers;e++){
+      ctx.fillStyle='rgba('+INK.gray+','+(alpha*0.25)+')';
+      this._ribbon(ctx,1,(this.rnd.s*7+e*131)>>>0); ctx.fill();
+    }
+    // 少量墨粒
+    const rnd=new SeededRandom((this.rnd.s*13)>>>0);
+    ctx.fillStyle='rgba('+this.color+','+(alpha*0.6)+')';
+    for(let i=0;i<this.pts.length;i+=6){
+      if(rnd.chance(0.5)){ const p=this.pts[i];
+        ctx.beginPath(); ctx.arc(p.x+rnd.range(-4,4),p.y+rnd.range(-4,4),rnd.range(0.6,1.6),0,6.28); ctx.fill(); }
+    }
+  }
+  render(ctx){
+    const t=this.age/this.duration;
+    const alpha=this.opacity*(this.fade ? (this.age>this.duration? Math.max(0,1-(this.age-this.duration)/0.35):1):1);
+    if(this.reveal && t<1){
+      // reveal 期間走向量(逐步顯現)
+      ctx.fillStyle='rgba('+this.color+','+alpha+')';
+      this._ribbon(ctx, easeOut(Math.min(1,t)), this.rnd.s^0x9e3779b9); ctx.fill();
+    }else{
+      // reveal 完成 → 離屏烘焙一次,之後只貼圖(效能關鍵)
+      if(!this.baked) this._bake();
+      ctx.globalAlpha=alpha/this.opacity;
+      ctx.drawImage(this.baked, this.bakeBox.x, this.bakeBox.y);
+      ctx.globalAlpha=1;
+    }
+  }
+  _bake(){
+    let minX=1e9,minY=1e9,maxX=-1e9,maxY=-1e9;
+    for(const p of this.pts){ minX=Math.min(minX,p.x); minY=Math.min(minY,p.y); maxX=Math.max(maxX,p.x); maxY=Math.max(maxY,p.y); }
+    const pad=this.width+8;
+    const bx=Math.floor(minX-pad), by=Math.floor(minY-pad);
+    const bw=Math.ceil(maxX-minX+pad*2), bh=Math.ceil(maxY-minY+pad*2);
+    const c=document.createElement('canvas'); c.width=Math.max(1,bw); c.height=Math.max(1,bh);
+    const cx=c.getContext('2d'); cx.translate(-bx,-by);
+    this._drawFull(cx, this.opacity);
+    this.baked=c; this.bakeBox={x:bx,y:by};
+  }
+}
+
+/* ============================================================
+   Primitive 2:Dry Brush(飛白)—— 多條偏移細絲 + 隨機缺段
+   ============================================================ */
+class DryBrush{
+  reset(o){
+    this.pts=Geo.smooth(o.points,8);
+    this.width=o.width??22; this.duration=o.duration??0.35;
+    this.strandCount=o.strandCount??5; this.opacity=o.opacity??0.72;
+    this.rnd=new SeededRandom(o.seed??999); this.age=0;
+    this.strands=[];
+    const n=this.pts.length;
+    for(let s=0;s<this.strandCount;s++){
+      const off=(s/(this.strandCount-1||1)-0.5)*this.width;
+      const segs=[]; let drawing=true, run=0;
+      for(let i=0;i<n;i++){ // 隨機缺段
+        run++; if(run>this.rnd.int(2,6)){ drawing=!drawing; run=0; }
+        segs.push(drawing && this.rnd.chance(0.85));
+      }
+      this.strands.push({off, segs, w:this.rnd.range(0.6,1.6), a:this.rnd.range(0.5,1)});
+    }
+  }
+  update(dt){ this.age+=dt; if(this.age>=this.duration) this.active=false; }
+  render(ctx){
+    const alpha=this.opacity*Math.max(0,1-this.age/this.duration);
+    const n=this.pts.length;
+    ctx.lineCap='butt';
+    for(const st of this.strands){
+      ctx.strokeStyle='rgba('+INK.ink+','+(alpha*st.a)+')'; ctx.lineWidth=st.w;
+      for(let i=1;i<n;i++){
+        if(!st.segs[i]) continue;
+        const a=this.pts[i-1], b=this.pts[i];
+        let nx=-(b.y-a.y), ny=(b.x-a.x); const L=Math.hypot(nx,ny)||1; nx/=L; ny/=L;
+        ctx.beginPath();
+        ctx.moveTo(a.x+nx*st.off, a.y+ny*st.off);
+        ctx.lineTo(b.x+nx*st.off, b.y+ny*st.off); ctx.stroke();
+      }
+    }
+  }
+}
+
+/* ============================================================
+   Primitive 3:Ink Drop(墨滴)—— 非正圓、速度拉長
+   ============================================================ */
+class InkDrop{
+  reset(o){
+    this.x=o.x; this.y=o.y; this.vx=o.velocityX??0; this.vy=o.velocityY??0;
+    this.radius=o.radius??4; this.gravity=o.gravity??40; this.drag=o.drag??0.94;
+    this.duration=o.duration??0.8; this.opacity=o.opacity??0.85; this.stretch=o.stretch??0.5;
+    this.rnd=new SeededRandom(o.seed??((Math.random()*1e9)|0));
+    this.age=0; this.rot=this.rnd.range(0,6.28);
+    this.verts=this.rnd.int(5,8);
+  }
+  update(dt){
+    this.age+=dt; if(this.age>=this.duration){ this.active=false; return; }
+    this.vy+=this.gravity*dt; this.vx*=this.drag; this.vy*=this.drag;
+    this.x+=this.vx*dt; this.y+=this.vy*dt;
+  }
+  render(ctx){
+    const a=this.opacity*Math.max(0,1-this.age/this.duration);
+    const speed=Math.hypot(this.vx,this.vy);
+    const sx=1+Math.min(2.5,speed*this.stretch*0.01), sy=1/Math.sqrt(sx);
+    const ang=Math.atan2(this.vy,this.vx);
+    ctx.save(); ctx.translate(this.x,this.y); ctx.rotate(speed>10?ang:this.rot); ctx.scale(sx,sy);
+    ctx.fillStyle='rgba('+INK.black+','+a+')';
+    ctx.beginPath();
+    for(let i=0;i<this.verts;i++){
+      const th=i/this.verts*6.283; const r=this.radius*this.rnd.range(0.7,1.15);
+      const x=Math.cos(th)*r, y=Math.sin(th)*r; i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+    }
+    ctx.closePath(); ctx.fill(); ctx.restore();
+  }
+}
+
+/* ============================================================
+   Primitive 4:Splash(潑墨)—— 不規則核心 + 墨刺 + 墨滴(墨滴另用池)
+   ============================================================ */
+class Splash{
+  reset(o){
+    this.x=o.x; this.y=o.y; this.radius=o.radius??48; this.duration=o.duration??0.5;
+    this.coreOpacity=o.coreOpacity??0.9; this.spikeCount=o.spikeCount??8; this.color=o.color??INK.black;
+    this.rotation=o.rotation??0; this.rnd=new SeededRandom(o.seed??((Math.random()*1e9)|0));
+    this.age=0; this.corners=this.rnd.int(12,22);
+    this.coreR=this.corners; // reuse
+    this.spikes=[];
+    for(let i=0;i<this.spikeCount;i++){
+      this.spikes.push({ang:this.rnd.range(0,6.28), len:this.rnd.range(0.8,1.8), w:this.rnd.range(0.05,0.16), broken:this.rnd.chance(0.4)});
+    }
+    this.coreShape=[];
+    for(let i=0;i<this.corners;i++){ this.coreShape.push(this.rnd.range(0.6,1.15)); }
+  }
+  update(dt){ this.age+=dt; if(this.age>=this.duration) this.active=false; }
+  render(ctx){
+    const t=this.age/this.duration;
+    let grow = t<0.15 ? easeOut(t/0.15) : 1;      // 0-15% 擴張
+    let a = t<0.6 ? this.coreOpacity : this.coreOpacity*Math.max(0,1-(t-0.6)/0.4); // 60-100% 淡出
+    const R=this.radius*grow;
+    ctx.save(); ctx.translate(this.x,this.y); ctx.rotate(this.rotation);
+    // 中央不規則墨團
+    ctx.fillStyle='rgba('+this.color+','+a+')';
+    ctx.beginPath();
+    for(let i=0;i<this.corners;i++){ const th=i/this.corners*6.283; const r=R*0.5*this.coreShape[i];
+      const x=Math.cos(th)*r, y=Math.sin(th)*r; i===0?ctx.moveTo(x,y):ctx.lineTo(x,y); }
+    ctx.closePath(); ctx.fill();
+    // 徑向墨刺(長短寬窄不一,部分斷裂)
+    for(const s of this.spikes){
+      const len=R*s.len; const wob=s.w*R;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(s.ang-s.w)*R*0.4, Math.sin(s.ang-s.w)*R*0.4);
+      const midR = s.broken ? len*0.6 : len;
+      ctx.lineTo(Math.cos(s.ang)*midR, Math.sin(s.ang)*midR);
+      ctx.lineTo(Math.cos(s.ang+s.w)*R*0.4, Math.sin(s.ang+s.w)*R*0.4);
+      ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
+  }
+}
+
+/* ============================================================
+   Primitive 5:Diffusion(暈染,可選)—— 多層淡形緩擴
+   ============================================================ */
+class Diffusion{
+  reset(o){
+    this.x=o.x; this.y=o.y; this.radius=o.radius??36; this.duration=o.duration??1.5;
+    this.opacity=o.opacity??0.22; this.irregularity=o.irregularity??0.4; this.expansion=o.expansion??1.7;
+    this.layers=o.layers??3; this.rnd=new SeededRandom(o.seed??((Math.random()*1e9)|0)); this.age=0;
+    this.shapes=[];
+    for(let l=0;l<this.layers;l++){
+      const corners=this.rnd.int(8,14), r=[];
+      for(let i=0;i<corners;i++) r.push(1+(this.rnd.next()-0.5)*this.irregularity);
+      this.shapes.push({corners,r,scale:0.4+l*0.35,tone:l});
+    }
+  }
+  update(dt){ this.age+=dt; if(this.age>=this.duration) this.active=false; }
+  render(ctx){
+    const t=this.age/this.duration;
+    const grow=1+t*(this.expansion-1);
+    const a=this.opacity*Math.max(0,1-t);
+    ctx.save(); ctx.translate(this.x,this.y);
+    const tones=[INK.black,INK.gray,INK.light,INK.light,INK.light];
+    for(const s of this.shapes){
+      ctx.fillStyle='rgba('+tones[s.tone]+','+(a*(1-s.tone*0.2))+')';
+      ctx.beginPath();
+      for(let i=0;i<s.corners;i++){ const th=i/s.corners*6.283; const r=this.radius*s.scale*grow*s.r[i];
+        const x=Math.cos(th)*r, y=Math.sin(th)*r; i===0?ctx.moveTo(x,y):ctx.lineTo(x,y); }
+      ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
+  }
+}
+
+/* ============================================================
+   Sword Trail(飛劍拖尾)—— 取樣 getPosition,漸淡毛筆線
+   ============================================================ */
+class SwordTrail{
+  reset(o){
+    this.getPos=o.getPosition; this.maxPoints=o.maxPoints??14; this.width=o.width??7;
+    this.mode=o.mode??'normal'; this.color=o.color??INK.ink;
+    this.points=[]; this.age=0; this.duration=999; this.dead=false;
+  }
+  kill(){ this.dead=true; } // 由飛劍死亡時呼叫 → 淡出後回池
+  update(dt){
+    this.age+=dt;
+    if(!this.dead){ const p=this.getPos && this.getPos();
+      if(p){ this.points.push({x:p.x,y:p.y}); if(this.points.length>this.maxPoints) this.points.shift(); }
+      else this.dead=true;
+    } else { this.points.shift(); if(this.points.length<=1) this.active=false; }
+  }
+  render(ctx){
+    const tr=this.points; if(tr.length<2) return;
+    ctx.lineCap='round'; ctx.lineJoin='round';
+    const long = this.mode==='fast'?1.4:this.mode==='pierce'?1.1:1;
+    for(let k=1;k<tr.length;k++){
+      const a=k/tr.length;
+      ctx.strokeStyle='rgba('+this.color+','+(a*0.5)+')';
+      ctx.lineWidth=this.width*a*long;
+      ctx.beginPath(); ctx.moveTo(tr[k-1].x,tr[k-1].y); ctx.lineTo(tr[k].x,tr[k].y); ctx.stroke();
+    }
+  }
+}
+
+/* ============================================================
+   Ink Engine(統籌:池、update/render、resize、品質、工廠 API)
+   ============================================================ */
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+class InkEngine{
+  constructor(cfg){
+    this.canvas=cfg.canvas; this.ctx=this.canvas.getContext('2d');
+    this.camera=cfg.camera||{x:0,y:0,zoom:1}; this.paused=false;
+    this.quality=cfg.quality||'auto'; this.qLevel='high';
+    this.seedBase=cfg.seed??12345;
+    this.pools={ brush:new Pool(BrushStroke), dry:new Pool(DryBrush), drop:new Pool(InkDrop),
+                 splash:new Pool(Splash), diff:new Pool(Diffusion), trail:new Pool(SwordTrail) };
+    // 溢位上限(超過丟最舊)
+    this.caps={ brush:40, drop:80, splash:10, dry:24, diff:6 };
+    this._fpsBuf=[]; this._qTimer=0;
+  }
+  worldToScreen(x,y){ return {x:(x-this.camera.x)*this.camera.zoom, y:(y-this.camera.y)*this.camera.zoom}; }
+  screenToWorld(x,y){ return {x:x/this.camera.zoom+this.camera.x, y:y/this.camera.zoom+this.camera.y}; }
+  resize(w,h,dpr){
+    this.dpr=dpr; this.canvas.width=Math.floor(w*dpr); this.canvas.height=Math.floor(h*dpr);
+    this.ctx.setTransform(dpr,0,0,dpr,0,0);
+    this.vw=w; this.vh=h;
+  }
+  setPaused(p){ this.paused=p; }
+  clear(){ for(const k in this.pools) this.pools[k].clear(); }
+  setQuality(q){ this.quality=q; }
+  _cap(pool,cap){ const a=pool.active; while(a.length>cap){ const o=a.shift(); o.active=false; pool.free.push(o); } }
+  _qParams(){
+    const L=this.qLevel;
+    return { edge:L==='low'?1:L==='medium'?2:3,
+             strand:L==='low'?3:L==='medium'?5:7,
+             drop:L==='low'?6:L==='medium'?10:16,
+             diffLayer:L==='low'?2:L==='medium'?3:5 };
+  }
+  /* 工廠 API */
+  createBrushStroke(o){ this._cap(this.pools.brush,this.caps.brush); o.edgeLayers=this._qParams().edge; return this.pools.brush.spawn(o); }
+  createDryBrush(o){ this._cap(this.pools.dry,this.caps.dry); o.strandCount=Math.min(o.strandCount??5,this._qParams().strand); return this.pools.dry.spawn(o); }
+  createInkDrop(o){ this._cap(this.pools.drop,this.caps.drop); return this.pools.drop.spawn(o); }
+  createSplash(o){ this._cap(this.pools.splash,this.caps.splash); return this.pools.splash.spawn(o); }
+  createDiffusion(o){ this._cap(this.pools.diff,this.caps.diff); o.layers=this._qParams().diffLayer; return this.pools.diff.spawn(o); }
+  createSwordTrail(o){ return this.pools.trail.spawn(o); }
+  createHitInk(o){
+    const q=this._qParams(); const rnd=new SeededRandom(o.seed??((Math.random()*1e9)|0));
+    const crit=o.critical, power=o.power??1;
+    const radius=clamp(18+(o.enemySize??40)*0.22+power*8,18,90)*(crit?1.4:1);
+    this.createSplash({x:o.x,y:o.y,radius,spikeCount:crit?12:8,coreOpacity:0.9,duration:0.5,seed:rnd.int(0,1e6)});
+    const dn=Math.min(q.drop, crit?rnd.int(8,16):rnd.int(3,6));
+    for(let i=0;i<dn;i++){
+      const ang=(o.angle??0)+rnd.range(-1.1,1.1), sp=rnd.range(40,180)*(crit?1.4:1);
+      this.createInkDrop({x:o.x,y:o.y,velocityX:Math.cos(ang)*sp,velocityY:Math.sin(ang)*sp,
+        radius:rnd.range(2,5),duration:rnd.range(0.5,0.9),seed:rnd.int(0,1e6)});
+    }
+    const strokes=crit?rnd.int(2,4):1;
+    for(let i=0;i<strokes;i++){
+      const ang=(o.angle??0)+rnd.range(-0.6,0.6), len=radius*rnd.range(0.8,1.6);
+      this.createDryBrush({points:[{x:o.x,y:o.y},{x:o.x+Math.cos(ang)*len,y:o.y+Math.sin(ang)*len}],
+        width:radius*0.4,duration:0.3,seed:rnd.int(0,1e6)});
+    }
+  }
+  update(dt){
+    if(this.paused) return;
+    for(const k in this.pools) this.pools[k].update(dt);
+    // auto 品質(3 秒遲滯)
+    if(this.quality==='auto'){
+      this._qTimer+=dt;
+      if(this._qTimer>=3){ this._qTimer=0;
+        const avg=this._fpsBuf.length? this._fpsBuf.reduce((a,b)=>a+b,0)/this._fpsBuf.length : 60;
+        this._fpsBuf.length=0;
+        if(avg<45 && this.qLevel!=='low') this.qLevel = this.qLevel==='high'?'medium':'low';
+        else if(avg>58 && this.qLevel!=='high') this.qLevel = this.qLevel==='low'?'medium':'high';
+      }
+    } else this.qLevel=this.quality;
+  }
+  feedFps(f){ if(this.quality==='auto'){ this._fpsBuf.push(f); if(this._fpsBuf.length>180)this._fpsBuf.shift(); } }
+  render(){
+    const ctx=this.ctx; ctx.clearRect(0,0,this.vw,this.vh);
+    // 順序:暈染 → 潑墨 → 墨滴 → 拖尾 → 飛白 → 筆劃(墨最濃在上)
+    this.pools.diff.render(ctx); this.pools.splash.render(ctx);
+    this.pools.drop.render(ctx); this.pools.trail.render(ctx);
+    this.pools.dry.render(ctx); this.pools.brush.render(ctx);
+  }
+  get activeCount(){ let n=0; for(const k in this.pools) n+=this.pools[k].count; return n; }
+}
+
+/* ============================================================
+   Ink Input(觸控/滑鼠畫線 → 過濾、平滑、預覽、提交)
+   ============================================================ */
+class InkInput{
+  constructor(el, engine, onCommit){
+    this.el=el; this.engine=engine; this.onCommit=onCommit; this.points=[]; this.drawing=false;
+    this.minDist=4;
+    el.addEventListener('pointerdown',e=>this.down(e));
+    el.addEventListener('pointermove',e=>this.move(e));
+    el.addEventListener('pointerup',e=>this.up(e));
+    el.addEventListener('pointercancel',()=>this.cancel());
+  }
+  _p(e){ const r=this.el.getBoundingClientRect(); return this.engine.screenToWorld(e.clientX-r.left, e.clientY-r.top); }
+  down(e){ e.preventDefault(); this.drawing=true; this.points=[this._p(e)]; }
+  move(e){ if(!this.drawing)return; e.preventDefault(); const p=this._p(e);
+    const last=this.points[this.points.length-1];
+    if(Geo.dist(last,p)>=this.minDist/this.engine.camera.zoom){ this.points.push(p); if(this.points.length>128)this.points.shift(); } }
+  up(e){ if(!this.drawing)return; e.preventDefault(); this.drawing=false;
+    const pts=Geo.simplify(this.points,6); if(pts.length>=2) this.onCommit(pts); this.points=[]; }
+  cancel(){ this.drawing=false; this.points=[]; }
+  get preview(){ return this.drawing?this.points:null; }
+}
+
+/* ============================================================
+   Ink Skill Composer(技能 = Primitive 組合;不直接繪圖)
+   ============================================================ */
+class InkSkillComposer{
+  constructor(engine){ this.e=engine; }
+  yujianSlash({path,power=1,seed=1}){
+    this.e.createBrushStroke({points:path,width:16+power*6,duration:0.45,seed:seed,roughness:0.4});
+    this.e.createDryBrush({points:path,width:24,duration:0.35,seed:seed+7});
+    this.e.createDryBrush({points:path,width:16,duration:0.3,seed:seed+13});
+  }
+}
+
+/* ============================================================
+   Demo:宣紙背景 + 修士 + 妖 + 畫線飛劍 + 命中潑墨
+   ============================================================ */
+(function(){
+  const stage=document.getElementById('stage');
+  const worldCanvas=document.getElementById('worldCanvas'), wc=worldCanvas.getContext('2d');
+  const inkCanvas=document.getElementById('inkCanvas');
+  const engine=new InkEngine({canvas:inkCanvas,camera:{x:0,y:0,zoom:1},quality:'auto',seed:12345});
+  const skills=new InkSkillComposer(engine);
+  let W=0,H=0,DPR=Math.min(window.devicePixelRatio||1,2);
+
+  function resize(){
+    W=window.innerWidth; H=window.innerHeight; DPR=Math.min(window.devicePixelRatio||1,2);
+    worldCanvas.width=Math.floor(W*DPR); worldCanvas.height=Math.floor(H*DPR); wc.setTransform(DPR,0,0,DPR,0,0);
+    engine.resize(W,H,DPR);
+  }
+  window.addEventListener('resize',resize); resize();
+
+  const player={x:0,y:0};
+  const enemies=[];
+  const swords=[];
+  function spawnEnemy(){
+    enemies.push({x:Math.random()*W*0.8+W*0.1, y:Math.random()*H*0.7+H*0.15, r:16+Math.random()*14,
+      wob:Math.random()*7, seed:(Math.random()*1e6)|0});
+  }
+  for(let i=0;i<6;i++) spawnEnemy();
+
+  // 提交劍令:一道劍氣筆勢 + 一把沿路徑飛的劍(帶拖尾)
+  const input=new InkInput(stage, engine, (pts)=>{
+    const seed=(Math.random()*1e6)|0;
+    skills.yujianSlash({path:pts, power:1, seed});
+    const sword={ path:Geo.smooth(pts,10), seg:1, x:pts[0].x, y:pts[0].y, dead:false, speed:12, hit:new Set() };
+    sword.trail=engine.createSwordTrail({mode:'fast', width:8, getPosition:()=>({x:sword.x,y:sword.y,angle:0,speed:sword.speed})});
+    swords.push(sword);
+  });
+
+  function updateSword(s){
+    let budget=s.speed;
+    while(budget>0 && s.seg<s.path.length){
+      const t=s.path[s.seg]; const dx=t.x-s.x, dy=t.y-s.y, d=Math.hypot(dx,dy)||0.0001;
+      if(d<=budget){ s.x=t.x; s.y=t.y; budget-=d; s.seg++; }
+      else { s.x+=dx/d*budget; s.y+=dy/d*budget; budget=0; }
+    }
+    // 命中檢查
+    for(let i=enemies.length-1;i>=0;i--){
+      const en=enemies[i];
+      if(Math.hypot(en.x-s.x,en.y-s.y)<en.r+8){
+        const ang=Math.atan2(s.y-en.y,s.x-en.x);
+        engine.createHitInk({x:en.x,y:en.y,angle:ang,power:1.4,critical:Math.random()<0.3,enemySize:en.r*2,seed:(Math.random()*1e6)|0});
+        engine.createDiffusion({x:en.x,y:en.y,radius:en.r*1.4,duration:1.4,opacity:0.2,seed:(Math.random()*1e6)|0});
+        enemies.splice(i,1); setTimeout(spawnEnemy,600);
+      }
+    }
+    if(s.seg>=s.path.length) s.dead=true;
+  }
+
+  function drawWorld(){
+    // 宣紙背景
+    wc.clearRect(0,0,W,H);
+    wc.fillStyle='#e9e0cc'; wc.fillRect(0,0,W,H);
+    wc.globalAlpha=0.05; wc.fillStyle='#8a7a5a';
+    for(let i=0;i<3;i++){ wc.beginPath(); wc.arc((i*0.37+0.2)*W,(i*0.29+0.25)*H,180+i*60,0,6.28); wc.fill(); }
+    wc.globalAlpha=1;
+    // 修士(中央黑點剪影)
+    player.x=W/2; player.y=H/2;
+    wc.fillStyle='#2b2620'; wc.beginPath(); wc.arc(player.x,player.y,10,0,6.28); wc.fill();
+    // 妖(墨團)
+    for(const en of enemies){ en.wob+=0.08;
+      wc.fillStyle='#3b2f2f'; wc.beginPath();
+      for(let a=0;a<6.28;a+=0.5){ const rr=en.r+Math.sin(a*3+en.wob)*2; const x=en.x+Math.cos(a)*rr, y=en.y+Math.sin(a)*rr; a===0?wc.moveTo(x,y):wc.lineTo(x,y); }
+      wc.closePath(); wc.fill();
+    }
+    // 飛劍(本體由 world 畫,拖尾由 ink engine)
+    for(const s of swords){ if(s.dead)continue;
+      const pv=s.path[Math.max(0,s.seg-1)]; const ang=Math.atan2(s.y-pv.y,s.x-pv.x);
+      wc.save(); wc.translate(s.x,s.y); wc.rotate(ang);
+      wc.fillStyle='#f3ecd8'; wc.strokeStyle='#2b2620'; wc.lineWidth=1.2;
+      wc.beginPath(); wc.moveTo(16,0); wc.lineTo(-6,4); wc.lineTo(-9,0); wc.lineTo(-6,-4); wc.closePath(); wc.fill(); wc.stroke();
+      wc.restore();
+    }
+    // 畫線預覽(淡墨)
+    const pv=input.preview;
+    if(pv&&pv.length>1){ wc.strokeStyle='rgba(43,38,32,.4)'; wc.lineCap='round'; wc.lineJoin='round';
+      for(let k=1;k<pv.length;k++){ wc.lineWidth=2+(k/pv.length)*8; wc.beginPath(); wc.moveTo(pv[k-1].x,pv[k-1].y); wc.lineTo(pv[k].x,pv[k].y); wc.stroke(); } }
+  }
+
+  const hud=document.getElementById('hud');
+  let last=performance.now(), fps=60, frames=0, facc=0, paused=false;
+  function loop(now){
+    const dt=Math.min((now-last)/1000,0.033); last=now;
+    frames++; facc+=dt; if(facc>=0.5){ fps=Math.round(frames/facc); engine.feedFps(fps); frames=0; facc=0; }
+    if(!paused){
+      for(let i=swords.length-1;i>=0;i--){ const s=swords[i]; updateSword(s);
+        if(s.dead){ if(s.trail)s.trail.kill(); swords.splice(i,1); } }
+      engine.update(dt);
+    }
+    drawWorld(); engine.render();
+    hud.innerHTML='FPS <b>'+fps+'</b> · 活躍特效 <b>'+engine.activeCount+'</b> · 品質 <b>'+engine.qLevel+'</b><br>妖 '+enemies.length+' · 飛劍 '+swords.length;
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+  // 按鈕
+  const qcy=['auto','low','medium','high']; let qi=0;
+  document.getElementById('qbtn').onclick=function(){ qi=(qi+1)%qcy.length; engine.setQuality(qcy[qi]); this.textContent='品質:'+qcy[qi]; };
+  document.getElementById('spawnbtn').onclick=()=>{ for(let i=0;i<3;i++)spawnEnemy(); };
+  document.getElementById('clearbtn').onclick=()=>engine.clear();
+  document.getElementById('pausebtn').onclick=function(){ paused=!paused; engine.setPaused(paused); this.textContent=paused?'繼續':'暫停'; };
+})();
+</script>
+</body>
+</html>
