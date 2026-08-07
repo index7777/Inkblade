@@ -5,6 +5,34 @@
 
 ---
 
+## [2026-08-07] #29 女修士改為程序化演出(拆劍/風動/墨痕旋渦)、HUD 依參考稿重做、鎖右鍵
+**檔案**:`assets/hero-f/HEROF_body.png`(新)、`assets/hero-f/HEROF_sword.png`(新)、`inkblade.html`
+
+### A. 女修士:7 幀 idle → 1 張身體 + 1 把配劍 + 全程序化
+**根因**:原 7 幀其實是「同一個身體 + 配劍畫在 7 個不同位置」。交叉淡入時身體幾乎不動,只有劍在空中忽隱忽現地瞬移 —— 這就是看起來不流暢的原因。
+**離線處理**:
+1. 身體:取 7 幀 **alpha 中位數** 合成。劍在每幀位置都不同,中位數天生把它濾掉 → 得到一張乾淨的無劍身體(358×360,LA)。
+2. 配劍:取 frame1 的「原幀 − 中位數」殘差最大連通塊,以 PCA 求刀身主軸旋轉成水平,用厚度剖面最大值判定護手側並必要時水平翻轉 → **劍尖一律朝 +X**;輸出 260×50,`grip=0.2013`、`aspect=5.2`。
+**引擎(`drawHeroF` 一組)**:
+- `drawHeroFBody`:單張身體切 26 條橫帶,依高度給不同風動振幅(腳底錨定 0、裙襬最大、袖與髮各一份小的)做逐列水平位移,再疊呼吸(微縮放+上下浮動)與受擊紅光疊圖。起劍時(`G.intent`)振幅略增。
+- `drawHeroFSword`:配劍沿一個很扁的橢圓公轉(`hfOrbit`:圓心在腳上方 0.20h、rx=0.62w、ry=0.088h),劍尖對準橢圓切線;`sin θ<0` 在身後 → 先畫被身體蓋住,`sin θ>0` 在身前 → 後畫,並近大遠小、近濃遠淡,後面用 `inkTrail` 拖一道乾筆墨痕。
+- `drawHeroFInk`:三條不同半徑/高度/速度的環繞墨帶,同樣分前後兩趟畫 → 墨氣旋繞。
+- `HEROF` 載入器改抓 `HEROF_body.png`/`HEROF_sword.png`,兩者缺一律回退舊的 7 幀路徑(`HEROF.proc=false`)。`DRAWLV<4` 或隕落中不畫環繞元素。
+**驗證(headless Chromium 實跑)**:入局後連拍一整圈公轉,身體衣袂持續飄動、劍由左繞到右且劍尖始終順著切線、身後半圈確實被身體遮住;無 console / page error。
+
+### B. HUD 依使用者參考稿重做
+- **文字不再半透明**:`.label` 改 `#241f1a`/600、`.sub` 改 `#4f4436`,移除靠透明度躲怪的做法,改以紙色描邊維持可讀性。
+- **狀態條 → 毛筆刷痕**:`#hud` 新增 `--brush`(SVG data URI,兩端收鋒的一筆),`.bar` 用 `mask` 讓軌道與填色一起裁成筆痕造型,高 12px、無圓角。
+- **道行**:細一階(8px),左端加一顆墨珠 `#xpknob`,`updateHUD` 讓它跟著進度走。
+- **御劍 AUTO**:改為 58px 手繪雙圈印(box-shadow 疊外圈);**暫停**:改為 52px 圓角方印。
+- **戰況吊牌**:置中、加分隔線與繩結+流蘇(`::before`/`::after`)。
+**未改**:`神識`/`劍意` 兩個名稱維持現行用語(參考稿寫的是 靈元/靈力),要改再說。
+
+### C. 鎖右鍵
+`contextmenu` / `dragstart` / `selectstart`(輸入框除外)一律 `preventDefault`。
+
+**還原依據**:git checkout。手動還原:移除 `drawHeroF*` 一組與 `HEROF.proc` 分流、`HEROF` 載入器改回只讀 7 幀;CSS 還原 `.panel`→`.sub` 整段並移除 `--brush`/`.barrow`;移除三個事件監聽。
+
 ## [2026-08-07] #28 修正首頁 BGM 檔名(播不出來)
 **檔案**:`data/sound-system.js`
 **問題**:`MENU_TRACK` 寫成 `assets/audio/bgm/game_op.mp3`,但實際入庫的檔案是 `game_op_loop.mp3` → 首頁 BGM 一律 404,`startMenu()` 靜默失敗(makeAudio 的 error handler 只是吞掉),聽起來就是「首頁沒有音樂」。

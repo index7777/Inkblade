@@ -63,44 +63,74 @@
   /* 直向 HUD：左上狀態、右上暫停、其下為戰況。中央全留給畫劍。 */
   #hud { position:absolute; top:0; left:var(--paper-inset); right:var(--paper-inset); pointer-events:none; color:#3a332a;
     padding:calc(var(--scroll-top-safe) + env(safe-area-inset-top)) 10px 0; }
-  .panel { background:rgba(246,240,226,.88); border:1px solid rgba(90,70,50,.35);
-    border-radius:7px; padding:7px 10px; box-shadow:0 3px 12px rgba(45,37,26,.12); }
-  /* 左上狀態列:半透明不擋怪。去掉不透明卡片底,靠文字白暈與加深的軌道維持可讀性。 */
-  #barwrap { width:clamp(150px,46vw,205px); background:none; border:none; box-shadow:none; padding:2px 4px;
-    text-shadow:0 1px 2px rgba(246,240,226,.92), 0 0 7px rgba(246,240,226,.75); }
-  #barwrap .bar { box-shadow:0 0 0 1px rgba(246,240,226,.5); }
-  #scorewrap { position:absolute; top:calc(var(--scroll-top-safe) + 54px + env(safe-area-inset-top)); right:10px;
-    min-width:86px; text-align:right; padding:6px 9px; }
-  #ctrls { position:absolute; top:calc(var(--scroll-top-safe) + env(safe-area-inset-top)); right:10px;
-    display:flex; align-items:center; gap:8px; }
+  /* 毛筆刷痕遮罩:兩端收鋒的一筆,拉伸後供所有狀態條共用 */
+  #hud { --brush:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 12' preserveAspectRatio='none'%3E%3Cpath d='M3.4 2.7c37-1.1 87-.6 137-.2 25 .2 44 .8 57.6 2L200 6l-2 1.5c-13.6 1.2-32.6 1.8-57.6 2-50 .4-100 .9-137-.2-2.4-.5-3-6.1 0-6.6z' fill='%23000'/%3E%3C/svg%3E"); }
+  .panel { background:rgba(248,243,232,.94); border:1px solid rgba(66,52,38,.45);
+    border-radius:6px; padding:7px 10px; box-shadow:0 3px 12px rgba(45,37,26,.14); }
+  /* 左上狀態列:文字一律不透明墨色(不再用半透明躲怪),靠紙色描邊維持可讀性。
+     條改為毛筆刷痕造型 —— 用 SVG 遮罩把軌道與填色一起裁成兩端收鋒的一筆。 */
+  #barwrap { width:clamp(158px,48vw,212px); background:none; border:none; box-shadow:none; padding:2px 4px;
+    text-shadow:0 1px 2px rgba(246,240,226,.98), 0 0 8px rgba(246,240,226,.9); }
+  #scorewrap { position:absolute; top:calc(var(--scroll-top-safe) + 70px + env(safe-area-inset-top)); right:12px;
+    min-width:94px; text-align:center; padding:9px 12px 11px; border-radius:4px;
+    background:rgba(250,246,238,.96); border:1px solid rgba(60,48,34,.5);
+    box-shadow:inset 0 0 0 3px rgba(250,246,238,1), inset 0 0 0 4px rgba(60,48,34,.26),
+               0 4px 14px rgba(45,37,26,.16); }
+  /* 吊牌的繩結與流蘇 */
+  #scorewrap::before { content:''; position:absolute; left:50%; top:100%; transform:translateX(-50%);
+    width:9px; height:9px; margin-top:-1px; border-radius:50%; background:rgba(60,48,34,.62); }
+  #scorewrap::after { content:''; position:absolute; left:50%; top:100%; transform:translateX(-50%);
+    margin-top:7px; width:7px; height:26px; border-radius:0 0 4px 4px;
+    background:linear-gradient(180deg,rgba(60,48,34,.58),rgba(60,48,34,.10)); }
+  #scorewrap .divider { height:1px; margin:7px 2px; background:rgba(60,48,34,.32); }
+  #ctrls { position:absolute; top:calc(var(--scroll-top-safe) + env(safe-area-inset-top)); right:12px;
+    display:flex; align-items:center; gap:10px; }
   .ctl { pointer-events:auto; cursor:pointer; font-size:clamp(12px,1.5vw,14px);
-    letter-spacing:2px; color:#3a332a; white-space:nowrap;
+    letter-spacing:2px; color:#2b2620; white-space:nowrap;
     min-height:32px; display:flex; align-items:center; }
-  #pausebtn { width:48px; height:48px; min-height:48px; padding:0; justify-content:center;
-    border-radius:50%; font:700 21px/1 system-ui,sans-serif; letter-spacing:0;
-    background:rgba(246,240,226,.92); }
+  /* 暫停:圓角方印 */
+  #pausebtn { width:52px; height:52px; min-height:52px; padding:0; justify-content:center;
+    border-radius:13px; font:700 22px/1 system-ui,sans-serif; letter-spacing:0;
+    background:rgba(250,246,238,.96); border:1px solid rgba(60,48,34,.5);
+    box-shadow:inset 0 0 0 3px rgba(250,246,238,1), inset 0 0 0 4px rgba(60,48,34,.24),
+               0 3px 12px rgba(45,37,26,.14); }
   #pausebtn .pause-label { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); }
-  #autobtn { height:42px; min-height:42px; min-width:68px; padding:4px 11px; justify-content:center;
-    flex-direction:column; gap:1px; border-radius:21px; letter-spacing:1px;
-    font-family:system-ui,sans-serif; background:rgba(246,240,226,.84);
+  /* 御劍 AUTO:手繪雙圈印 */
+  #autobtn { width:58px; height:58px; min-height:58px; min-width:58px; padding:0; justify-content:center;
+    flex-direction:column; gap:2px; border-radius:50%; letter-spacing:1px;
+    font-family:system-ui,sans-serif; background:rgba(250,246,238,.72);
+    border:1.5px solid rgba(52,42,32,.66);
+    box-shadow:0 0 0 3px rgba(250,246,238,.62), 0 0 0 4.2px rgba(52,42,32,.24),
+               0 3px 12px rgba(45,37,26,.14);
     transition:color .18s,border-color .18s,background .18s,box-shadow .18s,transform .12s; }
-  #autobtn .auto-mark { font-size:9px; line-height:1; letter-spacing:2px; opacity:.65; }
-  #autobtn .auto-label { font-size:13px; font-weight:800; line-height:1; }
-  #autobtn.on { color:#4a3510; border-color:#c49a32;
-    background:linear-gradient(180deg,#f5dc8c,#d7ad46);
-    box-shadow:0 0 0 2px rgba(218,176,70,.18),0 3px 14px rgba(139,99,22,.36); }
-  #autobtn.on .auto-mark { opacity:1; }
+  #autobtn .auto-mark { font-size:9.5px; line-height:1; letter-spacing:2px; opacity:1; color:#4a4038; }
+  #autobtn .auto-label { font-size:15px; font-weight:800; line-height:1; color:#241f1a; }
+  #autobtn.on { border-color:#b78e2c; background:linear-gradient(180deg,#f6de92,#d8ae48);
+    box-shadow:0 0 0 3px rgba(250,246,238,.5), 0 0 0 4.2px rgba(183,142,44,.5),
+               0 3px 14px rgba(139,99,22,.36); }
+  #autobtn.on .auto-mark, #autobtn.on .auto-label { color:#4a3510; }
   #autobtn:active { transform:scale(.96); }
   .ctl:hover { color:#7a2b2b; }
-  .bar { height:9px; background:rgba(90,70,50,.25); border-radius:5px; overflow:hidden; margin-top:4px; }
+  /* 毛筆刷痕:兩端收鋒、腰身略粗,軌道與填色共用同一個遮罩 */
+  .bar { position:relative; height:12px; margin-top:5px; border-radius:0; overflow:hidden;
+    background:rgba(66,52,38,.22);
+    -webkit-mask:var(--brush) no-repeat 0 0/100% 100%;
+            mask:var(--brush) no-repeat 0 0/100% 100%; }
   .bar > i { display:block; height:100%; width:0%; transition:width .18s; }
-  #hpfill { background:linear-gradient(90deg,#7a2b2b,#c0392b); }
-  #mpfill { background:linear-gradient(90deg,#2f5f6b,#4aa0b8); }
-  #xpfill { background:linear-gradient(90deg,#4a5a3a,#8aa06a); }
+  /* 道行:細一階,左端一顆墨珠隨進度走 */
+  .barrow { position:relative; }
+  .barrow .bar { height:8px; }
+  .barrow .knob { position:absolute; top:50%; left:0; width:11px; height:11px; margin:-5.5px 0 0 -5.5px;
+    border-radius:50%; background:#f7f2e6; border:1.5px solid rgba(60,48,34,.6);
+    box-shadow:0 1px 3px rgba(45,37,26,.28); transition:left .18s; }
+  #hpfill { background:linear-gradient(90deg,#8e2b24,#c0392b 55%,#a8322a); }
+  #mpfill { background:linear-gradient(90deg,#255663,#3f97b0 55%,#2f7d94); }
+  #xpfill { background:linear-gradient(90deg,#5b5346,#8d8271); }
   #mpfill.low { background:linear-gradient(90deg,#8a5a2b,#c08a2e); }
-  .label { font-size:13px; letter-spacing:2px; }
-  .big { font-size:19px; font-weight:700; letter-spacing:2px; line-height:1; }
-  .sub { font-size:12px; color:#6b5d48; letter-spacing:1px; }
+  .label { font-size:14px; letter-spacing:2px; color:#241f1a; font-weight:600; }
+  .label .sub { font-weight:400; }
+  .big { font-size:26px; font-weight:700; letter-spacing:2px; line-height:1; color:#241f1a; }
+  .sub { font-size:12px; color:#4f4436; letter-spacing:1px; }
 
   /* 詞條選單 */
   #overlay { position:absolute; inset:0; display:none; align-items:flex-end; justify-content:center;
@@ -344,7 +374,7 @@
       <div class="label" style="margin-top:8px;">劍意 <span id="mptxt" class="sub"></span></div>
       <div class="bar"><i id="mpfill"></i></div>
       <div class="label" style="margin-top:8px;">道行 · <span id="lvtxt">一</span> 重</div>
-      <div class="bar"><i id="xpfill"></i></div>
+      <div class="barrow"><div class="bar"><i id="xpfill"></i></div><span class="knob" id="xpknob"></span></div>
     </div>
     <div id="ctrls">
       <button class="panel ctl" id="autobtn" type="button" aria-label="自動御劍" aria-pressed="false"><span class="auto-mark">御劍</span><span class="auto-label">AUTO</span></button>
@@ -353,7 +383,8 @@
     <div class="panel" id="scorewrap">
       <div class="big" id="killtxt">0</div>
       <div class="sub">斬妖數</div>
-      <div class="sub" id="wavetxt" style="margin-top:6px;">第 一 波</div>
+      <div class="divider"></div>
+      <div class="sub" id="wavetxt">第 一 波</div>
     </div>
   </div>
 
@@ -709,14 +740,24 @@ const HEROSPR={ idle:[], hurt:[], cast:[], death:[], ok:false, aspect:0.9917, fo
   for(let i=1;i<=6;i++) add(HEROSPR.cast,'assets/hero/HERO_cast_'+pad(i)+'.png');
   for(let i=1;i<=7;i++) add(HEROSPR.death,'assets/hero/HERO_death_'+pad(i)+'.png');
 })();
-// 女修士:待機 7 幀(執筆者外觀之一)。動作幀(受擊/施放/隕落)尚未提供,
-// 切到此外觀時所有狀態暫時都用待機幀,補齊後只要加對應陣列即可。
-const HEROF={ idle:[], ok:false, aspect:0.9944, foot:0.9823, n:0, need:7 };
+// 女修士:單張「無劍身體」+ 獨立配劍,動態全部程序化。
+// 原 7 幀 idle 其實身體幾乎一模一樣,只有配劍位置不同 —— 交叉淡入會讓劍在空中瞬移。
+// 故離線以「7 幀 alpha 中位數」合成出乾淨的無劍身體(劍在每幀位置不同,中位數自然把它濾掉),
+// 配劍則從殘差取出並做主軸正規化(刀身水平、劍尖朝 +X、護手在 grip 比例處)。
+// 身體靠逐列風動+呼吸活起來,配劍與墨痕沿橢圓軌道環繞 → 旋渦感。缺圖時自動退回舊的 7 幀。
+const HEROF={ idle:[], ok:false, proc:false, aspect:0.9944, foot:0.9833, n:0, need:7,
+              body:null, sword:null, swGrip:0.2013, swAspect:5.2 };
 (function loadHeroF(){
-  for(let i=1;i<=7;i++){ const im=new Image();
-    im.onload=()=>{ HEROF.aspect=im.naturalWidth/im.naturalHeight;
-                    if(++HEROF.n>=HEROF.need) HEROF.ok=true; };
-    im.onerror=()=>{ HEROF.ok=false; };
+  const body=new Image();
+  body.onload=()=>{ HEROF.body=body; HEROF.aspect=body.naturalWidth/body.naturalHeight;
+                    HEROF.proc=true; HEROF.ok=true; };
+  body.src='assets/hero-f/HEROF_body.png';
+  const sw=new Image();
+  sw.onload=()=>{ HEROF.sword=sw; HEROF.swAspect=sw.naturalWidth/sw.naturalHeight; };
+  sw.src='assets/hero-f/HEROF_sword.png';
+  for(let i=1;i<=7;i++){ const im=new Image();          // 回退用:舊的 7 幀
+    im.onload=()=>{ if(!HEROF.proc){ HEROF.aspect=im.naturalWidth/im.naturalHeight;
+                    if(++HEROF.n>=HEROF.need) HEROF.ok=true; } };
     im.src='assets/hero-f/HEROF_idle_'+String(i).padStart(2,'0')+'.png';
     HEROF.idle.push(im); }
 })();
@@ -1466,7 +1507,9 @@ function bakeHero(h){
 }
 function heroSet(){ return (meta.heroSkin==='f' && HEROF.ok) ? HEROF : HEROSPR; }
 function drawHero(P){
-  if(heroSet().ok){ drawHeroSprite(P); return; }
+  const S=heroSet();
+  if(S===HEROF && HEROF.proc){ drawHeroF(P); return; }   // 女修:單張身體 + 全程序化演出
+  if(S.ok){ drawHeroSprite(P); return; }
   drawHeroProc(P);
 }
 // Sprite 版:呼吸(整體微縮放 + 上下浮動)、轉身、待機 9 幀慢速交叉淡入、受擊 4 幀連播。
@@ -1519,6 +1562,106 @@ function drawHeroSprite(P){
   }
   ctx.globalAlpha=1;
   ctx.restore();
+}
+// ---------- 女修士:程序化演出(逐列風動身體 + 環繞墨痕 + 配劍旋渦) ----------
+// 身體是一張無劍墨繪,用「腳下錨定、往上遞增」的逐列水平位移做衣袂與髮絲的風動,
+// 再疊呼吸(整體微縮放 + 上下浮動)。配劍與墨痕各自沿一個很扁的橢圓繞著她轉:
+// sin(θ)<0 = 轉到身後 → 先畫(被身體蓋住);sin(θ)>0 = 轉到身前 → 後畫。近大遠小 + 近濃遠淡。
+let hfCv=null, hfRed=null, hfH=0, hfW=0;
+function bakeHeroF(h,w){
+  if(hfCv && hfH===h) return;
+  hfH=h; hfW=w;
+  const mk=tint=>{
+    const c=document.createElement('canvas');
+    c.width=Math.max(1,Math.round(w*DPR)); c.height=Math.max(1,Math.round(h*DPR));
+    const g=c.getContext('2d'); g.setTransform(DPR,0,0,DPR,0,0);
+    g.drawImage(HEROF.body,0,0,w,h);
+    if(tint){ g.globalCompositeOperation='source-atop'; g.fillStyle=tint; g.fillRect(0,0,w,h); }
+    return c;
+  };
+  hfCv=mk(null); hfRed=mk('rgba(200,56,40,0.9)');
+}
+// 環繞軌道:圓心在腰腹偏下(視覺上像從腳邊繞起),ry 很小 → 幾乎正側看的橢圓
+function hfOrbit(P){
+  const h=P.r*5.0, w=h*HEROF.aspect, feet=P.y+P.r*1.18;
+  return { cx:P.x, cy:feet-h*0.20, rx:w*0.62, ry:h*0.088, h:h, w:w };
+}
+function drawHeroFBody(P,alpha){
+  const h=P.r*5.0, w=h*HEROF.aspect, feet=P.y+P.r*1.18;
+  bakeHeroF(h,w);
+  const dying=G.deathT>0;
+  const br=dying?0:Math.sin(G.t*0.042);
+  const glow=Math.min(1,P.pulse||0);
+  ctx.save();
+  ctx.translate(P.x, feet+br*1.1);
+  ctx.scale(dying?1:G.facing, 1+br*0.013);
+  const N=26, sh=h/N, sDPR=hfCv.height/h, top=-h*HEROF.foot;
+  const wind=(1+G.intent*0.22)*(dying?0.4:1);
+  for(let i=0;i<N;i++){
+    const y0=i*sh, ry=(y0+sh*0.5)/h;
+    // 風動幅度:腳底 0;裙襬最大;袖與髮各給一份小的
+    const robe  =Math.max(0,Math.min(1,(ry-0.34)/0.40))*(1-Math.max(0,Math.min(1,(ry-0.88)/0.12)));
+    const sleeve=Math.max(0,1-Math.abs(ry-0.29)/0.15);
+    const hair  =Math.max(0,1-Math.abs(ry-0.10)/0.13);
+    const amp=(robe*0.062+sleeve*0.040+hair*0.034)*w*wind;
+    const dx=Math.sin(ry*6.6-G.t*0.046)*amp + Math.sin(ry*2.7-G.t*0.026)*amp*0.5;
+    ctx.globalAlpha=alpha;
+    ctx.drawImage(hfCv, 0, y0*sDPR, hfCv.width, sh*sDPR+1, -w/2+dx, top+y0, w, sh+0.7);
+    if(glow>0.02){ ctx.globalAlpha=alpha*glow*0.7;
+      ctx.drawImage(hfRed, 0, y0*sDPR, hfRed.width, sh*sDPR+1, -w/2+dx, top+y0, w, sh+0.7); }
+  }
+  ctx.globalAlpha=1; ctx.restore();
+}
+// 配劍:沿橢圓公轉,劍尖順著切線方向;身後淡而小、身前濃而大,後面拖一道乾筆墨痕。
+function drawHeroFSword(P,front,fade){
+  const S=HEROF.sword; if(!S||!S.complete||!S.naturalWidth) return;
+  const o=hfOrbit(P);
+  const th=G.t*(0.0155*(1+G.intent*1.2)) + G.heroPhase*2.0;
+  const sn=Math.sin(th);
+  if((sn>0)!==front) return;
+  const dep=sn*0.5+0.5;                                   // 0 最遠 → 1 最近
+  const x=o.cx+Math.cos(th)*o.rx, y=o.cy+sn*o.ry;
+  const ang=Math.atan2(Math.cos(th)*o.ry, -Math.sin(th)*o.rx);   // 橢圓切線
+  if(FX.trail){                                           // 尾巴:同一條軌道往回取樣
+    const tr=[];
+    for(let i=9;i>=1;i--){ const a=th-i*0.072;
+      tr.push({x:o.cx+Math.cos(a)*o.rx, y:o.cy+Math.sin(a)*o.ry}); }
+    tr.push({x:x,y:y});
+    ctx.globalAlpha=(0.16+dep*0.30)*fade;
+    inkTrail(ctx,tr,2.6+dep*2.4,'46,40,34');
+  }
+  const BL=o.w*(0.46+dep*0.14), hq=BL/HEROF.swAspect;
+  ctx.save();
+  ctx.globalAlpha=(0.46+dep*0.50)*fade;
+  ctx.translate(x,y); ctx.rotate(ang);
+  ctx.drawImage(S,-BL*HEROF.swGrip,-hq/2,BL,hq);
+  ctx.restore(); ctx.globalAlpha=1;
+}
+// 環繞墨痕:三條不同半徑/高度/速度的墨帶,用劍氣拖尾的筆刷畫,營造墨氣旋繞。
+function drawHeroFInk(P,front,fade){
+  if(!FX.trail) return;
+  const o=hfOrbit(P);
+  for(let k=0;k<3;k++){
+    const th=G.t*(0.0102+k*0.0026) + k*2.094 + G.heroPhase;
+    const sn=Math.sin(th);
+    if((sn>0)!==front) continue;
+    const rx=o.rx*(0.80+k*0.13), ry=o.ry*(0.72+k*0.34), yo=-o.h*(0.02+k*0.085);
+    const tr=[];
+    for(let i=11;i>=0;i--){ const a=th-i*0.108;
+      tr.push({ x:o.cx+Math.cos(a)*rx,
+                y:o.cy+yo+Math.sin(a)*ry+Math.sin(a*3+G.t*0.03)*o.h*0.014 }); }
+    ctx.globalAlpha=(0.20+(sn*0.5+0.5)*0.26)*fade;
+    inkTrail(ctx,tr,2.1+k*0.8,'56,48,40');
+  }
+  ctx.globalAlpha=1;
+}
+function drawHeroF(P){
+  const dying=G.deathT>0;
+  const fade=dying?Math.max(0,G.deathT/G.deathMax):1;
+  const fx=(DRAWLV>=4);
+  if(fx){ drawHeroFInk(P,false,fade); drawHeroFSword(P,false,fade); }
+  drawHeroFBody(P,fade);
+  if(fx){ drawHeroFSword(P,true,fade); drawHeroFInk(P,true,fade); }
 }
 // 舊的程序化剪影(逐列風動),沒有 sprite 時的回退
 function drawHeroProc(P){
@@ -2052,7 +2195,9 @@ function updateHUD(){
   setW('mpfill',Math.max(0,mpr*100).toFixed(1)+'%');
   const mpEl=document.getElementById('mpfill'); if(mpEl) mpEl.classList.toggle('low',mpr<0.25);
   setTxt('mptxt',Math.round(G.mana)+' / '+stat.manaMax);
-  setW('xpfill',(G.xp/G.xpNeed*100).toFixed(1)+'%');
+  { const pct=Math.max(0,Math.min(100,G.xp/G.xpNeed*100)).toFixed(1)+'%';
+    setW('xpfill',pct);
+    const kb=document.getElementById('xpknob'); if(kb) kb.style.left=pct; }
   setTxt('lvtxt',num2cn(G.level));
   setTxt('killtxt',String(G.kills));
   setTxt('wavetxt','第 '+num2cn(G.wave)+' 波');
@@ -2842,6 +2987,10 @@ window.addEventListener('keydown',e=>{
     Object.keys(FX).forEach(k=>FX[k]=!off);
     DIAG.hist.length=0; if(!DIAG.on) toggleDiag(); }
 });
+// 鎖右鍵:遊戲畫面不提供瀏覽器右鍵選單(也順手擋掉長按選單與拖曳選取)
+document.addEventListener('contextmenu', e=>{ e.preventDefault(); return false; });
+document.addEventListener('dragstart', e=>e.preventDefault());
+document.addEventListener('selectstart', e=>{ if(!/^(INPUT|TEXTAREA)$/.test(e.target.tagName)) e.preventDefault(); });
 loop();
 })();
 </script>
