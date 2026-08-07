@@ -7,7 +7,7 @@
 `data/game-config.js` 已換成 **v2.1.0 完整引擎版**,但主檔 `inkblade.html` 仍用舊的扁平 `applyAffix`。
 v2.1.0 的相容層 `affixes[].effect` 是巢狀 `{add,mul,flags,status}`,且丟棄了 `set formation`。
 **後果:直接開遊戲,升級選卡的效果會失效、陣型切不動。**
-→ 正解是把主檔改用 `INK_CONFIG.runtime`(見「下一步」)。**在做完遷移前,主檔的升級系統是壞的。**
+→ 正解是把主檔改用 `INK_CONFIG.runtime`(見「下一步」)。**Slice 1 已完成:升級選卡/陣型已改用 runtime(rollInsights/applyInsight)並驗證。** 其餘見 CHANGELOG #9 的 Slice 2 待辦。
 
 ## 這階段改了哪些東西
 
@@ -51,7 +51,8 @@ v2.1.0 的相容層 `affixes[].effect` 是巢狀 `{add,mul,flags,status}`,且丟
 ## 下一步(建議順序)
 1. **主檔 runtime 遷移**(大工程,分段):stat.* → runState.stats.*;升級選卡 → rollInsights+applyInsight;轉世閣 → getRebirthView+purchaseRebirth;戰鬥數值 → getCombatSnapshot;洗點 → resetAllInsights + 遊戲層費用/次數/戰鬥禁止(參考使用者 handleResetAllBuild 範例)。
 2. 接 `mind_*` 心法 flag 的實際玩法效果。
-3. 依 `docs/ch1-asset-library.md` 生成敵人/Boss 圖並入庫。
+3. **已進行**:sprite 載入器已接(assets/enemies、assets/boss;採 tier0=墨靈、tier1/2=墨刃兵)。待你產出真透明 PNG 丟進就自動顯示。
+4. 直式目標畫布:1080×1920(9:16)——runtime 遷移/版面時套用。
 
 ## 同步提醒
 config 與主檔為多機同步(SYNC.bat → GitHub index7777/Inkblade)。換機器前先在本機 push,另一台再 pull,避免衝突。

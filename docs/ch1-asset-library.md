@@ -7,7 +7,9 @@
 - `assets/references/moshou-ref.png` — 墨獸 設定圖
 
 > 生成規範:全部透明背景、單體去背、乾筆毛邊、留白、無文字浮水印、無烘焙地面陰影(陰影由引擎畫)。
-> 去背注意:這些角色本體可去背;但邊緣的煙氣/潑墨是半透明軟邊,生成時已是透明 PNG,**不要再用 rembg 二次去背**(會咬掉煙氣)。
+> 去背/透明:**別用 rembg 對煙霧/半透明去背(會咬掉飄帶、殘留背景)**。
+> 正解——生成時就畫在**純白背景、純黑墨、無發光/漸層/網點**,再用「亮度轉 alpha」(白→透明、黑→不透明)轉出真透明,飄帶濃淡自然變半透明。
+> 工具:`tools/ink_to_alpha.py`(見文末)。墨刃兵/墨獸實體亦可用同法(白底黑墨),比 rembg 穩。
 > 狀態:`needs_art`(待生成)→ 生成後人工挑圖 → `approved`。
 
 ---
@@ -21,26 +23,24 @@ Chinese ink-wash sumi-e game sprite, monochrome black ink, dry-brush feathered e
 
 ## 一、墨靈 Mo-Ling(漂浮雜兵)
 用途:空中/漂浮型普通雜兵,成群出現、緩速逼近靈石。無腿、以墨氣飄行。建議每動作 3–5 幀。
+**重要:墨靈為半透明煙霧,務必畫在純白背景、純黑墨,不要發光/漸層/網點;之後用亮度轉 alpha(見文末腳本),不要用 rembg。**
 
 ### ENE_INKLING_float_01.png — 待機/漂浮(idle)
-用途:待機與緩慢漂浮的循環主圖。
 ```
-Chinese ink-wash sumi-e game sprite, monochrome black ink, dry-brush feathered edges, splattered ink texture, generous negative space, high contrast, pure transparent background, isolated single subject, clean cut-out for a 2D game, no text, no watermark, no baked ground shadow, a low-tier floating ink spirit (Mo Ling), amorphous body of swirling wispy ink tendrils, no legs, hovering in place, tendrils gently drifting, dim glowing crimson-red eyes, dissolving smoky edges, calm and menacing idle
+Chinese ink-wash sumi-e game asset, a floating ink spirit (Mo Ling), amorphous wispy body of swirling black sumi ink tendrils, no legs, hovering, dim glowing crimson-red eyes, smoky dry-brush feathered edges, painted in pure black ink on a solid pure white background, high contrast, centered, full body, no colored background, no gradient, no glow, no bloom, no halftone dots, no checkerboard, no drop shadow, no text, no watermark
 ```
 
 ### ENE_INKLING_move_01.png — 漂移/前進(move)
-用途:朝目標飄行時的移動幀。
 ```
-Chinese ink-wash sumi-e game sprite, monochrome black ink, dry-brush feathered edges, splattered ink texture, generous negative space, high contrast, pure transparent background, isolated single subject, clean cut-out for a 2D game, no text, no watermark, no baked ground shadow, a low-tier floating ink spirit (Mo Ling), amorphous swirling ink body, no legs, drifting forward, tendrils streaming backward with motion, leaning into the movement, dim glowing crimson-red eyes, dissolving smoky trailing edges
+Chinese ink-wash sumi-e game asset, a floating ink spirit (Mo Ling) drifting forward, amorphous swirling black sumi ink body, no legs, tendrils streaming backward with motion, dim glowing crimson-red eyes, smoky dry-brush trailing edges, painted in pure black ink on a solid pure white background, high contrast, centered, no colored background, no gradient, no glow, no halftone dots, no checkerboard, no drop shadow, no text, no watermark
 ```
 
 ### ENE_INKLING_death_01.png — 潰散/死亡(death)
-用途:被斬殺時的消散幀(可接引擎潑墨)。
 ```
-Chinese ink-wash sumi-e game sprite, monochrome black ink, dry-brush feathered edges, splattered ink texture, generous negative space, high contrast, pure transparent background, isolated single subject, clean cut-out for a 2D game, no text, no watermark, no baked ground shadow, a low-tier floating ink spirit (Mo Ling) bursting apart, body dissipating into scattered ink droplets and splash, tendrils unraveling, crimson-red eyes fading out, ink splatter dispersal
+Chinese ink-wash sumi-e game asset, a floating ink spirit (Mo Ling) bursting apart, body dissipating into scattered black ink droplets and splash, tendrils unraveling, crimson-red eyes fading, painted in pure black ink on a solid pure white background, high contrast, centered, no colored background, no gradient, no glow, no halftone dots, no checkerboard, no drop shadow, no text, no watermark
 ```
 
----
+> 負面提詞(工具支援時填):colored background, gradient, orange, yellow, glow, bloom, halftone, polka dots, checkerboard, drop shadow, frame, border, watermark, text, signature
 
 ## 二、墨刃兵 Mo-Ren-Bing(近戰雜兵)
 用途:地面近戰普通兵,持簡易墨刀進逼。建議側/斜側視角一致。idle/walk 循環,attack/hurt/death 為觸發。
@@ -121,3 +121,12 @@ A game sprite of an ancient Chinese ink-wash style mythical ink beast (Mo Shou) 
 | BOSS_MOSHOU_death | Boss | death | 死亡 | BOSS_MOSHOU_death_01.png | moshou-ref | needs_art |
 
 生成後建議路徑:雜兵 `assets/enemies/`、Boss `assets/boss/`;設定參考留在 `assets/references/`。
+
+---
+
+## 亮度轉 alpha(白底黑墨 → 真透明)
+墨靈/煙霧/FX 請生成在純白底、純黑墨,再跑:
+```
+python tools/ink_to_alpha.py 輸入.png 輸出.png
+```
+原理:alpha = 255 − 亮度(白→透明、黑→不透明),飄帶濃淡自然成半透明;紅色像素(紅眼)自動保留不透明。比 rembg 更適合半透明墨。
