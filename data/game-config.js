@@ -75,8 +75,8 @@
    * status:命中附加狀態;unlock:當局解鎖;truth:啟用互斥真意。
    */
   const OP_SCHEMA = Object.freeze({
-    add: ['stats.damage', 'stats.swordWidth', 'stats.swordSpeed', 'stats.swordLife', 'stats.pierce', 'stats.critChance', 'stats.critMultiplier', 'stats.manaMax', 'stats.manaRegen', 'stats.manaOnKill', 'stats.swordCap', 'stats.swordCount', 'mechanics.returnHits', 'mechanics.splashRadius', 'mechanics.homingStrength'],
-    mul: ['stats.damage', 'stats.swordWidth', 'stats.swordSpeed', 'stats.swordLife', 'stats.critMultiplier', 'mechanics.splashDamage', 'mechanics.statusDuration', 'mechanics.trailOpacity'],
+    add: ['stats.damage', 'stats.swordWidth', 'stats.swordSpeed', 'stats.swordLife', 'stats.pierce', 'stats.critChance', 'stats.critMultiplier', 'stats.manaMax', 'stats.manaRegen', 'stats.manaOnKill', 'stats.swordCap', 'stats.swordCount', 'stats.manaCostBase', 'stats.manaCostPerPixel', 'mechanics.returnHits', 'mechanics.splashRadius', 'mechanics.homingStrength'],
+    mul: ['stats.damage', 'stats.swordWidth', 'stats.swordSpeed', 'stats.swordLife', 'stats.critMultiplier', 'stats.manaCostBase', 'stats.manaCostPerPixel', 'mechanics.splashDamage', 'mechanics.statusDuration', 'mechanics.trailOpacity'],
     set: ['formation', 'stats.swordCount', 'mechanics.homingCanCrit', 'mechanics.returnEnabled'],
     max: ['stats.mana', 'stats.manaMax', 'stats.swordCap'],
     flag: ['flags.firstStrikeCrit', 'flags.returnLeavesDryBrush', 'flags.splashOnKill', 'flags.listenToInk', 'flags.whiteCutOnCrit'],
@@ -168,7 +168,7 @@
     activeForm: null,
     appliedTruthEffects: [],
     appliedFormEffects: [],
-    stats: Object.freeze({ damage: 24, swordWidth: 18, swordSpeed: 14, swordLife: 1.35, pierce: 0, critChance: 0.05, critMultiplier: 2, manaMax: 100, mana: 100, manaRegen: 0.85, manaOnKill: 0, swordCap: 4, swordCount: 1 }),
+    stats: Object.freeze({ damage: 24, swordWidth: 18, swordSpeed: 14, swordLife: 1.35, pierce: 0, critChance: 0.05, critMultiplier: 2, manaMax: 100, mana: 100, manaRegen: 0.85, manaOnKill: 0, swordCap: 4, swordCount: 1, manaCostBase: 6, manaCostPerPixel: 0.13 }),
     mechanics: Object.freeze({ homingStrength: 0, homingCanCrit: true, returnEnabled: false, returnHits: 0, splashRadius: 0, splashDamage: 0.35, statusDuration: 1, trailOpacity: 1 }),
     statuses: Object.freeze({}),
     flags: Object.freeze({ firstStrikeCrit: false, returnLeavesDryBrush: false, splashOnKill: false, listenToInk: false, whiteCutOnCrit: false }),
@@ -281,6 +281,8 @@
     s.swordSpeed = Math.max(5, Math.min(s.swordSpeed, 60));
     s.pierce = Math.max(0, Math.min(s.pierce, 8));
     s.critMultiplier = Math.max(1, Math.min(s.critMultiplier, 10));
+    s.manaCostBase = Math.max(0, Math.min(s.manaCostBase, 60));
+    s.manaCostPerPixel = Math.max(0.01, Math.min(s.manaCostPerPixel, 1));
     const m = state.mechanics;
     m.splashRadius = Math.max(0, Math.min(m.splashRadius, 180));
     m.splashDamage = Math.max(0.1, Math.min(m.splashDamage, 5));
@@ -581,7 +583,9 @@
       returnBlade: { enabled: m.returnEnabled, hitCount: m.returnHits, damageMultiplier: returnDamageMult, leaveDryBrush: f.returnLeavesDryBrush },
       splash: { radius: m.splashRadius, damageMult: m.splashDamage },
       homing: { strength: m.homingStrength, canCrit: m.homingCanCrit },
-      mana: { current: s.mana, max: s.manaMax, regenPerSec: s.manaRegen, gainOnKill: s.manaOnKill },
+      mana: { current: s.mana, max: s.manaMax, regenPerSec: s.manaRegen, gainOnKill: s.manaOnKill,
+              costBase: s.manaCostBase, costPerPixel: s.manaCostPerPixel,
+              maxStrokeLength: Math.max(0, (s.manaMax - s.manaCostBase) / s.manaCostPerPixel) },
       statusTimeScale: m.statusDuration,
       globalFlags: { splashOnKill: f.splashOnKill, listenInkPool: f.listenToInk },
       activeTruthId: state.activeTruth,

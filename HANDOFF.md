@@ -8,8 +8,12 @@
 - **Slice 1**(CHANGELOG #9):升級選卡 / 陣型 → `rollInsights` + `applyInsight` + `syncStat()` 橋接。
 - **Slice 2**(CHANGELOG #22):劍意狀態(蝕/鎮 DoT + 緩速)、心法與真意 flags(首劍必暴、暴擊留白、暴擊殘鋒、斬殺潑墨、折返飛白/加傷)全部接上實際玩法;折返改為回程可重新命中(上限 `returnHits`);順手修好「波及傷害打死的墨獸不會消失」。
 - 同時修掉 config 的 `resolveValue` bug——取「歸藏無痕」後 `getCombatSnapshot` 會直接丟例外。
+- **Slice 3**(CHANGELOG #23):轉世閣改走 `getRebirthView`/`purchaseRebirth`(前置條件終於生效,分築基/心法/傳承三區);新增洗點「重塑劍意」(暫停畫面、二次確認、每波一次、首次免費後 30/80/150/250、洗墨丹抵免);舊存檔自動遷移(心法/傳承由 unlock 布林 → ranks 階數);清掉 legacy 死碼(applyAffix/affixWeight/META_UP/META_UNLOCK/AFFIXES)。
 
-**剩餘(Slice 3)**:洗點 UI(費用/免費次數/戰鬥禁止/洗墨丹)、轉世閣改走 `getRebirthView`/`purchaseRebirth`、抽劍耗魔常數尚未進 config。
+- **#24**:抽劍畫線耗魔常數(`manaCostBase`/`manaCostPerPixel`)收進 config,`OP_SCHEMA` 允許 add/mul,`getCombatSnapshot().mana` 一併輸出 `maxStrokeLength`。
+
+**runtime 遷移完成。** 玩法數值與規則現在全部由 `data/game-config.js` 決定,主檔只負責表現與輸入。
+**剩餘**:`mind_return_thought` 等心法目前只有視覺效果(設計上如此);開場過場收尾(捲桿與桌面畫軸顏色統一、`--ox/--oy/--zoom` 對位)需在瀏覽器實測微調。
 
 ## 這階段改了哪些東西
 

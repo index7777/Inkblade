@@ -5,6 +5,133 @@
 
 ---
 
+## [2026-08-07] #27 主角 26 幀重製 + 隕落動畫、墨劍 14 幀、開場疊合/停頓修正
+**檔案**:`assets/hero/*`(重製 + 死亡 7 幀)、`assets/sword/*`(新)、`inkblade.html`
+
+### A. 開場過場修正(驗收回報:鏡頭動兩次像卡一下、拉開前畫軸明顯重疊沒疊好)
+兩個症狀是同一個根因:`.op-scroll` 用的是**最終** `scale(var(--zoom))`,而 `#splash` 還在漸進放大 —— 畫軸浮在半縮放的桌面上,所以疊不準;等它在 z>0.55 時被 opacity 切進來,又造成第二次「跳動」。
+1. `.op-scroll` 改用與 `#splash` **完全相同**的漸進縮放 `scale(calc(1 + var(--z) * (var(--zoom) - 1)))` → 全程像素級重合。
+2. 畫軸**全程可見**(opacity 從 1 開始),不再有「接手」那一下;只保留抵達邊緣後的淡出。
+3. `HOLD` 由 260ms 改為 **0**(ZOOM 拉長到 1100ms)—— 按下入局鏡頭立刻走,不再有開頭定格。
+
+### B. 主角 sprite 重製為 26 幀(含隕落)
+新增死亡 7 幀。更重要的是**改變對位策略**:
+- 原本(#26)每幀各自以「主體中心 / 腳底」對位 —— 這對 idle 這種各自生成的變體是對的,但會把**受擊 / 施放 / 隕落等連續動作自身的位移吃掉**。
+- 改為**全域統一裁切 + 統一縮放**(原圖皆 2048×2048 且構圖一致):固定裁切框 (56,104)-(1960,2024),統一縮到高 360 → 畫布 357×360,`foot=0.9906`(站立幀腳底在畫布中的比例)。動作序列的位移完整保留,站立幀之間仍然對齊。
+- 存成 **LA(灰階+alpha)**:原稿本就是灰階墨、RGB 與 alpha 高度相關,省一半通道 → 26 幀 1.79MB(RGBA 版為 4.5MB)。
+- `drawHeroSprite` 改用 `HEROSPR.foot` 對齊地面。
+- **隕落**:`beginDeath()` 先播 7 幀(每幀 9 影格,共 63 影格),期間 `update()` 完全凍結戰鬥(只推進動畫與震屏/閃光/潑墨計時),播完才進結算畫面;沒有 sprite 則直接結算。
+
+### C. 墨劍 sprite 14 幀(待機 8 / 攻擊 6)
+素材是各種角度的獨立出圖,直接用會無法依飛行方向旋轉。離線做了**主軸正規化**:
+1. 取濃墨(alpha>150)做 PCA 求刀身主軸 → 旋轉成水平;
+2. 以「厚度剖面最大值 = 護手」判斷柄端在哪一側,必要時水平翻轉 → **劍尖一律朝 +X**;
+3. 統一刀身長度(420px)、護手固定在畫布 `grip=0.22` 處、刀身軸線對齊畫布中線 → 畫布 651×260。
+引擎端只要 `ctx.rotate(s.ang)` 再以 grip 為錨點貼圖即可。`drawJian` 改為有 sprite 走 `drawSwordSprite`,否則回退程序化 `drawInkFlyingSword`。出鞘前 24 影格播攻擊 6 幀,之後待機 8 幀慢速循環(每把劍帶隨機相位 `s.seed`,整排劍不會同步閃)。14 張僅 317KB。
+
+**驗證(headless Chromium 實跑)**:主角 26 張全載入、待機/受擊/施放/隕落四組皆正確播放且腳底穩定;`beginDeath` → 動畫播完自動進結算(`running=false`、gameover 顯示)。墨劍 14 張全載入,朝右/下/左/上/斜五個方向出劍,劍尖皆正確指向飛行方向。無 console / page error。
+**還原依據**:git checkout。手動還原見各段落所述的新增函式與狀態(`HEROSPR.foot`/`G.deathT`/`beginDeath`、`SWDSPR`/`drawSwordSprite`/`s.seed`、`.op-scroll` 的 transform 與 `HOLD`)。
+
+## [2026-08-07] #26 主角 sprite 入庫(待機 9 / 受擊 4 / 施放 6)+ 動畫接線
+**檔案**:`assets/hero/HERO_{idle_01..09,hurt_01..04,cast_01..06}.png`(新)、`inkblade.html`
+
+**素材處理**(沿用 `tools/ink_to_alpha.py` 的白底黑墨 → 真透明工作流)
+1. 去右下角浮水印 → 亮度轉 alpha(白→透明、黑→不透明,煙霧與飄帶自然成半透明)→ 裁切。
+2. **19 幀共用同一張畫布(604×394)並統一對位**:以「濃墨主體(alpha>150)」求出每幀的水平中心與腳底,主體高度統一縮到 340px,再以「中心 x 對齊、腳底 y 對齊」貼上。這是三組動畫互相切換不會跳動的關鍵。
+3. 全透明像素的 RGB 統一填墨色 → PNG 體積由 ~3.6MB 降到 2.1MB(外觀不變)。
+灰底合成預覽確認:無白邊、飄帶完整、19 幀腳底同高。
+
+**主檔接線**
+- 新增 `HEROSPR{idle[9], hurt[4], cast[6], ok, aspect}` 載入器;19 張都載完才 `ok=true`,任一張缺失即回退舊的程序化剪影(`drawHeroProc`,逐列風動版保留未刪)。
+- `drawHero()` 改為分流:有 sprite → `drawHeroSprite()`,否則走舊版。
+- **待機**:9 幀慢速交叉淡入(相鄰兩幀 cross-fade),每局隨機相位 `G.heroPhase`;起劍時(`G.intent`)略微加速。
+- **受擊**:`G.hurtT=20`(4 幀 × 5 影格),於墨獸觸及靈石時觸發。
+- **施放**:`G.castT=24`(6 幀 × 4 影格),於 `launchSword` 成功扣魔後觸發。
+- 保留呼吸(整體微縮放 + 上下浮動)與依最近墨獸轉身(水平翻轉)。
+
+**驗證(headless Chromium 實跑)**:`HEROSPR.ok=true`、19 張全載入、aspect 1.533;逐格截圖確認待機晨變、受擊 4 幀、施放 6 幀皆正確播放且腳底穩定不飄;`launchSword` 後 `G.castT=24`。無 console / page error。
+**還原依據**:移除 `HEROSPR` 載入器與 `drawHeroSprite`,`drawHero` 改回直接呼叫 `drawHeroProc` 的內容,移除 `G.hurtT/castT/heroPhase` 三處狀態與觸發點。或 git checkout。
+
+## [2026-08-07] #25 開場過場 v2(鏡頭推近畫軸 → 上下拉開 → 邊緣淡出)+ 生成點/射程修正
+**檔案**:`inkblade.html`
+
+### A. 開場過場重做(依驗收 4 點)
+**問題(#19–#21 留下的)**:zoom 進場的捲桿框(`assets/ui/scroll-*-roller.png`,偏白)與桌面畫軸(暖深木)顏色不符,且需要手動對位 `--ox/--oy/--zoom`。
+
+**新做法 —— 不再有第二套素材,全部取自同一張 `home-desk-bg.png`,顏色天生一致、也不需要手動對位:**
+1. **鏡頭推近**:整個 `#splash`(桌面圖 + LOGO + 標語 + 按鈕)以「桌上畫軸中心」為 `transform-origin` 一起 `scale`。LOGO / 按鈕被推出畫面外,同時在推近後半段(z 0.42→0.88)淡出(`--uiFade`),鏡頭到底時畫面上只剩畫軸。
+2. **畫軸接手**:`#opening` 兩層 `.op-scroll` 用**同一張桌面圖、同樣的 cover 貼圖與同樣的 transform**,只是用 `clip-path` 沿中央繫繩切出畫軸的上半 / 下半 → 與 zoom 後的畫面**像素級對齊**,交接看不出接縫。
+3. **上下拉開**:兩半由中心往上下移動,抵達關卡上下邊緣(留一道捲桿厚度 ≈ 46px)後淡出;同時 `#paper/#game` 由模糊轉清晰、HUD 最後淡入。
+4. **移除常駐捲桿框** `#scrollframe`:過場結束捲軸就淡掉,遊戲中不再有邊框 —— 顏色不符的問題從根源消失。`assets/ui/scroll-top/bottom-roller.png` 與 `assets/scenes/scroll-rod-*.png` 自此未被引用(留檔備用)。
+
+**幾何量全自動**:新增 `DESK_IMG`(941×1672)與 `SCROLL_UV`(畫軸在圖中的正規化座標,量測值 x 0.100–0.880、y 0.4700–0.5165、繫繩 0.4935),`measureScroll()` 依 `background-size:cover` 的實際貼合換算出畫軸在畫面上的像素矩形,`applyOpeningVars()` 寫入 CSS 變數(`--ox/--oy/--zoom/--sx0/--sx1/--sy0/--sy1/--seam/--tTop/--tBot`)。**不再需要人工調 `--ox/--oy/--zoom`**;換裝置、換長寬比都自動對位。
+**唯一手感參數**:`measureScroll()` 內的 `* 2.2`(推近倍率,以「畫軸剛好等於畫面寬」為 1.0 的倍數)。調大 = 鏡頭推更近、捲桿更粗。
+**時間軸**:HOLD 260 / ZOOM 1000 / UNFURL 1400 / HUD 520 ms。`prefers-reduced-motion` 與再次遊玩仍直接跳過。
+**`start()` 調整**:不再立刻隱藏 `#splash`(否則首頁無法跟著鏡頭推近);改由 `playOpening` 的 `finish()` 收尾隱藏。
+
+### B. 墨獸生成點與射程(驗收回報:怪生在畫面外、自動禦劍朝畫面外出劍)
+1. `spawnEnemy()` 生成點由**畫面外 30px** 改為**貼著畫面邊緣內側 8px** —— 入場即可見,不再有「打得到卻看不到」的怪。
+2. 新增 `onScreen(en)`;**自動禦劍瞄準、追蹤(引鋒)、角色朝向**三處都只鎖定畫面內的墨獸。
+3. 飛劍飛出畫面(邊界外 40px)即消散;有迴劍(`stat.ret`)時本來就會在邊界折返,不受影響。
+
+**驗證(headless Chromium 420×820 實跑)**
+- 過場跑完:`#splash` 隱藏、`#opening` 隱藏、HUD opacity=1、`G.paused=false`;逐格截圖確認鏡頭推近 → UI 出框 → 畫軸拉開 → 邊緣淡出,顏色全程一致(附 `opening-preview.gif`)。
+- 生成點:40 幀內所有墨獸座標**皆在畫布範圍內**。
+- 自動禦劍開啟跑 600 幀:**沒有任何一幀**出現超出畫面 60px 的飛劍(修正前會直接朝畫面外出劍);斬殺正常。
+- 無 console / page error。
+
+**還原依據**:`git checkout` 前一版 `inkblade.html`。手動還原需:恢復 `#scrollframe` 與 `.scroll-art` CSS/HTML 及 `start()` 內的 `display='block'`、把 `.op-scroll` 換回 `.op-desk` 兩半桌面、`playOpening` 改回 `--z/--uf` 手調版本、`start()` 恢復 `splash.style.display='none'`;並把 `spawnEnemy` 邊距改回 −30、移除 `onScreen` 三處過濾與飛劍出界消散。
+
+## [2026-08-07] #24 抽劍畫線耗魔常數收進 config
+**檔案**:`data/game-config.js`、`inkblade.html`
+**背景**:出劍耗魔是最後兩個還寫死在主檔的手感常數(`stat.costBase=6`、`stat.costPerPx=0.13`),調手感得改遊戲層。
+
+**變更**
+1. `BASE_RUN_STATE.stats` 新增 `manaCostBase: 6`、`manaCostPerPixel: 0.13`(數值與原本相同,行為不變)。
+2. `OP_SCHEMA` 的 `add` / `mul` 允許作用於這兩條路徑 —— 之後要加「節墨」類劍意或「省墨」問道,寫一行 `op('mul','stats.manaCostPerPixel',0.85)` 即可,不必動引擎。
+3. `clampAllStats` 加上界:`manaCostBase` 0~60、`manaCostPerPixel` 0.01~1(避免疊到 0 或負數變成無限畫線)。
+4. `getCombatSnapshot().mana` 一併輸出 `costBase` / `costPerPixel` / `maxStrokeLength`(= 滿靈力可畫長度,供 UI 或教學提示直接讀)。
+5. 主檔 `syncStat()` 改為 `stat.costBase = s.manaCostBase; stat.costPerPx = s.manaCostPerPixel;`(原本寫死 6 / 0.13)。`stat` 字面值的 6 / 0.13 保留為開局前的 fallback。
+
+**驗證(headless Chromium 實跑)**:開局 `costBase/costPerPx` = 6 / 0.13 與 config 一致;`maxStrokeLength` 723 與 `allowedLen()` 相符;畫 200px 實扣 32 靈力(6+200×0.13);把 `runState.stats.manaCostPerPixel` 乘 0.5 後 `syncStat()`,同一條線改扣 19(6+200×0.065)、可畫長度同步變長。眡 console / page error。
+**還原依據**:移除 config 這兩個 stats 欄位與其 OP_SCHEMA/clamp/snapshot 條目,主檔 `syncStat` 改回 `stat.costBase=6; stat.costPerPx=0.13;`。或 git checkout。
+
+## [2026-08-07] #23 Runtime 遷移 · Slice 3(轉世閣改走 runtime + 洗點「重塑劍意」)
+**檔案**:`inkblade.html`
+
+**A. 轉世閣全面改走 runtime**
+原本用 legacy 的 `metaUp`(築基)/`metaUnlock`(其餘)兩張扁平表,**完全忽略節點的 `requires`** —— 玩家可以在沒有「劍骨凝成 3 階」的情況下直接買「破墨心訣」,而且 maxRank>1 的心法被當成布林。
+現改為:
+- `renderMeta()` 走 `runtime.getRebirthView(buildPermanentSave())`,依 `branch` 分三區顯示(築基 / 心法 / 傳承;HTML 新增 `#metainherit` 與三個 `#mheadN`)。
+- 購買走 `runtime.purchaseRebirth()`,前置未達顯示「未達」並列出中文前置條件(`reqText`),魂魄不足由 runtime 判定 disable。
+- 新增 `storePermanentSave(p)`:把 purchase 回傳的 permanent state 寫回 `meta`(souls/up/unlock)。
+- `metaBonusText()` / `nextGoal()` 改由 rebirth view 產生(nextGoal 只挑「前置已達成」的最便宜節點)。
+- `buildPermanentSave()` 外包一層 `migratePermanentSave`。
+
+**存檔遷移(`migrateMetaToRuntime`,於 `loadMeta` 尾端執行)**
+舊存檔把心法/傳承存成 `meta.unlock[id]=true`;現改為所有節點階數一律記在 `meta.up`,`meta.unlock` 只保存 runtime 的 `permanentUnlocks`(由已購節點的 `unlock` 效果推導)。實測舊檔 `{unlock:{mind_clear_strike,inherit_guide}}` → `up:{mind_clear_strike:1,inherit_guide:1}`、`unlock:{inherit_guide:true}`,開局 flags 正確生效。
+
+**B. 洗點 UI:重塑劍意(暫停畫面)**
+- HTML/CSS 新增 `#respec` 區塊(暫停面板內)。
+- `respecInfo()` 聚合狀態,`renderRespec()` 繪製,`doRespec()` 執行(**二次確認**:第一次按進入紅色「確認重塑」,第二次才生效)。
+- 規則:
+  1. **戰鬥中禁止** —— 面板只存在於暫停畫面;選卡中 `togglePause` 本來就不開。
+  2. **每波次至多一次**(`G.respecWave`),避免戰鬥中反覆洗點刷數值。
+  3. **費用** = `runtime.calcResetCost(本局已重塑次數)` → 0 / 30 / 80 / 150 / 250(封頂),即**首次免費**。
+  4. **洗墨丹**優先抵免(`meta.inkPills`),沒有丹才扣魂魄;魂魄不足則 disable。
+- 執行:`resetInsightTimes+1` → `runtime.resetAllInsights(runState)`(由永久快照重建,精準歸零)→ `syncStat()` → 清空場上墨獸的 `en.st` → 浮字/音效/HUD 更新。
+- 商城新增「洗墨丹 ×1 · 靈石 40」(可重複購買),轉世閣與商城標頭顯示存量。
+
+**C. 清掉 Slice 1/3 之後的死碼**
+`META_UP`/`META_UNLOCK`/`AFFIXES` 常數、`applyAffix()`、`affixWeight()` 已無任何呼叫點(升級選卡自 Slice 1 起走 `rollInsights`/`applyInsight`,轉世閣自本次起走 runtime),一併移除並留註解說明去向。
+
+**驗證(headless Chromium 實跑主檔,含真實 DOM 點擊)**
+- 轉世閣:分區 5/4/6;7 個前置未達節點正確顯示「未達」且 `purchaseRebirth` 回 `requirements`;補足「劍骨凝成 3 階」(30+65+125)後「破墨心訣」可買(210),共扣 430 魂魄;開局 `damage=33`、`splashOnKill/firstStrikeCrit` 皆生效。
+- 洗點:升級選一張(`form_scatter`)→ 暫停 → 面板顯示「已重塑 0 次 · 現有劍意 1 項 · 免費」→ 第一次點按轉為「確認重塑(再按一次)」→ 第二次執行,劍意歸零、傷害由 51 回到 33、`statuses` 清空、`times=1`;同波再按被擋(「本波已重塑 · 下一波再凝神」),換波後解除;第二次洗點以洗墨丹抵免(魂魄不變、丹 1→0),第三次扣 80 魂魄。
+- 商城洗墨丹購買正常(靈石 500→460,丹 0→1)。全程無 console / page error。
+
+**還原依據**:`git checkout` 前一版 `inkblade.html`。手動還原則需:移除 `#respec` 區塊與其 CSS、`respecInfo/renderRespec/doRespec/respecArmed/G.respecWave`、`storePermanentSave/migrateMetaToRuntime/rebirthView/reqText/rebirthRow/BRANCH_HEAD`,把 `renderMeta/metaBonusText/nextGoal` 改回讀 `META_UP/META_UNLOCK`,並復原 `applyAffix/affixWeight/AFFIXES` 與 `#metaunlock` 的兩區版面。
+
 ## [2026-08-07] #22 Runtime 遷移 · Slice 2(劍意狀態 + 心法 flags 實際接線)
 **檔案**:`inkblade.html`、`data/game-config.js`
 
