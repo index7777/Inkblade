@@ -3,11 +3,13 @@
 > 產生日期:2026-08-07
 > 用途:記錄本階段改了什麼、目前狀態、已知問題與下一步。細節逐筆見 `docs/CHANGELOG.md`。
 
-## ⚠️ 最重要:一個未解的阻塞點
-`data/game-config.js` 已換成 **v2.1.0 完整引擎版**,但主檔 `inkblade.html` 仍用舊的扁平 `applyAffix`。
-v2.1.0 的相容層 `affixes[].effect` 是巢狀 `{add,mul,flags,status}`,且丟棄了 `set formation`。
-**後果:直接開遊戲,升級選卡的效果會失效、陣型切不動。**
-→ 正解是把主檔改用 `INK_CONFIG.runtime`(見「下一步」)。**Slice 1 已完成:升級選卡/陣型已改用 runtime(rollInsights/applyInsight)並驗證。** 其餘見 CHANGELOG #9 的 Slice 2 待辦。
+## 目前進度(阻塞點已解除)
+主檔已改用 `INK_CONFIG.runtime`:
+- **Slice 1**(CHANGELOG #9):升級選卡 / 陣型 → `rollInsights` + `applyInsight` + `syncStat()` 橋接。
+- **Slice 2**(CHANGELOG #22):劍意狀態(蝕/鎮 DoT + 緩速)、心法與真意 flags(首劍必暴、暴擊留白、暴擊殘鋒、斬殺潑墨、折返飛白/加傷)全部接上實際玩法;折返改為回程可重新命中(上限 `returnHits`);順手修好「波及傷害打死的墨獸不會消失」。
+- 同時修掉 config 的 `resolveValue` bug——取「歸藏無痕」後 `getCombatSnapshot` 會直接丟例外。
+
+**剩餘(Slice 3)**:洗點 UI(費用/免費次數/戰鬥禁止/洗墨丹)、轉世閣改走 `getRebirthView`/`purchaseRebirth`、抽劍耗魔常數尚未進 config。
 
 ## 這階段改了哪些東西
 
@@ -43,7 +45,6 @@ v2.1.0 的相容層 `affixes[].effect` 是巢狀 `{add,mul,flags,status}`,且丟
 - 特效(拖尾/潑墨)、背景圖:已接入主檔,語法通過。
 
 ## 已知問題
-1. **(阻塞)主檔未接 runtime**,升級/陣型在新 config 下失效——見最上方。
 2. `undoInsight` 單條撤銷對含 mul 的悟道有順序誤差;精準歸零請用 `resetAllInsights`。(docs/respec-plan.md)
 3. v2.1.0 有 10 個傳承/心法解鎖:`inherit_*` 已用 requires 綁對應真意;`mind_*`(首劍必暴/折返飛白/潰散潑墨/聽墨)為 flag,需在主檔遷移時於對應玩法位置接線。
 4. 洗點的費用扣除/免費次數/戰鬥禁止/洗墨丹/UI 為遊戲層,尚未接主檔。

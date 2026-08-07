@@ -693,7 +693,7 @@ const G = {
   kills:0, wave:1, waveTimer:0, spawnAcc:0,
   xp:0, xpNeed:6, level:1, pendingLevels:0,
   shake:0, hitstop:0, flash:0, flashC:'255,255,255', banner:null,
-  aim:0.85, facing:1, intent:0, streaks:[],
+  aim:0.85, facing:1, intent:0, streaks:[], cuts:[], firstStrikeDone:false,
 };
 booted=true;
 
@@ -782,7 +782,7 @@ function spawnEnemy(){
   const base=[{hp:14,r:15,sp:0.9,c:'#4a3b3b'},{hp:34,r:20,sp:0.72,c:'#3b2f4a'},{hp:80,r:28,sp:0.55,c:'#2f3b3b'}][tier];
   const scale=1+(G.wave-1)*0.11;
   G.enemies.push({x,y,r:base.r,hp:base.hp*scale,max:base.hp*scale,sp:base.sp+G.wave*0.02,
-    c:base.c,tier,type:tier===0?'inkling':'blade',anim:Math.random()*1000,ember:0,emberT:0,chill:0,hit:0,wob:Math.random()*7});
+    c:base.c,tier,type:tier===0?'inkling':'blade',anim:Math.random()*1000,ember:0,emberT:0,chill:0,hit:0,wob:Math.random()*7,st:{}});
 }
 
 // ---------- 劍 ----------
@@ -989,6 +989,33 @@ function syncStat(){
   stat.formation = (runState.formation && runState.formation!=='single') ? runState.formation : 'fan';
   // 遊戲專屬、config 未涵蓋的欄位
   stat.element='none'; stat.ember=0; stat.ice=0; stat.costBase=6; stat.costPerPx=0.13;
+  // ===== Slice 2:劍意狀態 + 心法 flags(由 getCombatSnapshot 聚合)=====
+  const snap = INK_CONFIG.runtime.getCombatSnapshot(runState);
+  stat.statuses      = runState.statuses || {};             // erosion 蝕 / suppression 鎮
+  stat.statusScale   = snap.statusTimeScale || 1;           // 狀態持續時間倍率
+  stat.firstStrike   = !!snap.crit.firstStrikeGuaranteed;   // 明心一斬:每局首劍必暴
+  stat.criticalEcho  = !!snap.crit.criticalEcho;            // 飛白千峰:暴擊生殘鋒
+  stat.whiteCut      = !!snap.crit.whiteCutOnCrit;          // 斷意/飛白:暴擊留白
+  stat.splashOnKill  = !!snap.globalFlags.splashOnKill;     // 破墨心訣/墨海無涯
+  stat.returnDry     = !!snap.returnBlade.leaveDryBrush;    // 歸念/歸藏無痕:折返飛白
+  stat.returnDmgMul  = snap.returnBlade.damageMultiplier||1;
+}
+// 命中時把劍意狀態掛到墨獸身上(每次命中疊「該劍意階數」層,封頂 maxStacks,並刷新時間)
+function applyIntent(en){
+  const defs = stat.statuses; if(!defs) return;
+  if(!en.st) en.st={};
+  for(const key in defs){
+    const cfg = defs[key]; if(!cfg) continue;
+    const rank = cfg.rank || 1;
+    const maxS = cfg.maxStacks || 6;
+    const cur  = en.st[key] || (en.st[key]={stk:0,t:0,acc:0});
+    cur.stk = Math.min(maxS, cur.stk + (cfg.stacks||1) * rank);
+    cur.t   = Math.round((cfg.duration||3) * 60 * (stat.statusScale||1));
+  }
+}
+// 留白(飛白斷鋒):暴擊時沿劍身方向刮出一道白痕
+function whiteCut(x,y,ang){
+  G.cuts.push({x,y,ang,life:1,len:26+Math.random()*22});
 }
 function affixWeight(a){
   // 御劍傳承解鎖後,追蹤詞條加權(設定檔 homingBoost)
@@ -1142,8 +1169,33 @@ function update(){
   // 敵人
   for(let i=G.enemies.length-1;i>=0;i--){
     const en=G.enemies[i];
+    // 波及傷害(潑墨/破墨)可能已把血打光,統一在此收屍
+    if(en.hp<=0){ killEnemy(i); continue; }
     const dx=P.x-en.x, dy=P.y-en.y, d=Math.hypot(dx,dy)||1;
-    let sp=en.sp; if(en.chill>0){ en.chill--; sp*=0.45; } // 寒霜冰緩
+    let sp=en.sp; if(en.chill>0){ en.chill--; sp*=0.45; } // 寒霜冰緩(舊元素系統,現休眠)
+    // ===== 劍意狀態:蝕(持續潰散)/ 鎮(行止遲滯 + 微幅損血)=====
+    if(en.st){
+      let slow=0, dead=false;
+      for(const key in en.st){
+        const e=en.st[key]; if(!e || e.t<=0) continue;
+        const cfg = stat.statuses && stat.statuses[key];
+        if(!cfg){ e.t=0; e.stk=0; continue; }            // 洗點後劍意消失 → 場上狀態一併失效
+        e.t--;
+        if(cfg.slow) slow = Math.max(slow, cfg.slow * e.stk);
+        if(cfg.damagePerSecond){
+          e.acc += cfg.damagePerSecond * e.stk / 60;
+          if(e.acc>=1){
+            const hurt=Math.floor(e.acc); e.acc-=hurt; en.hp-=hurt;
+            if(G.t%20===0) floatText(en.x,en.y-en.r, key==='erosion'?'蝕':'鎮',
+                                     key==='erosion'?'#7a6a58':'#5a6a80');
+            if(en.hp<=0){ dead=true; break; }
+          }
+        }
+        if(e.t<=0) e.stk=0;
+      }
+      if(dead){ killEnemy(i); continue; }
+      if(slow>0) sp *= (1 - Math.min(0.7, slow));
+    }
     en.x+=dx/d*sp; en.y+=dy/d*sp;
     en.wob+=0.1;
     if(en.hit>0)en.hit--;
@@ -1197,8 +1249,11 @@ function update(){
       }
       s.x+=s.vx; s.y+=s.vy;
       if(stat.ret){
-        if((s.x<0&&s.vx<0)||(s.x>W&&s.vx>0)){s.vx*=-1;s.ang=Math.atan2(s.vy,s.vx);}
-        if((s.y<0&&s.vy<0)||(s.y>H&&s.vy>0)){s.vy*=-1;s.ang=Math.atan2(s.vy,s.vx);}
+        // 折返:回程重新計算命中(可再斬同一隻),次數上限 = mechanics.returnHits
+        const bounce=()=>{ s.returned=true;
+          if((s.retCount||0) < (stat.returnHits||1)){ s.retCount=(s.retCount||0)+1; s.hitSet.clear(); s.pierceLeft=stat.pierce; } };
+        if((s.x<0&&s.vx<0)||(s.x>W&&s.vx>0)){s.vx*=-1;s.ang=Math.atan2(s.vy,s.vx);bounce();}
+        if((s.y<0&&s.vy<0)||(s.y>H&&s.vy>0)){s.vy*=-1;s.ang=Math.atan2(s.vy,s.vx);bounce();}
       }
     }
     s.trail.push({x:s.x,y:s.y}); if(s.trail.length>18)s.trail.shift();
@@ -1210,13 +1265,28 @@ function update(){
         // 追蹤降傷已由 config 的 mul 併入 stat.damage(不再另扣);暴擊倍率讀 critMul;可否暴擊看 homingCanCrit
         let dmg=stat.damage;
         let isCrit = (stat.homingCanCrit!==false) && Math.random()<stat.crit;
+        // 明心一斬:每局第一道打中的劍痕必定暴擊(不受追蹤禁暴限制)
+        if(stat.firstStrike && !G.firstStrikeDone){ isCrit=true; G.firstStrikeDone=true; }
         if(isCrit) dmg*=(stat.critMul||2);
+        if(s.returned) dmg*=(stat.returnDmgMul||1);      // 歸藏無痕:回程傷害加成
+        if(s.echo) dmg*=0.5;                              // 殘鋒(criticalEcho)為半傷
         en.hp-=dmg; en.hit=6; s.hitSet.add(en);
+        applyIntent(en);                                  // 劍意:蝕 / 鎮
         if(stat.ember>0){ en.ember=Math.max(en.ember,stat.ember); }
         if(stat.ice>0){ en.chill=100; }
         floatText(en.x,en.y-en.r-10, '-'+Math.round(dmg)+(isCrit?'!':''), isCrit?'#f1d18a':'#fffaf0');
         splash(s.x,s.y,(ELEM[stat.element]||ELEM.none).hit,1);
-        if(isCrit){ SND.crit(); shake(4); hitstop(3); flash(0.12,'240,220,160'); }
+        if(isCrit){ SND.crit(); shake(4); hitstop(3); flash(0.12,'240,220,160');
+          if(stat.whiteCut) whiteCut(s.x,s.y,s.ang);      // 斷意/飛白:暴擊留白
+          // 飛白千峰:暴擊後再生一道殘鋒(半傷、不再遞迴生殘鋒)
+          if(stat.criticalEcho && !s.echo && G.swords.length<stat.cap+3){
+            const ea=s.ang+(Math.random()-0.5)*0.9;
+            G.swords.push({ x:s.x, y:s.y, path:null, seg:1, onPath:false,
+              vx:Math.cos(ea)*stat.speed*0.9, vy:Math.sin(ea)*stat.speed*0.9, ang:ea,
+              life:Math.min(0.6,stat.life*0.5), pierceLeft:1, hitSet:new Set([en]),
+              trail:[], age:0, delay:0, echo:true });
+          }
+        }
         else { SND.hit(); shake(1.1); }
         if(stat.explode>0){
           splash(s.x,s.y,'#c0662e',2.2); SND.boom(); shake(7); stain(s.x,s.y,stat.explode*0.5,'170,90,40');
@@ -1238,6 +1308,7 @@ function update(){
   for(let i=G.texts.length-1;i>=0;i--){const t=G.texts[i];t.age++;t.x+=t.dx||0;t.y+=t.vy||-0.7;
     if(t.damage)t.vy*=0.94;t.life-=t.damage?0.026:0.02;if(t.life<=0)G.texts.splice(i,1);}
   for(let i=G.stains.length-1;i>=0;i--){const st=G.stains[i];st.a-=0.00035;if(st.a<=0)G.stains.splice(i,1);}
+  for(let i=G.cuts.length-1;i>=0;i--){const c=G.cuts[i];c.life-=0.09;if(c.life<=0)G.cuts.splice(i,1);}
   if(G.shake>0) G.shake*=0.86; if(G.shake<0.2) G.shake=0;
   if(G.flash>0) G.flash-=0.035;
   if(G.banner){ G.banner.life-=0.0085; if(G.banner.life<=0) G.banner=null; }
@@ -1261,6 +1332,16 @@ function killEnemy(idx){
   for(let k=0;k<6;k++)ink(en.x,en.y,(Math.random()-.5)*3,(Math.random()-.5)*3,8+Math.random()*10);
   stain(en.x,en.y,en.r*1.25,en.c==='#4a3b3b'?'60,48,44':en.c==='#3b2f4a'?'56,44,72':'44,60,58');
   SND.kill(en.tier); shake(2+en.tier*2.6); if(en.tier===2){ hitstop(4); flash(0.10,'220,210,190'); }
+  // 破墨心訣 / 墨海無涯:潰散時留下小片潑墨,低額波及傷害
+  if(stat.splashOnKill){
+    const R = 54 + (stat.explode||0)*0.35;
+    const sd = stat.damage * 0.28 * (stat.splashDamage||1);
+    splash(en.x,en.y,en.c,1.3);
+    for(let k=0;k<6;k++) ink(en.x,en.y,(Math.random()-.5)*3.6,(Math.random()-.5)*3.6,9+Math.random()*12);
+    for(const e2 of G.enemies){
+      if(e2!==en && Math.hypot(e2.x-en.x,e2.y-en.y)<R){ e2.hp-=sd; e2.hit=6; }   // 收屍交給敵人迴圈
+    }
+  }
   G.kills++; G.player.hp=Math.min(G.player.max,G.player.hp+stat.regen);
   gainXP(en.tier===2?4:en.tier===1?2:1);
   G.enemies.splice(idx,1); updateHUD();
@@ -1653,9 +1734,18 @@ function draw(){
       ctx.restore();
     }
     // 狀態環(sprite / 程序化皆繪製)
-    if(en.ember>0 || en.chill>0){ ctx.save(); ctx.translate(en.x,en.y);
+    const stEro = en.st && en.st.erosion && en.st.erosion.t>0 ? en.st.erosion : null;
+    const stSup = en.st && en.st.suppression && en.st.suppression.t>0 ? en.st.suppression : null;
+    if(en.ember>0 || en.chill>0 || stEro || stSup){ ctx.save(); ctx.translate(en.x,en.y);
       if(en.ember>0){ ctx.strokeStyle='rgba(200,102,46,.8)'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(0,0,en.r+3,0,6.28); ctx.stroke(); }
       if(en.chill>0){ ctx.strokeStyle='rgba(120,180,220,.85)'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(0,0,en.r+3,0,6.28); ctx.stroke(); }
+      // 蝕:斷續的枯墨環,層數越多缺口越少
+      if(stEro){ const g=Math.max(0.08,0.5-stEro.stk*0.07);
+        ctx.strokeStyle='rgba(58,48,40,.75)'; ctx.lineWidth=2.2; ctx.setLineDash([6,6*g*6]);
+        ctx.beginPath(); ctx.arc(0,0,en.r+4,G.t*0.02,G.t*0.02+6.28); ctx.stroke(); ctx.setLineDash([]); }
+      // 鎮:內縮的留白細環
+      if(stSup){ ctx.strokeStyle='rgba(232,224,206,'+(0.35+stSup.stk*0.1)+')'; ctx.lineWidth=1.4;
+        ctx.beginPath(); ctx.arc(0,0,en.r+1.5,0,6.28); ctx.stroke(); }
       ctx.restore(); }
     // 敵方血條：深墨底槽、朱紅血量與一像素框線，對齊示意圖的細長比例。
     if(en.hp<en.max){
@@ -1674,13 +1764,27 @@ function draw(){
     ctx.beginPath(); ctx.moveTo(k.x1,k.y1); ctx.lineTo(k.x2,k.y2); ctx.stroke();
   }
 
+  // 留白斷鋒:暴擊處刮出的白痕(斷意 / 飛白千峰)
+  if(DRAWLV>=4) for(const c of G.cuts){
+    ctx.save(); ctx.translate(c.x,c.y); ctx.rotate(c.ang); ctx.lineCap='round';
+    const L=c.len*(1.15-c.life*0.15);
+    ctx.strokeStyle='rgba(250,247,238,'+(c.life*0.85)+')'; ctx.lineWidth=2.6*c.life+0.6;
+    ctx.beginPath(); ctx.moveTo(-L*0.5,0); ctx.lineTo(L*0.5,0); ctx.stroke();
+    ctx.strokeStyle='rgba(250,247,238,'+(c.life*0.32)+')'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(-L*0.34,-3.2); ctx.lineTo(L*0.42,-3.2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-L*0.42,3.0); ctx.lineTo(L*0.30,3.0); ctx.stroke();
+    ctx.restore();
+  }
+
   // 劍氣
   if(DRAWLV>=5) for(const s of G.swords){
     // 墨痕拖尾:沿飛行軌跡的毛筆掃痕,近劍身濃寬、末端漸淡收(依元素著色)
     ctx.lineCap='round'; ctx.lineJoin='round';
     let rgb=(ELEM[stat.element]||ELEM.none).trail;
     if(stat.element==='none' && meta.skin==='gold') rgb='198,150,60'; // 外觀:墨金劍痕
-    if(FX.trail) inkTrail(ctx, s.trail, stat.size, rgb);
+    // 歸念 / 歸藏無痕:折返後的劍痕轉為淡飛白(易辨識回程);殘鋒較細
+    if(s.returned && stat.returnDry) rgb='196,186,168';
+    if(FX.trail) inkTrail(ctx, s.trail, stat.size*(s.echo?0.55:1), rgb);
     // 劍身(程序化水墨劍)
     drawJian(ctx, s);
   }
@@ -2134,7 +2238,7 @@ function start(){
     kills:0,wave:1,waveTimer:0,spawnAcc:0,xp:0,xpNeed:6,level:1,pendingLevels:0,mana:100,
     auto:false,autoUsed:false,autoTimer:0,
     shake:0,hitstop:0,flash:0,flashC:'255,255,255',banner:null,
-    aim:0.85,facing:1,intent:0,streaks:[]});
+    aim:0.85,facing:1,intent:0,streaks:[],cuts:[],firstStrikeDone:false});
   renderAutoBtn();          // 開新局時 G.auto 已重設為 false,按鈕也要跟著回到「關」
   SND.unlock(); SND.intensity(1); SND.startMusic(); SND.duck(false);
   // 以 runtime 建立本局狀態(含永久問道加成),再映射回 stat.*

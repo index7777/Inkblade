@@ -5,6 +5,44 @@
 
 ---
 
+## [2026-08-07] #22 Runtime 遷移 · Slice 2(劍意狀態 + 心法 flags 實際接線)
+**檔案**:`inkblade.html`、`data/game-config.js`
+
+**A. config 修一個會丟例外的 bug(`data/game-config.js`)**
+`resolveValue` 原本「字串含 `.` 就當成 state 路徑」,於是 `op('unlock','runUnlocks','returnDamageMultiplier:1.65')` 的值被解析成 `undefined` 推進 `runUnlocks`;之後 `getCombatSnapshot` 對它 `.split(':')` **直接丟 TypeError**(取「歸藏無痕」後開戰即崩)。改為只有符合 `/^(stats|mechanics|flags)\./` 才視為路徑參照(現行唯一用到的是 `op('max','stats.mana','stats.manaMax')`)。修正後 `truth_return_hidden` 的 `damageMultiplier` 正確回報 1.65。
+**還原依據**:把 `resolveValue` 改回 `value.includes('.')` 判斷(會重現上述崩潰)。
+
+**B. 主檔 `syncStat()` 併入戰鬥快照**
+新增 `stat.statuses / statusScale / firstStrike / criticalEcho / whiteCut / splashOnKill / returnDry / returnDmgMul`,值全部取自 `runtime.getCombatSnapshot(runState)`,不再各處自行解讀 flags。
+
+**C. 劍意狀態(蝕 / 鎮)真正生效**
+- 新增 `applyIntent(en)`:命中時把 `runState.statuses` 掛到墨獸 `en.st[key]={stk,t,acc}`;每次命中疊「該劍意階數」層(封頂 `maxStacks`)並刷新持續時間(乘 `mechanics.statusDuration`)。
+- 敵人更新迴圈新增狀態 tick:`damagePerSecond × 層數 / 60` 累積扣血(整數化,避免浮點碎傷)、`slow × 層數` 取最大值套用於移速(封頂 70%)、到期清零;`stat.statuses` 缺該項(洗點卸下劍意)時場上狀態一併失效。
+- 敵人 `spawnEnemy` 加 `st:{}`;狀態環繪製加「蝕=旋轉斷續枯墨環」「鎮=內縮留白細環」。
+- 舊 `ember/chill`(業火/寒霜)保留但休眠(`stat.ember/ice` 恆為 0),供還原。
+
+**D. 心法 / 真意 flags 接線**
+| flag | 來源 | 玩法效果 |
+|---|---|---|
+| `firstStrikeCrit` | 明心一斬 | 每局第一次打中必暴(`G.firstStrikeDone`,`start()` 重置) |
+| `whiteCutOnCrit` | 斷意 / 飛白千峰 | 暴擊處刮出白痕:新增 `whiteCut()` + `G.cuts` + 繪製層 |
+| `criticalEcho`(runUnlocks) | 飛白千峰 | 暴擊後生一道半傷殘鋒(`echo:true`,不遞迴、拖尾較細) |
+| `splashOnKill` | 破墨心訣 / 墨海無涯 | 潰散時潑墨,半徑 `54+splashRadius×0.35`、傷害 `damage×0.28×splashDamage` |
+| `returnLeavesDryBrush` | 歸念 / 歸藏無痕 | 折返後劍痕轉淡飛白色(`s.returned`) |
+| `returnDamageMultiplier` | 歸藏無痕 | 回程傷害 ×1.65(`s.returned` 時套用) |
+
+**E. 折返改為「回程可重新命中」**
+原本 `hitSet` 終生不清,折返回程對打過的墨獸完全無效。改為每次撞牆折返清一次 `hitSet` 並補回 `pierceLeft`,**次數上限 = `mechanics.returnHits`**(不會無限刷)。
+
+**F. 順手修既有漏洞**
+波及傷害(裂空/潑墨)把血打到 0 的墨獸原本不會死、要再被打一次才消;敵人迴圈開頭統一收屍 `if(en.hp<=0){killEnemy(i);continue;}`。
+
+**驗證(node + headless Chromium 實跑主檔)**
+- config:`statuses` 累階正確;三真意快照 `splashOnKill/criticalEcho/whiteCut/returnBlade` 皆如預期;`resetAllInsights` 後 `statuses` 清空。
+- 實跑:旗標全開後開局 → 首劍必暴生效(`firstStrikeDone`)、`G.cuts` 出現留白、蝕 2 層 3 秒扣 27、鎮 2.6 秒到期、潑墨波及鄰近墨獸掉血、折返 `retCount` 精準停在 2 且回程確實再命中(共 3 次)。無 console / page error。
+**未接**:洗點 UI(費用/免費次數/戰鬥禁止/洗墨丹)、轉世閣改走 `purchaseRebirth`/`getRebirthView` — 下一輪。
+**還原依據**:移除 `applyIntent`/`whiteCut`/`G.cuts`、`syncStat` 的 Slice 2 區塊、敵人迴圈狀態 tick 與收屍行、命中處四段 flag 分支、`killEnemy` 的 splashOnKill 區塊、折返 `bounce()`、`spawnEnemy` 的 `st:{}`、狀態環新增分支。或 git checkout。
+
 ## [2026-08-07] #21 LOGO 重切(去殘框)+ 開場改兩段式(zoom→拉開)
 **檔案**:`assets/ui/logo.png`(+cn/en)、`inkblade.html`
 1. **LOGO 沒拆好修正**:原亮度鍵殘留中階木頭 → 首頁 logo 後有深色方塊。改為亮度 smoothstep(120→185)+ 把「暖色木頭(R-B>22 且暗)」判為背景去除,消除殘框;紅印章一併去除。木色底檢查無殘留。

@@ -198,8 +198,11 @@
     parent[leaf] = value;
   }
 
+  // 只有「明確指向 state 子樹」的字串才視為路徑參照(stats./mechanics./flags.)。
+  // 修正:原本任何含 '.' 的字串都會被當路徑,導致 'returnDamageMultiplier:1.65' 解析成 undefined。
+  const VALUE_PATH_RE = /^(stats|mechanics|flags)\./;
   function resolveValue(state, value) {
-    return typeof value === 'string' && value.includes('.') ? getPath(state, value) : value;
+    return typeof value === 'string' && VALUE_PATH_RE.test(value) ? getPath(state, value) : value;
   }
 
   // 反向回滾單一操作(真意/劍式專用)
