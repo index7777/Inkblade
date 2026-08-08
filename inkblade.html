@@ -2044,11 +2044,9 @@ function update(){
       let sw=c.swords[k];
       // 穿透耗盡而死的劍不再接力補上 —— 死了就少一把,劍令帶著剩下的劍繼續走。
       if(sw && sw.dead) continue;
-      if(!sw){
-        // 只有「從來沒填過」的空槽才生劍(自動劍令會用到);開匣·大成讓它立即到位
-        const gap = (stat.tierFlags && stat.tierFlags.newSwordDash) ? 0 : 8;
-        sw=spawnCmdSword(c,k,gap);
-      }
+      // 只有「從來沒填過」的空槽才生劍(自動劍令會用到)。
+      // 接力關掉後這裡不再有延遲可調 —— 開匣·大成已改成直接加劍速。
+      if(!sw) sw=spawnCmdSword(c,k,0);
       if(sw.delay>0){ sw.delay--; sw.trail.length=0; continue; }
       const off=formationOffset(c.formation, k, c.slots, c.spacing);
       const nx=c.x + ca*off.along - sa*off.side;

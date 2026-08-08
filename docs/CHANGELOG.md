@@ -5,6 +5,29 @@
 
 ---
 
+## [2026-08-08] #61 開匣·大成改成直接加劍速
+
+**問題**:`newSwordDash`(新出鞘的飛劍立即得速)調的是**接力補劍的延遲**(8 影格 → 0)。
+#59 把接力關掉之後,這個 tier 幾乎沒有觸發機會,等於空效果。
+
+**變更內容**
+1. `data/game-config.js` · 開匣 大成:
+   `tier(1,'新出鞘的飛劍立即得速。',[op('flag','flags.newSwordDash',true)])`
+   → `tier(1,'劍出鞘更捷,劍速提高二。',[op('add','stats.swordSpeed',2)])`
+   一併從 `OP_SCHEMA.flag` 移除 `'flags.newSwordDash'`。
+2. `inkblade.html` · 空槽補劍的 `gap` 三元式拿掉,固定 `spawnCmdSword(c,k,0)`。
+
+改成 stat op 而不是 flag 還有一個好處:它會直接出現在「效果」模式的卡面上(劍速 +2),
+flag 是看不見的。validateConfig 通過,全庫已無 `newSwordDash` 殘留。
+
+**還有一個同性質的待處理**:開匣·**圓滿** `autoRefill`「每隔數息自行補上一把飛劍」
+目前主檔**根本沒實作**,而且它的語意跟 #59 定調的預付制直接衝突(補劍 = 白拿)。需要另外重新設計。
+
+**怎麼推回去**:tier(1) 改回 flag 版本、`OP_SCHEMA.flag` 加回 `'flags.newSwordDash'`、
+主檔 gap 改回 `(stat.tierFlags && stat.tierFlags.newSwordDash) ? 0 : 8`。
+
+---
+
 ## [2026-08-08] #60 轉世閣築基三項也拉到 10/10
 
 **變更內容**(`data/game-config.js`,只動 maxRank 與 costs,效果每階不變)
