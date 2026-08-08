@@ -75,8 +75,8 @@
    * status:命中附加狀態;unlock:當局解鎖;truth:啟用互斥真意。
    */
   const OP_SCHEMA = Object.freeze({
-    add: ['stats.hpMax', 'stats.costMultiplier', 'mechanics.hitPadding', 'mechanics.manaRefund', 'mechanics.splashChain', 'stats.damage', 'stats.swordWidth', 'stats.swordSpeed', 'stats.swordLife', 'stats.pierce', 'stats.critChance', 'stats.critMultiplier', 'stats.manaMax', 'stats.manaRegen', 'stats.manaOnKill', 'stats.swordCap', 'stats.swordCount', 'stats.manaCostBase', 'stats.manaCostPerPixel', 'mechanics.returnHits', 'mechanics.splashRadius', 'mechanics.homingStrength'],
-    mul: ['stats.costMultiplier', 'stats.damage', 'stats.swordWidth', 'stats.swordSpeed', 'stats.swordLife', 'stats.critMultiplier', 'stats.manaCostBase', 'stats.manaCostPerPixel', 'mechanics.splashDamage', 'mechanics.statusDuration', 'mechanics.trailOpacity'],
+    add: ['stats.hpMax', 'stats.costMultiplier', 'mechanics.hitPadding', 'mechanics.manaRefund', 'mechanics.splashChain', 'stats.damage', 'stats.swordWidth', 'stats.swordSpeed', 'stats.pierce', 'stats.critChance', 'stats.critMultiplier', 'stats.manaMax', 'stats.manaRegen', 'stats.manaOnKill', 'stats.swordCap', 'stats.swordCount', 'stats.manaCostBase', 'stats.manaCostPerPixel', 'mechanics.returnHits', 'mechanics.splashRadius', 'mechanics.homingStrength'],
+    mul: ['stats.costMultiplier', 'stats.damage', 'stats.swordWidth', 'stats.swordSpeed', 'stats.critMultiplier', 'stats.manaCostBase', 'stats.manaCostPerPixel', 'mechanics.splashDamage', 'mechanics.statusDuration', 'mechanics.trailOpacity'],
     set: ['formation', 'stats.swordCount', 'mechanics.homingCanCrit', 'mechanics.returnEnabled'],
     max: ['stats.mana', 'stats.manaMax', 'stats.swordCap'],
     flag: ['flags.firstStrikeCrit', 'flags.returnLeavesDryBrush', 'flags.splashOnKill', 'flags.listenToInk', 'flags.whiteCutOnCrit',
@@ -154,7 +154,7 @@
     insight({ id: 'form_chain', category: CATEGORY.FORM, rarity: RARITY.CLARITY, name: '貫鋒式', rune: '貫', maxRank: 5, description: '劍鋒首尾相承;增一劍,沿同一道劍令接連斬落。', tradeoff: '集火最強,覆蓋範圍最窄。', tiers: [tier(0, '每穿透一名墨獸,傷害提高半成。', [op('flag', 'flags.pierceRamp', true)]), tier(1, '劍令末位墨獸受到破甲。', [op('flag', 'flags.pierceBreak', true)]), tier(2, '劍令走完後回刺首名墨獸。', [op('flag', 'flags.pierceRecoil', true)])], effects: [op('add', 'stats.swordCount', 1), op('set', 'formation', 'inline')], fx: { trail: fx.WHITE_CUT, hit: fx.BREAK_INK } }),
     insight({ id: 'form_merge', category: CATEGORY.FORM, rarity: RARITY.CLARITY, name: '聚鋒式', rune: '聚', maxRank: 5, description: '眾鋒合一;增一劍,同出同歸,傷害齊落。', tradeoff: '威力集中於一點,清場能力最差。', effects: [op('add', 'stats.swordCount', 1), op('set', 'formation', 'merge')], tiers: [tier(0, '合鋒益粗,命中範圍增加。', [op('add', 'mechanics.hitPadding', 5)]), tier(1, '眾鋒同落,暴擊機會提高。', [op('add', 'stats.critChance', 0.1)]), tier(2, '聚而不散,穿透增二。', [op('add', 'stats.pierce', 2)])], fx: { trail: fx.WHITE_CUT, hit: fx.BREAK_INK } }),
     // ── 劍勢:改變飛劍運動。 ───────────────────────────────────────
-    insight({ id: 'momentum_swift', category: CATEGORY.MOMENTUM, rarity: RARITY.AWAKENING, name: '疾影', rune: '疾', maxRank: 5, description: '劍影先於墨痕而至,飛行更快、更遠。', tiers: [tier(0, '飛劍身後留下殘影。', [op('flag', 'flags.afterimage', true)]), tier(1, '殘影造成兩成半傷害。', [op('flag', 'flags.afterimageHits', true)]), tier(2, '殘影可獨立命中墨獸。', [op('flag', 'flags.afterimageSolid', true)])], effects: [op('add', 'stats.swordSpeed', 3.6), op('add', 'stats.swordLife', 0.26)], fx: { trail: fx.DRY_BRUSH } }),
+    insight({ id: 'momentum_swift', category: CATEGORY.MOMENTUM, rarity: RARITY.AWAKENING, name: '疾影', rune: '疾', maxRank: 5, description: '劍影先於墨痕而至,飛行更快、更遠。', tiers: [tier(0, '飛劍身後留下殘影。', [op('flag', 'flags.afterimage', true)]), tier(1, '殘影造成兩成半傷害。', [op('flag', 'flags.afterimageHits', true)]), tier(2, '殘影可獨立命中墨獸。', [op('flag', 'flags.afterimageSolid', true)])], effects: [op('add', 'stats.swordSpeed', 3.6)], fx: { trail: fx.DRY_BRUSH } }),
     insight({ id: 'momentum_pierce', category: CATEGORY.MOMENTUM, rarity: RARITY.CLARITY, name: '透墨', rune: '透', maxRank: 5, description: '劍不止於一墨,可多穿透兩個墨身。', effects: [op('add', 'stats.pierce', 2)], fx: { trail: fx.WHITE_CUT, hit: fx.BREAK_INK } }),
     insight({ id: 'momentum_guide', category: CATEGORY.MOMENTUM, rarity: RARITY.PENETRATION, name: '引鋒', rune: '引', maxRank: 5, description: '劍意感知墨氣,於飛行中自行修正鋒向。', tradeoff: '每次領悟令直擊傷害降低 12%,引鋒本身不能暴擊。', requires: ['inherit_guide'], tiers: [tier(0, '劍令末端的延伸更長。', [op('flag', 'flags.guideExtend', true)]), tier(1, '擊殺後立即再向下一目標延伸。', [op('flag', 'flags.guideRetarget', true)]), tier(2, '劍令絕不空走,必尋得墨獸。', [op('flag', 'flags.guideNeverMiss', true)])], effects: [op('add', 'mechanics.homingStrength', 0.055), op('mul', 'stats.damage', 0.88), op('set', 'mechanics.homingCanCrit', false)], fx: { trail: fx.DRY_BRUSH } }),
     insight({ id: 'momentum_return', category: CATEGORY.MOMENTUM, rarity: RARITY.PENETRATION, name: '歸鋒', rune: '歸', maxRank: 5, description: '每階令飛劍沿劍令多倒走一趟全程。', tiers: [tier(0, '回程速度提高三成。', [op('flag', 'flags.returnFaster', true)]), tier(1, '回程末端自行探向最近墨獸。', [op('flag', 'flags.returnSeek', true)]), tier(2, '回程命中後再倒走一次。', [op('flag', 'flags.returnBounce', true)])], effects: [op('set', 'mechanics.returnEnabled', true), op('add', 'mechanics.returnHits', 1)], fx: { trail: fx.DRY_BRUSH, hit: fx.WHITE_CUT } }),
@@ -220,7 +220,7 @@
     activeForm: null,
     appliedTruthEffects: [],
     appliedFormEffects: [],
-    stats: Object.freeze({ hpMax: 100, costMultiplier: 1, damage: 24, swordWidth: 18, swordSpeed: 14, swordLife: 1.35, pierce: 0, critChance: 0.05, critMultiplier: 2, manaMax: 100, mana: 100, manaRegen: 0.85, manaOnKill: 0, swordCap: 4, swordCount: 1, manaCostBase: 6, manaCostPerPixel: 0.13 }),
+    stats: Object.freeze({ hpMax: 100, costMultiplier: 1, damage: 24, swordWidth: 18, swordSpeed: 14, pierce: 0, critChance: 0.05, critMultiplier: 2, manaMax: 100, mana: 100, manaRegen: 0.85, manaOnKill: 0, swordCap: 4, swordCount: 1, manaCostBase: 6, manaCostPerPixel: 0.13 }),
     mechanics: Object.freeze({ homingStrength: 0, homingCanCrit: true, returnEnabled: false, returnHits: 0, splashRadius: 0, splashDamage: 0.35, statusDuration: 1, trailOpacity: 1, hitPadding: 0, manaRefund: 0, splashChain: 0 }),
     statuses: Object.freeze({}),
     flags: Object.freeze({ firstStrikeCrit: false, returnLeavesDryBrush: false, splashOnKill: false, listenToInk: false, whiteCutOnCrit: false }),
@@ -580,7 +580,7 @@
   // 否則版面驗證會跟實際顯示脫節(卡片只有 ~103px 可用寬,超出就被裁掉)。
   const EFFECT_LABEL = Object.freeze({
     'stats.hpMax':'神識上限','stats.damage':'傷害','stats.swordWidth':'劍寬','stats.swordSpeed':'劍速',
-    'stats.swordLife':'滯空','stats.pierce':'穿透','stats.critChance':'暴擊率','stats.critMultiplier':'暴擊倍',
+    'stats.pierce':'穿透','stats.critChance':'暴擊率','stats.critMultiplier':'暴擊倍',
     'stats.manaMax':'劍意上限','stats.manaRegen':'劍意回復','stats.manaOnKill':'回劍意',
     'stats.swordCap':'劍匣席','stats.swordCount':'飛劍數','stats.costMultiplier':'劍意消耗',
     'stats.manaCostBase':'起手劍意','stats.manaCostPerPixel':'每寸劍意',
@@ -763,7 +763,7 @@
     const returnDamageMult = Number(unlockMap.returnDamageMultiplier || 1);
     const hasCriticalEcho = unlockMap.criticalEcho === '1';
     return Object.freeze({
-      blade: { baseDamage: s.damage, width: s.swordWidth, speed: s.swordSpeed, lifeTime: s.swordLife, pierceCount: s.pierce, maxCap: s.swordCap, currentCount: s.swordCount },
+      blade: { baseDamage: s.damage, width: s.swordWidth, speed: s.swordSpeed, pierceCount: s.pierce, maxCap: s.swordCap, currentCount: s.swordCount },
       crit: { chance: Math.min(s.critChance, 0.95), multiplier: s.critMultiplier, whiteCutOnCrit: f.whiteCutOnCrit, criticalEcho: hasCriticalEcho, firstStrikeGuaranteed: f.firstStrikeCrit },
       returnBlade: { enabled: m.returnEnabled, hitCount: m.returnHits, damageMultiplier: returnDamageMult, leaveDryBrush: f.returnLeavesDryBrush },
       splash: { radius: m.splashRadius, damageMult: m.splashDamage },
@@ -842,7 +842,7 @@
   /* 舊引擎相容層:完整支援mul/flag/status/truth全部機制 */
   const LEGACY_RARITY = Object.freeze({ awakening: 'n', clarity: 'r', penetration: 'e', truth: 'l' });
   const LEGACY_PATH = Object.freeze({
-    'stats.hpMax': 'hpMax', 'stats.swordCount': 'count', 'stats.damage': 'damage', 'stats.swordWidth': 'size', 'stats.swordSpeed': 'speed', 'stats.swordLife': 'life', 'stats.pierce': 'pierce', 'stats.critChance': 'crit', 'stats.manaMax': 'manaMax', 'stats.manaRegen': 'manaRegen', 'stats.manaOnKill': 'regen', 'stats.swordCap': 'cap', 'mechanics.homingStrength': 'homing', 'mechanics.returnHits': 'ret', 'mechanics.splashRadius': 'explode', formation: 'formation'
+    'stats.hpMax': 'hpMax', 'stats.swordCount': 'count', 'stats.damage': 'damage', 'stats.swordWidth': 'size', 'stats.swordSpeed': 'speed', 'stats.pierce': 'pierce', 'stats.critChance': 'crit', 'stats.manaMax': 'manaMax', 'stats.manaRegen': 'manaRegen', 'stats.manaOnKill': 'regen', 'stats.swordCap': 'cap', 'mechanics.homingStrength': 'homing', 'mechanics.returnHits': 'ret', 'mechanics.splashRadius': 'explode', formation: 'formation'
   });
 
   function toLegacyEffect(item) {

@@ -1014,7 +1014,6 @@ const stat = {
   element:'none',   // 劍的元素:none/fire/ice
   ember:0,          // 業火:灼燒層數
   ice:0,            // 寒霜:冰緩層數
-  life:1.35,        // 劍存活秒數
   ret:0,            // 迴劍
   crit:0.05,        // 暴擊率
   regen:0,          // 每斬回靈
@@ -1157,10 +1156,20 @@ function formationOffset(formation, i, n, spacing){
   // 聚形:所有劍完全重疊成一把 —— 偏移恆為 0,靠共用 seed 讓貼圖幀也一致。
   if(formation==='merge')    return {along:0, side:0};
   if(formation==='parallel') return {along:0, side:t*spacing};                     // 齊鋒:一字排開
-  // 貫鋒:一節接一節,像車廂。以中心「對稱」排列而非全部拖在後面 ——
-  // 這樣折返時整列只是前後對調,不會整條瞬移到另一側。
-  if(formation==='inline')   return {along:(mid-i)*inlineGap(), side:0};
+  // 貫鋒:一節接一節,像車廂。領頭那把在筆尖,其餘全部排在後面 ——
+  // 原本是「以中心對稱」,結果前半列在出鞘瞬間就站在玩家前方一兩百 px,
+  // 那段近距離永遠沒有劍經過,近身的墨獸就少挨好幾刀(#68 的近身空區)。
+  if(formation==='inline')   return {along:-i*inlineGap(), side:0};
   return {along:-Math.abs(t)*spacing*0.55, side:t*spacing*1.15};                   // 散鋒:扇面
+}
+// 線段 (ax,ay)-(bx,by) 到點 (px,py) 的最短距離。掃掠命中判定用。
+function segCircleDist(ax, ay, bx, by, px, py){
+  if(ax==null) return Math.hypot(px-bx, py-by);
+  const dx=bx-ax, dy=by-ay, L2=dx*dx+dy*dy;
+  if(L2<1e-6) return Math.hypot(px-bx, py-by);
+  let t=((px-ax)*dx + (py-ay)*dy) / L2;
+  t=t<0?0:(t>1?1:t);
+  return Math.hypot(px-(ax+dx*t), py-(ay+dy*t));
 }
 // 劍生命力:畫得長 → 這道劍令的每把劍能多斬幾隻才耗盡。
 // 續飛本來就會把劍送到出畫面,所以長度買的不是射程,是「命」。
@@ -1172,7 +1181,13 @@ function cmdLife(len){
 }
 // 在劍令的某個槽位生出一把劍(接力也走這裡)
 function spawnCmdSword(c, slot, delay){
-  const sw={ cmd:c, slot:slot, x:c.x, y:c.y, ang:c.ang, vx:0, vy:0,
+  // 出鞘就直接站到陣型位置。原本一律生在 c.x/c.y(筆尖),
+  // 第一次被排位時整把劍瞬移一兩百 px 過去,那段距離沒有任何命中判定。
+  const _o=formationOffset(c.formation, slot, c.slots, c.spacing);
+  const _ca=Math.cos(c.ang), _sa=Math.sin(c.ang);
+  const _x=c.x + _ca*_o.along - _sa*_o.side;
+  const _y=c.y + _sa*_o.along + _ca*_o.side;
+  const sw={ cmd:c, slot:slot, x:_x, y:_y, px:_x, py:_y, ang:c.ang, vx:0, vy:0,
              trail:[], age:0,
              // 聚形要看起來是一把劍,連貼圖動畫幀都得對齊,所以整道劍令共用一個 seed
              seed:(c.formation==='merge' && c.seed!=null) ? c.seed : Math.random()*8,
@@ -1280,7 +1295,9 @@ function launchCommand(path){
     freeBack:false
   };
   G.commands.push(c);
-  for(let i=0;i<n;i++) spawnCmdSword(c, i, c.formation==='inline' ? i*4 : 0);
+  // 連珠原本用 i*4 影格錯開出鞘,結果那幾幀裡整列疊在筆尖不動、也不判定命中,
+  // 延遲結束才一次瞬移到位。車廂間距本來就把它們排開了,不需要延遲。
+  for(let i=0;i<n;i++) spawnCmdSword(c, i, 0);
   for(let i=0;i<10;i++) ink(s0.x,s0.y, (Math.random()-.5)*3,(Math.random()-.5)*3, 8+Math.random()*10);
 }
 // 相容:舊呼叫點仍叫 launchSword
@@ -1433,7 +1450,7 @@ function syncStat(){
   if(!runState) return;
   const s=runState.stats, m=runState.mechanics;
   stat.count=s.swordCount; stat.damage=s.damage; stat.size=s.swordWidth; stat.speed=s.swordSpeed;
-  stat.life=s.swordLife; stat.pierce=s.pierce; stat.crit=s.critChance; stat.critMul=s.critMultiplier;
+  stat.pierce=s.pierce; stat.crit=s.critChance; stat.critMul=s.critMultiplier;
   stat.homing=m.homingStrength; stat.homingCanCrit=(m.homingCanCrit!==false);
   stat.explode=m.splashRadius; stat.splashDamage=m.splashDamage;
   stat.ret=m.returnEnabled?1:0; stat.returnHits=m.returnHits;
@@ -2094,6 +2111,10 @@ function update(){
       const off=formationOffset(c.formation, k, c.slots, c.spacing);
       const nx=c.x + ca*off.along - sa*off.side;
       const ny=c.y + sa*off.along + ca*off.side;
+      // 掃掠命中要知道這一幀是從哪走到哪。折返那一幀整列會前後對調(等於瞬移),
+      // 那一幀用 snap 標記跳過掃掠,否則會斬到整條路徑上本來碰不到的墨獸。
+      if(sw.snap){ sw.px=nx; sw.py=ny; sw.snap=false; }
+      else { sw.px=sw.x; sw.py=sw.y; }
       sw.vx=nx-sw.x; sw.vy=ny-sw.y;
       sw.x=nx; sw.y=ny; sw.ang=c.ang; sw.age++;
       sw.trail.push({x:sw.x,y:sw.y}); if(sw.trail.length>18) sw.trail.shift();
@@ -2115,6 +2136,7 @@ function update(){
     }
     // 只有活著的劍照新規則走;穿透耗盡而死的那幾把不會復活(接力已關閉)
     for(const sw of c.swords) if(sw && !sw.dead){ sw.hitSet.clear(); sw.returned=true;
+      sw.snap=true;                                   // 這一幀整列前後對調,不做掃掠
       sw.pierceLeft = c.life || Math.max(1,(stat.pierce|0)+1); }
     if(stat.returnDry) whiteCut(c.x,c.y,c.ang);
     return true;
@@ -2160,7 +2182,10 @@ function update(){
     for(let j=G.enemies.length-1;j>=0;j--){
       const en=G.enemies[j];
       if(s.hitSet.has(en)) continue;
-      if(Math.hypot(en.x-s.x,en.y-s.y) < en.r+stat.size+(stat.hitPadding||0)){
+      // 掃掠判定:用「這一幀走過的線段」對圓,而不是只測落點。
+      // 只測落點的話,劍速夠快或陣型轉向時整把劍一幀跳過一大段,
+      // 中間的墨獸會被整個略過 —— 畫面上劍明明穿過去了卻沒傷害。
+      if(segCircleDist(s.px, s.py, s.x, s.y, en.x, en.y) < en.r+stat.size+(stat.hitPadding||0)){
         const TF=stat.tierFlags||{}, C=s.cmd;
         let dmg=stat.damage;
         let isCrit = Math.random()<stat.crit;
