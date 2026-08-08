@@ -5,6 +5,22 @@
 
 ---
 
+## [2026-08-08] #38 道行去拉桿把手、敵方狀態寫進效果註解、靜觀改為隱藏捲軸可拖曳
+**檔案**:`inkblade.html`、`data/game-config.js`
+
+1. **道行不是拉桿**:移除 `#xpknob` 墨珠(標記、CSS、`updateHUD` 的 `left` 更新三處)。原本那顆圓珠讓進度條看起來像可拖曳的滑桿,誤導。
+2. **敵方狀態寫進「效果」註解**:`effectLines` 補上 `status` op 的處理 —— 蝕痕/鎮痕原本在效果模式下**一行都沒有**(只有 `status` 操作,沒有 add/mul),看起來像沒效果。現在輸出:`敵方緩速 12%` / `敵方每秒 −1.5,續 2.6 秒` / `最多 4 層`。
+3. **文字模式的說明也補上機制**:蝕痕 →「劍痕入墨身,每息蝕四點,續三息餘。」;鎮痕 →「鎮住墨流;墨獸行速降一成二並受蝕。」(皆 17 字,未超 22 字上限)。
+4. **靜觀捲動**:
+   - 捲軸隱藏(`scrollbar-width:none` + `::-webkit-scrollbar{display:none}`),但保留 `overflow:auto`。
+   - `touch-action:pan-y` —— **必要**,`body` 設了 `touch-action:none`,不開這個手機根本滑不動。
+   - `overscroll-behavior:contain` 防止捲到底時把手勢傳給底下的遊戲畫布。
+   - 新增拖曳捲動:面板空白處按住即可拖動;落在 `input/button/.setbtn/.seg/.btn/label` 上的拖曳不接管(否則調音量會變成捲頁面)。move/up 掛在 `window` 上,指標拖出面板仍持續捲動。
+   - **長壓與拖圖**:全域 `-webkit-touch-callout:none`;`img` 加 `-webkit-user-drag:none; pointer-events:none`。配合 #29 已有的 `contextmenu/dragstart/selectstart` 攔截,手機長壓不會跳出複製選單中斷劍令。
+
+**驗證(headless)**:墨珠已不存在;面板 `scrollbarWidth:none`、視覺捲軸寬 2px、`touchAction:pan-y`、`overscrollBehaviorY:contain`;滾輪捲動 0→185 ✓;空白處拖曳 0→185 ✓;拖音量滑桿時音量 85→45 而面板位移 0 ✓(未被接管);鎮痕卡面三行數值正確。無 console / page error。
+**還原依據**:git checkout。
+
 ## [2026-08-08] #37 靜觀新增三項:畫質 / 幀數 / 劍訣註解;順帶修好 120Hz 兩倍速
 **檔案**:`inkblade.html`
 
