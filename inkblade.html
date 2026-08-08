@@ -1155,14 +1155,6 @@ function formationOffset(formation, i, n, spacing){
   if(formation==='inline')   return {along:(mid-i)*inlineGap(), side:0};
   return {along:-Math.abs(t)*spacing*0.55, side:t*spacing*1.15};                   // 散鋒:扇面
 }
-// 陣型沿行進方向的半長:折返的轉向距離要把整列算進去,否則車尾還在怪身上就掉頭
-function formationHalfSpan(c){
-  if(!c || c.slots<=1) return 0;
-  if(c.formation==='inline') return (c.slots-1)/2 * inlineGap();
-  if(c.formation==='fan')    return c.spacing*0.55;
-  if(c.formation==='merge')  return 0;              // 聚形疊成一點,不需要額外轉向距離
-  return 0;
-}
 // 在劍令的某個槽位生出一把劍(接力也走這裡)
 function spawnCmdSword(c, slot, delay){
   const sw={ cmd:c, slot:slot, x:c.x, y:c.y, ang:c.ang, vx:0, vy:0,
@@ -1208,7 +1200,7 @@ function spawnAutoCommand(x0,y0,x1,y1,opts){
     // 這幾個欄位主劍令有、自動劍令也必須有 —— 命中處理是共用的,
     // 少一個 hitOrder 就會在第一次命中丟例外,把後面的破甲/齊斬/歸鋒整串打斷。
     hitOrder:[], volley:0, frameHit:null, extended:0, anyHit:false, free:false,
-    freeBack:false, turnIn:null,
+    freeBack:false,
     auto:true, dmgMul:opts.dmgMul||1, noIntent:!opts.intent };
   G.commands.push(c);
   const sw=spawnCmdSword(c,0,0);
@@ -1254,7 +1246,7 @@ function launchCommand(path){
     returnsLeft: stat.ret ? Math.max(1, stat.returnHits||1) : 0,
     alive:true, age:0,
     hitOrder:[], volley:0, frameHit:null, extended:0, dmgMul:1, anyHit:false, free:false,
-    freeBack:false, turnIn:null
+    freeBack:false
   };
   G.commands.push(c);
   for(let i=0;i<n;i++) spawnCmdSword(c, i, c.formation==='inline' ? i*4 : 0);
@@ -1746,10 +1738,12 @@ function renderManaBill(){
   const full=Math.max(0, (stat.manaMax - stat.costBase) / perPx);   // 滿劍意能畫多長
   const now =Math.max(0, (G.mana       - stat.costBase) / perPx);   // 此刻還能畫多長
   const rows=[
+    // 地板價:只點一下不拉線的最低出手成本。升階不會動到它 ——
+    // 這正是玩家要知道的事:劍訣升上去不會讓你出不了手,只會讓你畫不長。
+    ['一劍地板', Math.round(stat.costBase)+' 劍意', 1],
     ['劍意上限', Math.round(stat.manaMax), 0],
-    ['起手',     Math.round(stat.costBase), 0],
-    ['每寸',     perPx.toFixed(3), 0],
-    ['滿劍可畫', Math.round(full)+' 寸', 1]
+    ['每寸加價', perPx.toFixed(3), 0],
+    ['滿劍可畫', Math.round(full)+' 寸', 0]
   ];
   // 劍意滿的時候兩欄一樣,重複印只是噪音;等待模式下劍意凍結,這欄才有意義
   if(Math.round(now) !== Math.round(full)) rows.push(['此刻可畫', Math.round(now)+' 寸', 0]);
@@ -2010,18 +2004,24 @@ function update(){
     // 1) 推進中心點(歸鋒·小成:回程加速三成)
     const goingBack = (c.free ? c.freeBack : c.step<0);
     let budget=stat.speed * ((goingBack && TF.returnFaster) ? 1.3 : 1);
-    // 命中折返:先完整穿過墨獸、再多走一段「轉向距離」才掉頭,
-    // 直接在命中點原地倒轉看起來像撞牆,不像劍繞到背後回刺。
-    if(c.turnIn!=null){
-      c.turnIn-=budget;
-      if(c.turnIn<=0 && !doReturn(c)) c.turnIn=null;
-    }
     // 續飛:筆跡走完後,劍令沿最後方向繼續前進,直到飛出畫面。
     // 劍沒打到東西就憑空消失不合理 —— 筆跡定義的是「怎麼去」,不是「走完就結束」。
     if(c.free){
       c.x+=Math.cos(c.ang)*budget; c.y+=Math.sin(c.ang)*budget;
-      const OUT=60;
-      if(c.x<-OUT||c.x>W+OUT||c.y<-OUT||c.y>H+OUT||c.age>900) c.alive=false;
+      // 邊緣折返:碰到戰場邊界才掉頭。用「畫面內縮」而不是畫面外,
+      // 否則玩家會看到劍先飛出去消失一下再冒回來,讀不出「掉頭」。
+      const EDGE=16;
+      const atEdge = (c.x<EDGE||c.x>W-EDGE||c.y<EDGE||c.y>H-EDGE);
+      if(atEdge && c.returnsLeft>0){
+        c.x=Math.max(EDGE,Math.min(W-EDGE,c.x));
+        c.y=Math.max(EDGE,Math.min(H-EDGE,c.y));
+        doReturn(c);
+      } else {
+        // 沒有飛行壽命 —— 劍不會自己老死,只有飛出戰場(且折返次數用盡)才算走完。
+        // 折返次數是有限的,所以不會無限來回。
+        const OUT=60;
+        if(c.x<-OUT||c.x>W+OUT||c.y<-OUT||c.y>H+OUT){ cmdFinish(c); c.alive=false; }
+      }
       budget=0;
     }
     while(budget>0 && c.alive){
@@ -2042,13 +2042,12 @@ function update(){
     const ca=Math.cos(c.ang), sa=Math.sin(c.ang);
     for(let k=0;k<c.slots;k++){
       let sw=c.swords[k];
-      if(!sw || sw.dead){
-        // 接力空檔:開匣「大成」讓新劍立即到位,否則等幾影格
+      // 穿透耗盡而死的劍不再接力補上 —— 死了就少一把,劍令帶著剩下的劍繼續走。
+      if(sw && sw.dead) continue;
+      if(!sw){
+        // 只有「從來沒填過」的空槽才生劍(自動劍令會用到);開匣·大成讓它立即到位
         const gap = (stat.tierFlags && stat.tierFlags.newSwordDash) ? 0 : 8;
-        if(!sw) sw=spawnCmdSword(c,k,gap);
-        else if(sw.relay==null){ sw.relay=gap; continue; }
-        else if(--sw.relay>0) continue;
-        else { c.swords[k]=null; sw=spawnCmdSword(c,k,0); }
+        sw=spawnCmdSword(c,k,gap);
       }
       if(sw.delay>0){ sw.delay--; sw.trail.length=0; continue; }
       const off=formationOffset(c.formation, k, c.slots, c.spacing);
@@ -2060,20 +2059,34 @@ function update(){
     }
   }
   // 執行一次折返(端點觸發與命中觸發共用)。回傳是否成功。
+  // 邊緣折返。折返一律發生在續飛階段(筆跡走完 → 續飛 → 撞到邊界),
+  // 所以不再有「沿原路倒走」那條分支。
   function doReturn(c){
     if(c.returnsLeft<=0) return false;
+    const TF=stat.tierFlags||{};
     c.returnsLeft--;
-    if(c.free){                                  // 續飛中:直接掉頭沿反方向飛回
-      c.ang += Math.PI; c.freeBack = !c.freeBack;
-    } else {                                     // 走筆跡中:沿原路倒走
-      c.step=-c.step;
-      c.seg=Math.max(0, Math.min(c.pts.length-1, c.seg + c.step));
+    c.ang += Math.PI; c.freeBack = !c.freeBack;
+    // 歸鋒·大成:掉頭時不是死板的 180°,而是朝最近的墨獸回切。
+    // (舊實作掛在「回程走完再延伸劍令」上,新模型沒有筆跡可延伸,語意改掛在這裡)
+    if(TF.returnSeek && !c.auto){
+      const en=nearestEnemy(c.x,c.y,1e9);
+      if(en) c.ang=Math.atan2(en.y-c.y, en.x-c.x);
     }
-    for(const sw of c.swords) if(sw){ sw.hitSet.clear(); sw.returned=true;
+    // 只有活著的劍照新規則走;穿透耗盡而死的那幾把不會復活(接力已關閉)
+    for(const sw of c.swords) if(sw && !sw.dead){ sw.hitSet.clear(); sw.returned=true;
       sw.pierceLeft=Math.max(1,(stat.pierce|0)+1); }
     if(stat.returnDry) whiteCut(c.x,c.y,c.ang);
-    c.turnIn=null;
     return true;
+  }
+  // 劍令真的結束(飛出畫面/壽命到)才結算的收尾效果
+  function cmdFinish(c){
+    const TF=stat.tierFlags||{};
+    // 貫鋒式·圓滿:整道劍令走完後回刺第一個被斬中的墨獸。
+    // 舊版寫在抵達筆跡端點,但那時劍令還要續飛與折返,回刺放太早。
+    if(!c.auto && TF.pierceRecoil && c.hitOrder.length){
+      const first=c.hitOrder.find(en=>G.enemies.includes(en));
+      if(first) spawnAutoCommand(c.x,c.y,first.x,first.y,{dmgMul:0.8,intent:true});
+    }
   }
   // 劍令抵達端點:歸鋒則倒走一次,否則整道結束
   function cmdReachedEnd(c){
@@ -2087,18 +2100,7 @@ function update(){
         if(en && extendCommand(c,en.x,en.y)){ c.extended++; return; }
       }
     }
-    // 歸鋒·大成:回程走完時,末端再探一次最近的墨獸
-    if(!c.auto && c.step<0 && TF.returnSeek && c.extended<6){
-      const en=nearestEnemy(c.x,c.y,220);
-      if(en && extendCommand(c,en.x,en.y)){ c.extended++; return; }
-    }
-    if(c.returnsLeft>0){ doReturn(c); return; }
-    // 貫鋒式·圓滿:劍令走完後,回刺第一個被斬中的墨獸
-    if(!c.auto && TF.pierceRecoil && c.hitOrder.length){
-      const first=c.hitOrder.find(en=>G.enemies.includes(en));
-      if(first) spawnAutoCommand(c.x,c.y,first.x,first.y,{dmgMul:0.8,intent:true});
-    }
-    // 筆跡走完 → 轉續飛(不是消散)。飛出畫面才真的結束。
+    // 筆跡走完 → 轉續飛(不是消散)。折返改在邊界觸發,這裡不再掉頭。
     c.free=true;
     c.ang=Math.atan2(c.y-(c.py!=null?c.py:c.y), c.x-(c.px!=null?c.px:c.x)) || c.ang;
     { // 用筆跡最後兩點決定方向,比用上一幀位移穩定
@@ -2163,9 +2165,7 @@ function update(){
         }
         // 歸鋒·圓滿:回程命中後再倒走一次(每道劍令僅追加一次)
         if(TF.returnBounce && C && s.returned && !C.bounced){ C.bounced=true; C.returnsLeft++; }
-        // 折返:命中後不當場掉頭,先穿過去、再走一段轉向距離才回刺
-        if(C && C.returnsLeft>0 && C.turnIn==null)
-          C.turnIn = en.r + stat.size*1.4 + 46 + formationHalfSpan(C);
+        // 折返不再由命中觸發 —— 劍完整穿過去,一路飛到戰場邊緣才掉頭(見 update 的邊緣折返)
         // 引鋒·大成:擊殺後立即再延伸一段去找下一個目標
         if(TF.guideRetarget && C && !C.auto && en.hp<=0 && C.extended<6){
           const nx=nearestEnemy(en.x,en.y,300);
@@ -2196,12 +2196,14 @@ function update(){
           for(let k=0;k<8;k++)ink(s.x,s.y,(Math.random()-.5)*4,(Math.random()-.5)*4,10+Math.random()*14);
         }
         if(en.hp<=0){ killEnemy(j); }
-        // 穿透用盡 → 這把劍死,但劍令不死(下一輪由空槽接力補上)
+        // 穿透用盡 → 這把劍死。劍令是預付制:收筆時付的錢已經決定這道令出幾把劍,
+        // 死掉不再補 —— 補上去等於白拿。劍令帶著剩下的劍繼續走完。
         if(--s.pierceLeft<=0){ s.dead=true; break; }
       }
     }
     if(s.dead){
-      if(s.cmd && s.cmd.swords[s.slot]===s) s.cmd.swords[s.slot]=null;
+      // 槽位「留著屍體」而不是清成 null —— 清成 null 的話劍令那邊的空槽補劍
+      // 會把它當成從沒填過的槽,又生一把新的出來(等於接力沒關掉)。
       G.swords.splice(i,1);
     }
   }
