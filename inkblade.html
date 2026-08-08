@@ -311,13 +311,15 @@
   #bosstesttools button.on { color:#f5ead3; background:#6f2924; border-color:#6f2924; }
   #bosstestreadout { min-width:92px; color:#473e33; white-space:pre-line;
     font:600 12px/1.25 "Noto Serif TC",serif; }
-  #bossui { position:absolute; z-index:34; top:112px; left:50%; width:min(62%,360px);
+  #bossui { position:absolute; z-index:34; top:118px; left:50%; width:min(58%,350px);
     transform:translateX(-50%); display:none; pointer-events:none; text-align:center; color:#241f1a; }
   #bossui.show { display:block; }
-  #bossname { font:700 22px/1.1 "Noto Serif TC",serif; letter-spacing:5px; text-shadow:0 1px 3px #eee4cf; }
-  #bossbar { height:10px; margin-top:7px; padding:2px; border:1px solid rgba(35,30,25,.78); background:rgba(231,222,202,.68); }
+  #bossname { font:700 21px/1.1 "Noto Serif TC",serif; letter-spacing:5px; text-shadow:0 1px 3px #eee4cf; }
+  #bossbar { position:relative; height:10px; margin-top:7px; padding:2px; border:1px solid rgba(35,30,25,.82); background:rgba(231,222,202,.72); box-shadow:0 1px 0 rgba(255,250,238,.55) inset; }
   #bossfill { width:100%; height:100%; background:#7e2923; transition:width .12s linear; }
-  #bossphase { margin-top:4px; font:600 12px "Noto Serif TC",serif; letter-spacing:2px; }
+  #bossbar::before,#bossbar::after { content:""; position:absolute; z-index:2; top:-2px; bottom:-2px; width:1px; background:rgba(30,25,21,.82); }
+  #bossbar::before { left:30%; } #bossbar::after { left:60%; }
+  #bossphase { margin-top:5px; font:600 12px "Noto Serif TC",serif; letter-spacing:2px; color:#51463a; }
   @keyframes inkOut { from{ transform:translate(-50%,-50%) scale(.25); opacity:.92 }
     to{ transform:translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1); opacity:0 } }
   @keyframes inkCore { from{ transform:translate(-50%,-50%) scale(.2); opacity:.85 }
@@ -1198,16 +1200,25 @@ function spawnEnemy(){
     c:base.c,tier,type:tier===0?'inkling':'blade',anim:Math.random()*1000,ember:0,emberT:0,chill:0,hit:0,broken:0,wob:Math.random()*7,st:{}});
 }
 
-// 首頁 BOSS 測試專用：直接生成第 60 波玄冥墨蛟，不混入一般墨靈。
-function spawnBossTest(){
-  const hp=18000;
+const XUANMING_HP=18000;
+// 正式第 60 波與首頁測試共用同一隻王；測試局只縮短第一次顯形等待。
+function spawnXuanmingBoss(testMode){
+  const hp=XUANMING_HP;
   G.enemies.push({
     x:W*0.5,y:H*0.19,r:72,hp,max:hp,sp:0,c:'#211f1d',tier:2,type:'boss',isBoss:true,
-    // 測試局略過第一段長前搖，進場約一秒就能看到第一次攻擊；正式第 60 波不受影響。
-    bossState:'manifest',bossT:28,bossSide:3,bossAngle:Math.PI,bossHit:false,alpha:0.72,
+    bossState:testMode?'manifest':'telegraph',bossT:testMode?28:0,bossSide:3,bossAngle:Math.PI,bossHit:false,alpha:testMode?0.72:0.05,
     attackSeq:0,attackKind:'triple',
     anim:0,ember:0,emberT:0,chill:0,hit:0,broken:0,wob:Math.random()*7,st:{}
   });
+}
+function beginBossWave(){
+  // 第 59 境殘留墨靈退場，不帶進章末王戰，也不算斬妖與經驗。
+  for(const en of G.enemies) if(!en.isBoss) mistDissolve(en.x,en.y,0.72,'58,54,49');
+  G.enemies.length=0; G.bossShots.length=0; G.spawnAcc=0; G.waveTimer=0;
+  G.wave=60; G.bossEntered=true;
+  spawnXuanmingBoss(false);
+  G.banner={txt:'第 六十 境',life:1};
+  SND.wave(); SND.intensity(60); flash(0.18,'250,244,226'); updateHUD();
 }
 
 const BOSS_STATE_CN={telegraph:'墨氣湧動',manifest:'墨形凝聚',orbit:'伏環蓄勢',lunge:'近環吐核',dissolve:'墨散如煙'};
@@ -1276,7 +1287,8 @@ function updateBossP1(en){
   const pd=Math.hypot(en.x-G.player.x,en.y-G.player.y);
   // 遠側壓低、近側抬高；撲近時再增加透視量，避免像紙片沿圓周平移。
   en.depth=Math.max(0,Math.min(1,(en.y-(G.player.y-R))/(R*2)));
-  en.visualScale=en.bossSide===0?.58:(.82+en.depth*.22);
+  // 王的墨形要明顯壓過角色，但仍維持外環距離；只放大本體，不把攻擊點推近玩家。
+  en.visualScale=en.bossSide===0?.90:en.bossSide===2?1.60:1.45;
   en.lean=Math.max(-.16,Math.min(.16,(en.x-(en.px==null?en.x:en.px))*.025));
   en.face=Math.atan2(G.player.y-en.y,G.player.x-en.x);
   en.px=en.x; en.py=en.y;
@@ -2287,14 +2299,17 @@ function update(){
       }
     }
   }
-  // 波次與生成
-  if(!G.bossTest){
+  // 波次與生成：第 60 境鎖定為章末王戰，擊破前不再計時或生成普通墨靈。
+  if(!G.bossTest && G.wave<60){
     G.waveTimer++;
-    if(G.waveTimer> 60*14){ G.waveTimer=0; G.wave++; updateHUD();
-      SND.wave(); SND.intensity(G.wave); flash(0.14,'250,244,226');
-      G.banner={txt:'第 '+num2cn(G.wave)+' 境', life:1}; }
+    if(G.waveTimer>60*14){
+      if(G.wave===59) beginBossWave();
+      else { G.waveTimer=0; G.wave++; updateHUD();
+        SND.wave(); SND.intensity(G.wave); flash(0.14,'250,244,226');
+        G.banner={txt:'第 '+num2cn(G.wave)+' 境', life:1}; }
+    }
   }
-  if(!G.bossTest){
+  if(!G.bossTest && G.wave<60){
     G.spawnAcc += (0.55 + G.wave*0.14);
     while(G.spawnAcc>=60){ G.spawnAcc-=60; if(G.enemies.length<70) spawnEnemy(); }
   }
@@ -2688,9 +2703,9 @@ function killEnemy(idx){
   G.enemies.splice(idx,1); updateHUD();
   if(en.isBoss){
     G.bossShots.length=0;
-    G.wave=61; G.waveTimer=0;
+    G.wave=61; G.waveTimer=0; G.chapterComplete=true;
     G.banner={txt:'玄冥墨蛟 · 墨散卷復',life:1};
-    SND.intensity(41);
+    SND.stopMusic(1.2);
     updateHUD();
   }
 }
@@ -3650,7 +3665,7 @@ function updateHUD(){
     if(boss){
       document.getElementById('bossfill').style.width=Math.max(0,boss.hp/boss.max*100).toFixed(2)+'%';
       const pn=bossPhase(boss),skill=boss.attackKind==='ring'?'環形墨浪':'三路墨核';
-      document.getElementById('bossphase').textContent='P'+pn+' · '+skill+' · '+(BOSS_STATE_CN[boss.bossState]||'蓄勢');
+      document.getElementById('bossphase').textContent='第'+num2cn(pn)+'階 · '+skill;
     }
   }
   if(DPS.open) renderDps();
@@ -4091,7 +4106,7 @@ function start(mode){
   const fastRestart=mode==='boss-fast';
   dpsReset();
   Object.assign(G,{running:true,paused:false,t:0,enemies:[],bossShots:[],swords:[],particles:[],inks:[],texts:[],stains:[],splashes:[],mists:[],commands:[],
-    kills:0,wave:bossTest?60:1,waveTimer:0,spawnAcc:0,bossTest,bossShowcase:false,hpLocked:false,xp:0,xpNeed:6,level:1,pendingLevels:0,mana:100,
+    kills:0,wave:bossTest?60:1,waveTimer:0,spawnAcc:0,bossTest,bossShowcase:false,bossEntered:bossTest,chapterComplete:false,hpLocked:false,xp:0,xpNeed:6,level:1,pendingLevels:0,mana:100,
     reserve:0,reserveT:0,reserveFlash:0,strokeAvg:0,strokeN:0,
     auto:false,autoUsed:false,autoTimer:0,
     shake:0,hitstop:0,flash:0,flashC:'255,255,255',banner:null,
@@ -4106,8 +4121,8 @@ function start(mode){
   G.mana = stat.manaMax;
   G.player=new Player();
   if(bossTest){
-    spawnBossTest();
-    G.banner={txt:'第 六十 境 · 玄冥墨蛟',life:1};
+    spawnXuanmingBoss(true);
+    G.banner={txt:'第 六十 境',life:1};
   }
   pausedByUser=false;
   levelChoiceLocked=false;
