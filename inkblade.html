@@ -1964,13 +1964,12 @@ function update(){
         if(isCrit){ SND.crit(); shake(4); hitstop(3); flash(0.12,'240,220,160');
           if(stat.whiteCut) whiteCut(s.x,s.y,s.ang);
           // 飛白千峰:暴擊生一道殘鋒 —— 給它一段自動生成的短劍令,系統裡不存在沒有劍令的劍
-          if(stat.criticalEcho && !s.echo && G.commands.length<24){
+          // 一律走 spawnAutoCommand —— 手寫劍令物件漏欄位會在命中時丟例外
+          // (這裡原本自己組物件,少了 hitOrder,只有解鎖飛白千峰才會踩到)
+          if(stat.criticalEcho && !s.echo){
             const ea=s.ang+(Math.random()-0.5)*0.9, L=70+stat.size*2;
-            const ec={ id:++cmdSeq, pts:[{x:s.x,y:s.y},{x:s.x+Math.cos(ea)*L,y:s.y+Math.sin(ea)*L}],
-              len:L, seg:1, step:1, x:s.x, y:s.y, ang:ea, formation:'single', spacing:0,
-              swords:[null], slots:1, returnsLeft:0, alive:true, age:0 };
-            G.commands.push(ec);
-            const es=spawnCmdSword(ec,0,0); es.echo=true; es.hitSet.add(en);
+            spawnAutoCommand(s.x, s.y, s.x+Math.cos(ea)*L, s.y+Math.sin(ea)*L,
+              { dmgMul:0.5, skip:en, intent:true });
           }
         }
         else { SND.hit(); shake(1.1); }
