@@ -1095,13 +1095,27 @@ function truncatePath(pts, maxLen){
   }
   return out.length>=2 ? out : null;
 }
+// 劍身實際長度(與 drawJian/drawSwordSprite 的 BL 同一套算法),連珠的車廂間距要靠它
+function bladeLength(){ return 38 + stat.size*1.8; }
+// 連珠間距:一節車廂 = 劍身長 + 一點縫。原本用「劍寬×2.2+10」算,
+// 但劍寬永遠小於劍身長,所以任何劍寬下車廂都會疊在一起。
+function inlineGap(){ return bladeLength() + 16; }
 // 陣型:相對於「移動中的中心點」的偏移(along=沿行進方向,side=法線方向)
 function formationOffset(formation, i, n, spacing){
   if(n<=1) return {along:0, side:0};
   const mid=(n-1)/2, t=(i-mid)/Math.max(1,mid);
   if(formation==='parallel') return {along:0, side:t*spacing};                     // 齊鋒:一字排開
-  if(formation==='inline')   return {along:-i*spacing*0.9, side:0};                // 貫鋒:首尾相承
+  // 貫鋒:一節接一節,像車廂。以中心「對稱」排列而非全部拖在後面 ——
+  // 這樣折返時整列只是前後對調,不會整條瞬移到另一側。
+  if(formation==='inline')   return {along:(mid-i)*inlineGap(), side:0};
   return {along:-Math.abs(t)*spacing*0.55, side:t*spacing*1.15};                   // 散鋒:扇面
+}
+// 陣型沿行進方向的半長:折返的轉向距離要把整列算進去,否則車尾還在怪身上就掉頭
+function formationHalfSpan(c){
+  if(!c || c.slots<=1) return 0;
+  if(c.formation==='inline') return (c.slots-1)/2 * inlineGap();
+  if(c.formation==='fan')    return c.spacing*0.55;
+  return 0;
 }
 // 在劍令的某個槽位生出一把劍(接力也走這裡)
 function spawnCmdSword(c, slot, delay){
@@ -1145,6 +1159,7 @@ function spawnAutoCommand(x0,y0,x1,y1,opts){
     // 這幾個欄位主劍令有、自動劍令也必須有 —— 命中處理是共用的,
     // 少一個 hitOrder 就會在第一次命中丟例外,把後面的破甲/齊斬/歸鋒整串打斷。
     hitOrder:[], volley:0, frameHit:null, extended:0, anyHit:false, free:false,
+    freeBack:false, turnIn:null,
     auto:true, dmgMul:opts.dmgMul||1, noIntent:!opts.intent };
   G.commands.push(c);
   const sw=spawnCmdSword(c,0,0);
@@ -1187,7 +1202,8 @@ function launchCommand(path){
     slots:n,
     returnsLeft: stat.ret ? Math.max(1, stat.returnHits||1) : 0,
     alive:true, age:0,
-    hitOrder:[], volley:0, frameHit:null, extended:0, dmgMul:1, anyHit:false, free:false
+    hitOrder:[], volley:0, frameHit:null, extended:0, dmgMul:1, anyHit:false, free:false,
+    freeBack:false, turnIn:null
   };
   G.commands.push(c);
   for(let i=0;i<n;i++) spawnCmdSword(c, i, c.formation==='inline' ? i*4 : 0);
@@ -1887,7 +1903,14 @@ function update(){
     const TF=stat.tierFlags||{};
     c.frameHit=null;                                   // 齊斬:每幀重置同幀命中統計
     // 1) 推進中心點(歸鋒·小成:回程加速三成)
-    let budget=stat.speed * ((c.step<0 && TF.returnFaster) ? 1.3 : 1);
+    const goingBack = (c.free ? c.freeBack : c.step<0);
+    let budget=stat.speed * ((goingBack && TF.returnFaster) ? 1.3 : 1);
+    // 命中折返:先完整穿過墨獸、再多走一段「轉向距離」才掉頭,
+    // 直接在命中點原地倒轉看起來像撞牆,不像劍繞到背後回刺。
+    if(c.turnIn!=null){
+      c.turnIn-=budget;
+      if(c.turnIn<=0 && !doReturn(c)) c.turnIn=null;
+    }
     // 續飛:筆跡走完後,劍令沿最後方向繼續前進,直到飛出畫面。
     // 劍沒打到東西就憑空消失不合理 —— 筆跡定義的是「怎麼去」,不是「走完就結束」。
     if(c.free){
@@ -1931,6 +1954,22 @@ function update(){
       sw.trail.push({x:sw.x,y:sw.y}); if(sw.trail.length>18) sw.trail.shift();
     }
   }
+  // 執行一次折返(端點觸發與命中觸發共用)。回傳是否成功。
+  function doReturn(c){
+    if(c.returnsLeft<=0) return false;
+    c.returnsLeft--;
+    if(c.free){                                  // 續飛中:直接掉頭沿反方向飛回
+      c.ang += Math.PI; c.freeBack = !c.freeBack;
+    } else {                                     // 走筆跡中:沿原路倒走
+      c.step=-c.step;
+      c.seg=Math.max(0, Math.min(c.pts.length-1, c.seg + c.step));
+    }
+    for(const sw of c.swords) if(sw){ sw.hitSet.clear(); sw.returned=true;
+      sw.pierceLeft=Math.max(1,(stat.pierce|0)+1); }
+    if(stat.returnDry) whiteCut(c.x,c.y,c.ang);
+    c.turnIn=null;
+    return true;
+  }
   // 劍令抵達端點:歸鋒則倒走一次,否則整道結束
   function cmdReachedEnd(c){
     const TF=stat.tierFlags||{};
@@ -1948,15 +1987,7 @@ function update(){
       const en=nearestEnemy(c.x,c.y,220);
       if(en && extendCommand(c,en.x,en.y)){ c.extended++; return; }
     }
-    if(c.returnsLeft>0){
-      c.returnsLeft--;
-      c.step=-c.step;
-      c.seg=Math.max(0, Math.min(c.pts.length-1, c.seg + c.step));
-      for(const sw of c.swords) if(sw){ sw.hitSet.clear(); sw.returned=true;
-        sw.pierceLeft=Math.max(1,(stat.pierce|0)+1); }
-      if(stat.returnDry) whiteCut(c.x,c.y,c.ang);
-      return;
-    }
+    if(c.returnsLeft>0){ doReturn(c); return; }
     // 貫鋒式·圓滿:劍令走完後,回刺第一個被斬中的墨獸
     if(!c.auto && TF.pierceRecoil && c.hitOrder.length){
       const first=c.hitOrder.find(en=>G.enemies.includes(en));
@@ -2027,6 +2058,9 @@ function update(){
         }
         // 歸鋒·圓滿:回程命中後再倒走一次(每道劍令僅追加一次)
         if(TF.returnBounce && C && s.returned && !C.bounced){ C.bounced=true; C.returnsLeft++; }
+        // 折返:命中後不當場掉頭,先穿過去、再走一段轉向距離才回刺
+        if(C && C.returnsLeft>0 && C.turnIn==null)
+          C.turnIn = en.r + stat.size*1.4 + 46 + formationHalfSpan(C);
         // 引鋒·大成:擊殺後立即再延伸一段去找下一個目標
         if(TF.guideRetarget && C && !C.auto && en.hp<=0 && C.extended<6){
           const nx=nearestEnemy(en.x,en.y,300);
