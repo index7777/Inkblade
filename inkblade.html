@@ -309,6 +309,8 @@
     color:#2b2620; min-width:58px; min-height:34px; padding:5px 8px;
     font:600 14px "Noto Serif TC",serif; white-space:nowrap; }
   #bosstesttools button.on { color:#f5ead3; background:#6f2924; border-color:#6f2924; }
+  #bosstestreadout { min-width:92px; color:#473e33; white-space:pre-line;
+    font:600 12px/1.25 "Noto Serif TC",serif; }
   @keyframes inkOut { from{ transform:translate(-50%,-50%) scale(.25); opacity:.92 }
     to{ transform:translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1); opacity:0 } }
   @keyframes inkCore { from{ transform:translate(-50%,-50%) scale(.2); opacity:.85 }
@@ -573,6 +575,7 @@
   </div>
 
   <div id="bosstesttools" aria-label="BOSS 測試工具">
+    <span id="bosstestreadout">命中 0</span>
     <button id="bosstestup" type="button">升級</button>
     <button id="bosstestdown" type="button">降級</button>
     <button id="bosstestlock" type="button" aria-pressed="false">鎖血</button>
@@ -1253,7 +1256,7 @@ function spawnCmdSword(c, slot, delay){
              seed:(c.formation==='merge' && c.seed!=null) ? c.seed : Math.random()*8,
              delay:delay||0,
              pierceLeft: c.life || Math.max(1,(stat.pierce|0)+1),
-             hitSet:new Set(), contactSet:new Set(),
+             hitSet:new Set(), hitPass:new Map(), passId:0, lastMove:null,
              returned:false, echo:false };
   c.swords[slot]=sw; G.swords.push(sw);
   return sw;
@@ -1297,7 +1300,7 @@ function spawnAutoCommand(x0,y0,x1,y1,opts){
   G.commands.push(c);
   const sw=spawnCmdSword(c,0,0);
   sw.echo=true;
-  if(opts.skip){ sw.hitSet.add(opts.skip); sw.contactSet.add(opts.skip); }
+  if(opts.skip){ sw.hitSet.add(opts.skip); sw.hitPass.set(opts.skip,sw.passId); }
   return c;
 }
 function launchCommand(path){
@@ -2224,7 +2227,7 @@ function update(){
       if(en) c.ang=Math.atan2(en.y-c.y, en.x-c.x);
     }
     // 只有活著的劍照新規則走；折返時重置本段可穿透的不同目標數。
-    for(const sw of c.swords) if(sw && !sw.dead){ sw.hitSet.clear(); sw.contactSet.clear(); sw.returned=true;
+    for(const sw of c.swords) if(sw && !sw.dead){ sw.hitSet.clear(); sw.hitPass.clear(); sw.passId++; sw.lastMove=null; sw.returned=true;
       sw.snap=true;                                   // 這一幀整列前後對調,不做掃掠
       sw.pierceLeft = c.life || Math.max(1,(stat.pierce|0)+1); }
     if(stat.returnDry) whiteCut(c.x,c.y,c.ang);
@@ -2267,18 +2270,19 @@ function update(){
     const s=G.swords[i];
     if(s.dead){ G.swords.splice(i,1); continue; }
     if(s.delay>0) continue;
-    // 只在劍仍貼著怪物時阻止逐幀重複傷害。劍一旦離開碰撞圈，下一次沿手繪
-    // 軌跡重新進入就應再次結算傷害；hitSet 仍保留作穿透成長與歷史紀錄。
-    if(!s.contactSet) s.contactSet=new Set();
-    for(const touched of s.contactSet){
-      const release=touched.r+stat.size+(stat.hitPadding||0)+4;
-      if(!G.enemies.includes(touched)||Math.hypot(s.x-touched.x,s.y-touched.y)>release)
-        s.contactSet.delete(touched);
+    // 一段同方向揮行對同一目標只傷一次；行進方向反轉即開始下一段。
+    // 因此右→左→右固定是三段，每把實際接觸的劍各結算三次。
+    if(!s.hitPass) s.hitPass=new Map();
+    const moveLen=Math.hypot(s.vx,s.vy);
+    if(moveLen>0.05){
+      const mx=s.vx/moveLen,my=s.vy/moveLen;
+      if(s.lastMove&&mx*s.lastMove.x+my*s.lastMove.y < -0.35) s.passId=(s.passId||0)+1;
+      s.lastMove={x:mx,y:my};
     }
     // 命中
     for(let j=G.enemies.length-1;j>=0;j--){
       const en=G.enemies[j];
-      if(s.contactSet.has(en)) continue;
+      if(s.hitPass.get(en)===(s.passId||0)) continue;
       // 掃掠判定:用「這一幀走過的線段」對圓,而不是只測落點。
       // 只測落點的話,劍速夠快或陣型轉向時整把劍一幀跳過一大段,
       // 中間的墨獸會被整個略過 —— 畫面上劍明明穿過去了卻沒傷害。
@@ -2305,7 +2309,8 @@ function update(){
           const nHit=(C.frameHit.get(en)||0)+1; C.frameHit.set(en,nHit);
           if(nHit>=2){ volley=true; dmg*=1.6; }
         }
-        dmgTo(en,dmg); en.hit=6; s.hitSet.add(en); s.contactSet.add(en);
+        dmgTo(en,dmg); en.hit=6; s.hitSet.add(en); s.hitPass.set(en,s.passId||0);
+        if(G.bossTest&&en.isBoss) en.testHits=(en.testHits||0)+1;
         if(C){ C.anyHit=true; if(!C.hitOrder.includes(en)) C.hitOrder.push(en); }
         // 散鋒式·大成:殘鋒也能觸發墨痕(否則自動劍令不上狀態)
         if(!(C && C.noIntent) || TF.scatterEchoIntent) applyIntent(en);   // 墨痕:蝕 / 鎮
@@ -3341,6 +3346,11 @@ function updateHUD(){
   setTxt('lvtxt',num2cn(G.level));
   setTxt('killtxt',String(G.kills));
   setTxt('wavetxt','第 '+num2cn(G.wave)+' 境');
+  if(G.bossTest){
+    const boss=G.enemies.find(en=>en.isBoss), out=document.getElementById('bosstestreadout');
+    if(out) out.textContent='劍 '+Math.max(1,stat.count|0)+'　命中 '+(boss?(boss.testHits||0):0)+
+      '\nHP '+(boss?Math.max(0,Math.round(boss.hp)):0);
+  }
   if(DPS.open) renderDps();
 }
 // 收合時完全不算,展開才每 5 幀更新一次(跟 updateHUD 同一個節流)
