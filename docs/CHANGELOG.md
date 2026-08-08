@@ -5,6 +5,54 @@
 
 ---
 
+## [2026-08-08] #69 HUD 依參考稿重新定比例;尺寸制度改為容器比例(cqw)
+
+**做法**:把使用者提供的參考稿(941×1672,9:16)逐像素量出左上狀態列與右上控制區的幾何,
+再把主檔的 HUD 全部改用 `cqw`(= HUD 容器寬度的百分比)表示 —— `#hud { container-type:inline-size }`。
+以前是 px + 三組 media query 各寫一套,換裝置就跑掉;現在同一組比例在任何寬度下都成立。
+
+**量測對照(分母 = 畫卷紙寬)**
+| 項目 | 參考稿 | 改後 |
+|---|---|---|
+| 條軌道寬 | 25.61% | 24.94% |
+| 條粗細 | 1.49% | 1.45% |
+| 條左緣 | 3.83% | 4.15% |
+| 標籤上緣 | 7.65% | 7.90% |
+| 墨圈鈕直徑 | 8.93% | 8.71% |
+| 墨圈鈕間距 | 2.55% | 2.47% |
+| 墨圈鈕上緣 | 7.86% | 8.09% |
+| 墨圈鈕右距 | 3.51% | 3.21% |
+| 斬妖吊牌寬 | 15.62% | 15.22% |
+| 吊牌上緣 | 19.34% | 19.55% |
+| 吊牌右距 | 3.08% | 2.80% |
+
+全部落在 0.4 個百分點內。相對於改版前:條軌道 ×1.18、標籤字級 ×1.7、
+墨圈鈕 ×1.4、吊牌寬 ×1.56 —— 原本整體偏小。
+
+**變更內容**
+1. `#hud` 加 `container-type:inline-size`,左右內距由 `10px` 改 `3.9cqw`。
+2. `#barwrap` 寬 `clamp(158px,48vw,212px)` → `27.2cqw`;`.bar` 高 `12px` → `1.58cqw`(min 7px)、
+   `.barrow .bar` `8px` → `1.2cqw`(min 5px)。
+3. 字級:`.label` `14px` → `clamp(11px,2.4cqw,24px)`、`.sub` `12px` → `clamp(10px,2.35cqw,23px)`、
+   `.big`(斬妖數) `26px` → `clamp(20px,4.5cqw,46px)`、`.inkbtn .vt b` `17px` → `clamp(13px,2.6cqw,26px)`。
+4. `.inkbtn` `60px` → `9.5cqw`(min 44px);`#ctrls` gap `10px` → `2.7cqw`、right `12px` → `3.5cqw`。
+5. `#scorewrap` min-width `94px` → `16.6cqw`、padding 改 cqw、top/right 改 cqw。
+6. **刪掉會跟比例制打架的 media query 覆寫**:`#barwrap` 的兩組 `min(52vw,…)`、
+   `.bar{height:7px}`、`.label{font-size:11.5px}`、`.sub{font-size:11px}`、`#hud{padding-left/right:8px}`、
+   `#scorewrap,#ctrls{right:8px}`。
+
+**刻意保留的下限(小螢幕會壓過純比例)**
+- `.inkbtn { min-width/height:44px }` —— 371px 寬的手機上純比例只有 33px,觸控打不到。
+- `.bar { min-height:7px }`、字級 clamp 的下限 —— 純比例會變成髮絲線與 9px 字。
+這幾項在 412×915 實測分別是 11.87% / 1.89%(參考值 8.93% / 1.49%),是刻意的,不是跑掉。
+
+**未做**:參考稿上方那條 BOSS 血條 UI 尚未實作(本次只調左上與右上)。
+
+**怎麼推回去**:`#hud` 移除 `container-type`,上列每一項改回原本的 px 值,
+並把六條 media query 覆寫加回 `@media (max-width:640px) portrait` 與 `@media (max-width:520px)`。
+
+---
+
 ## [2026-08-08] #68 修好近身傷害空區(連珠最明顯)+ 拔掉死欄位 swordLife
 
 ### A. 近身空區:三個原因疊在一起
