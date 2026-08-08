@@ -75,7 +75,7 @@
    * status:命中附加狀態;unlock:當局解鎖;truth:啟用互斥真意。
    */
   const OP_SCHEMA = Object.freeze({
-    add: ['stats.damage', 'stats.swordWidth', 'stats.swordSpeed', 'stats.swordLife', 'stats.pierce', 'stats.critChance', 'stats.critMultiplier', 'stats.manaMax', 'stats.manaRegen', 'stats.manaOnKill', 'stats.swordCap', 'stats.swordCount', 'stats.manaCostBase', 'stats.manaCostPerPixel', 'mechanics.returnHits', 'mechanics.splashRadius', 'mechanics.homingStrength'],
+    add: ['stats.hpMax', 'stats.damage', 'stats.swordWidth', 'stats.swordSpeed', 'stats.swordLife', 'stats.pierce', 'stats.critChance', 'stats.critMultiplier', 'stats.manaMax', 'stats.manaRegen', 'stats.manaOnKill', 'stats.swordCap', 'stats.swordCount', 'stats.manaCostBase', 'stats.manaCostPerPixel', 'mechanics.returnHits', 'mechanics.splashRadius', 'mechanics.homingStrength'],
     mul: ['stats.damage', 'stats.swordWidth', 'stats.swordSpeed', 'stats.swordLife', 'stats.critMultiplier', 'stats.manaCostBase', 'stats.manaCostPerPixel', 'mechanics.splashDamage', 'mechanics.statusDuration', 'mechanics.trailOpacity'],
     set: ['formation', 'stats.swordCount', 'mechanics.homingCanCrit', 'mechanics.returnEnabled'],
     max: ['stats.mana', 'stats.manaMax', 'stats.swordCap'],
@@ -143,7 +143,8 @@
 
   const REBIRTH = Object.freeze([
     // 築基:穩定且有限的永久數值。
-    rebirthNode({ id: 'foundation_spirit_house', branch: REBIRTH_BRANCH.FOUNDATION, name: '靈府初成', description: '每階令開局劍意上限提高十五。', maxRank: 4, costs: [30, 65, 125, 220], effects: [op('add', 'stats.manaMax', 15), op('max', 'stats.mana', 'stats.manaMax')] }),
+    rebirthNode({ id: 'foundation_spirit_house', branch: REBIRTH_BRANCH.FOUNDATION, name: '靈府初成', description: '每階令開局劍意上限提高十五。', maxRank: 10, costs: [30, 65, 125, 220, 340, 490, 680, 910, 1180, 1500], effects: [op('add', 'stats.manaMax', 15), op('max', 'stats.mana', 'stats.manaMax')] }),
+    rebirthNode({ id: 'foundation_sea_of_mind', branch: REBIRTH_BRANCH.FOUNDATION, name: '識海初開', description: '每階令開局神識上限提高十五。', maxRank: 10, costs: [30, 65, 125, 220, 340, 490, 680, 910, 1180, 1500], effects: [op('add', 'stats.hpMax', 15)] }),
     rebirthNode({ id: 'foundation_sword_bone', branch: REBIRTH_BRANCH.FOUNDATION, name: '劍骨凝成', description: '每階令開局劍傷提高三。', maxRank: 4, costs: [30, 65, 125, 220], effects: [op('add', 'stats.damage', 3)] }),
     rebirthNode({ id: 'foundation_flow', branch: REBIRTH_BRANCH.FOUNDATION, name: '行氣如劍', description: '每階令開局劍速提高一。', maxRank: 3, costs: [40, 95, 190], effects: [op('add', 'stats.swordSpeed', 1)] }),
     rebirthNode({ id: 'foundation_cycle', branch: REBIRTH_BRANCH.FOUNDATION, name: '周天養息', description: '每階令劍意回復提高。', maxRank: 3, costs: [40, 95, 190], effects: [op('add', 'stats.manaRegen', 0.05)] }),
@@ -168,7 +169,7 @@
     activeForm: null,
     appliedTruthEffects: [],
     appliedFormEffects: [],
-    stats: Object.freeze({ damage: 24, swordWidth: 18, swordSpeed: 14, swordLife: 1.35, pierce: 0, critChance: 0.05, critMultiplier: 2, manaMax: 100, mana: 100, manaRegen: 0.85, manaOnKill: 0, swordCap: 4, swordCount: 1, manaCostBase: 6, manaCostPerPixel: 0.13 }),
+    stats: Object.freeze({ hpMax: 100, damage: 24, swordWidth: 18, swordSpeed: 14, swordLife: 1.35, pierce: 0, critChance: 0.05, critMultiplier: 2, manaMax: 100, mana: 100, manaRegen: 0.85, manaOnKill: 0, swordCap: 4, swordCount: 1, manaCostBase: 6, manaCostPerPixel: 0.13 }),
     mechanics: Object.freeze({ homingStrength: 0, homingCanCrit: true, returnEnabled: false, returnHits: 0, splashRadius: 0, splashDamage: 0.35, statusDuration: 1, trailOpacity: 1 }),
     statuses: Object.freeze({}),
     flags: Object.freeze({ firstStrikeCrit: false, returnLeavesDryBrush: false, splashOnKill: false, listenToInk: false, whiteCutOnCrit: false }),
@@ -645,7 +646,7 @@
   /* 舊引擎相容層:完整支援mul/flag/status/truth全部機制 */
   const LEGACY_RARITY = Object.freeze({ awakening: 'n', clarity: 'r', penetration: 'e', truth: 'l' });
   const LEGACY_PATH = Object.freeze({
-    'stats.swordCount': 'count', 'stats.damage': 'damage', 'stats.swordWidth': 'size', 'stats.swordSpeed': 'speed', 'stats.swordLife': 'life', 'stats.pierce': 'pierce', 'stats.critChance': 'crit', 'stats.manaMax': 'manaMax', 'stats.manaRegen': 'manaRegen', 'stats.manaOnKill': 'regen', 'stats.swordCap': 'cap', 'mechanics.homingStrength': 'homing', 'mechanics.returnHits': 'ret', 'mechanics.splashRadius': 'explode', formation: 'formation'
+    'stats.hpMax': 'hpMax', 'stats.swordCount': 'count', 'stats.damage': 'damage', 'stats.swordWidth': 'size', 'stats.swordSpeed': 'speed', 'stats.swordLife': 'life', 'stats.pierce': 'pierce', 'stats.critChance': 'crit', 'stats.manaMax': 'manaMax', 'stats.manaRegen': 'manaRegen', 'stats.manaOnKill': 'regen', 'stats.swordCap': 'cap', 'mechanics.homingStrength': 'homing', 'mechanics.returnHits': 'ret', 'mechanics.splashRadius': 'explode', formation: 'formation'
   });
 
   function toLegacyEffect(item) {

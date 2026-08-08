@@ -876,7 +876,9 @@ const SHOP_SPEND=[
 
 // ---------- 玩家(中央靈石) ----------
 function Player(){
-  this.x=W/2; this.y=H/2; this.r=26; this.hp=100; this.max=100; this.pulse=0;
+  // 神識上限改由 config 決定(轉世閣「識海初開」可加)。start() 已先跑 syncStat,故 stat.hpMax 必有值。
+  const hp = (stat && stat.hpMax) || 100;
+  this.x=W/2; this.y=H/2; this.r=26; this.hp=hp; this.max=hp; this.pulse=0;
 }
 
 // ---------- 敵人 ----------
@@ -1107,7 +1109,7 @@ function syncStat(){
   stat.homing=m.homingStrength; stat.homingCanCrit=(m.homingCanCrit!==false);
   stat.explode=m.splashRadius; stat.splashDamage=m.splashDamage;
   stat.ret=m.returnEnabled?1:0; stat.returnHits=m.returnHits;
-  stat.cap=s.swordCap; stat.manaMax=s.manaMax; stat.manaRegen=s.manaRegen; stat.regen=s.manaOnKill;
+  stat.hpMax=s.hpMax; stat.cap=s.swordCap; stat.manaMax=s.manaMax; stat.manaRegen=s.manaRegen; stat.regen=s.manaOnKill;
   stat.formation = (runState.formation && runState.formation!=='single') ? runState.formation : 'fan';
   // 遊戲專屬、config 未涵蓋的欄位
   stat.element='none'; stat.ember=0; stat.ice=0;

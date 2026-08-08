@@ -5,6 +5,22 @@
 
 ---
 
+## [2026-08-08] #32 轉世閣:靈府初成 4→10 階、新增「識海初開」(神識上限)
+**檔案**:`data/game-config.js`、`inkblade.html`
+
+1. **靈府初成(劍意上限)maxRank 4 → 10**,costs 由 `[30,65,125,220]` 延伸為 `[30,65,125,220,340,490,680,910,1180,1500]`(單條點滿 5540 墨魂)。
+2. **新增 `foundation_sea_of_mind`「識海初開」**:築基分支,maxRank 10,每階神識上限 +15,cost 曲線與靈府相同。
+3. **神識上限收進 config**:原本 `Player()` 把血量寫死 100,config 完全管不到,所以無法做這個節點。新增 `BASE.stats.hpMax:100`、`OP_SCHEMA.add` 放行 `stats.hpMax`、legacy 映射加 `'stats.hpMax':'hpMax'`;`syncStat()` 輸出 `stat.hpMax`;`Player()` 改讀 `stat.hpMax`(start() 已先跑 syncStat,取值時必有效,取不到才回退 100)。
+
+**驗證(node + headless Chromium)**:
+- `validateConfig` 過;`getRebirthView` 兩節點 costs 長度皆 10、第一階 30、滿階回報 `max_rank`。
+- 實跑三種存檔:全新 = 神識 100/100、劍意 100/100;兩條各滿 10 階 = **神識 250/250、劍意 250/250**;舊存檔(靈府 4 階)= 神識 100/100、劍意 **160/160**(=100+4×15,舊進度完整保留,可繼續往上買)。
+- 無 console / page error。
+
+**另記**:悟道卡片經確認**本來就沒有星級符號**(只有符文/名稱/說明),規格文件裡的 ★★★★★ 只是撰寫時的階數註記,不會出現在畫面上。`#rerollbtn::before` 的 `◉` 是重鑄鈕的裝飾,非星號。故此項無需改動。
+
+**還原依據**:git checkout。手動還原:靈府 maxRank/costs 改回 4 階、刪除 `foundation_sea_of_mind`、移除 `stats.hpMax` 三處(BASE/OP_SCHEMA/映射)與 `syncStat` 的 `stat.hpMax`,`Player()` 改回寫死 100。
+
 ## [2026-08-08] #31 HUD 依參考稿二次到位:中文數值、筆刷條、墨圈直式鈕、第 N 境、人物去水波
 **檔案**:`inkblade.html`
 
