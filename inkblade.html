@@ -576,6 +576,8 @@
 
   <div id="bosstesttools" aria-label="BOSS 測試工具">
     <span id="bosstestreadout">命中 0</span>
+    <button id="bosstestswordup" type="button">劍＋</button>
+    <button id="bosstestsworddown" type="button">劍－</button>
     <button id="bosstestup" type="button">升級</button>
     <button id="bosstestdown" type="button">降級</button>
     <button id="bosstestlock" type="button" aria-pressed="false">鎖血</button>
@@ -1295,13 +1297,37 @@ function spawnAutoCommand(x0,y0,x1,y1,opts){
     // 這幾個欄位主劍令有、自動劍令也必須有 —— 命中處理是共用的,
     // 少一個 hitOrder 就會在第一次命中丟例外,把後面的破甲/齊斬/歸鋒整串打斷。
     hitOrder:[], volley:0, frameHit:null, extended:0, anyHit:false, free:false,
-    freeBack:false,
+    freeBack:false, passAt:[0,0],
     auto:true, dmgMul:opts.dmgMul||1, noIntent:!opts.intent };
   G.commands.push(c);
   const sw=spawnCmdSword(c,0,0);
   sw.echo=true;
   if(opts.skip){ sw.hitSet.add(opts.skip); sw.hitPass.set(opts.skip,sw.passId); }
   return c;
+}
+// 預先把手繪折線切成「揮行段」。方向真正反轉且新方向至少延伸 24px 才算下一段；
+// 直接依筆跡判定，不受幀率、陣型位移或折返點插值抖動影響。
+function buildStrokePasses(pts){
+  const out=new Array(pts.length).fill(0);
+  let pass=0,run=null;
+  for(let i=1;i<pts.length;i++){
+    const dx=pts[i].x-pts[i-1].x,dy=pts[i].y-pts[i-1].y,L=Math.hypot(dx,dy);
+    if(L<0.5){ out[i]=pass; continue; }
+    const dir={x:dx/L,y:dy/L};
+    if(!run) run=dir;
+    else if(dir.x*run.x+dir.y*run.y < -0.35){
+      let travel=0;
+      for(let j=i;j<pts.length&&travel<24;j++){
+        const ux=pts[j].x-pts[j-1].x,uy=pts[j].y-pts[j-1].y,ul=Math.hypot(ux,uy);
+        if(ul<0.5) continue;
+        if((ux/ul)*dir.x+(uy/ul)*dir.y<0.35) break;
+        travel+=ul;
+      }
+      if(travel>=24){ pass++; run=dir; }
+    }
+    out[i]=pass;
+  }
+  return out;
 }
 function launchCommand(path){
   if(!path || path.length<2) return;
@@ -1356,7 +1382,7 @@ function launchCommand(path){
     returnsLeft: stat.ret ? Math.max(1, stat.returnHits||1) : 0,
     alive:true, age:0,
     hitOrder:[], volley:0, frameHit:null, extended:0, dmgMul:1, anyHit:false, free:false,
-    freeBack:false
+    freeBack:false, passAt:buildStrokePasses(cut)
   };
   G.commands.push(c);
   // 連珠原本用 i*4 影格錯開出鞘,結果那幾幀裡整列疊在筆尖不動、也不判定命中,
@@ -2209,6 +2235,7 @@ function update(){
       else { sw.px=sw.x; sw.py=sw.y; }
       sw.vx=nx-sw.x; sw.vy=ny-sw.y;
       sw.x=nx; sw.y=ny; sw.ang=c.ang; sw.age++;
+      if(!c.free&&c.passAt) sw.passId=c.passAt[Math.max(0,Math.min(c.passAt.length-1,c.seg))]||0;
       sw.trail.push({x:sw.x,y:sw.y}); if(sw.trail.length>18) sw.trail.shift();
     }
   }
@@ -2271,22 +2298,8 @@ function update(){
     const s=G.swords[i];
     if(s.dead){ G.swords.splice(i,1); continue; }
     if(s.delay>0) continue;
-    // 一段同方向揮行對同一目標只傷一次；行進方向反轉即開始下一段。
-    // 因此右→左→右固定是三段，每把實際接觸的劍各結算三次。
+    // passId 已由原始手繪折線預先計算；一段同方向揮行對同一目標只傷一次。
     if(!s.hitPass) s.hitPass=new Map();
-    const moveLen=Math.hypot(s.vx,s.vy);
-    if(moveLen>0.05){
-      const mx=s.vx/moveLen,my=s.vy/moveLen;
-      if(!s.runDir){ s.runDir={x:mx,y:my}; s.runTravel=moveLen; }
-      else {
-        const dot=mx*s.runDir.x+my*s.runDir.y;
-        // 折返點可能有一幀陣型/取樣修正。至少沿目前方向走過 24px 才承認反轉，
-        // 避免右→左的同一個轉角被抖動拆成兩段。
-        if(dot < -0.35 && s.runTravel>=24){
-          s.passId=(s.passId||0)+1; s.runDir={x:mx,y:my}; s.runTravel=moveLen;
-        } else if(dot>=-0.35) s.runTravel+=moveLen;
-      }
-    }
     // 命中
     for(let j=G.enemies.length-1;j>=0;j--){
       const en=G.enemies[j];
@@ -3861,6 +3874,13 @@ function toggleBossTestHpLock(){
   if(G.hpLocked) G.player.hp=G.player.max;
   renderBossTestTools(); updateHUD();
 }
+function bossTestSwordCount(delta){
+  if(!G.bossTest||!runState) return;
+  runState.stats.swordCount=Math.max(1,Math.min(12,(runState.stats.swordCount|0)+delta));
+  syncStat();
+  G.banner={txt:'測試飛劍 · '+stat.count,life:1};
+  updateHUD();
+}
 // ---------- 暫停 / 繼續 ----------
 let pausedByUser=false;
 function togglePause(force){
@@ -4187,6 +4207,8 @@ function inkSplashAt(x,y){
 document.addEventListener('pointerdown', (e)=>{ const b=e.target.closest && e.target.closest('.btn'); if(b) inkSplashAt(e.clientX,e.clientY); }, true);
 document.getElementById('startbtn').onclick=start;
 document.getElementById('bosstestbtn').onclick=()=>start('boss');
+document.getElementById('bosstestswordup').onclick=()=>bossTestSwordCount(1);
+document.getElementById('bosstestsworddown').onclick=()=>bossTestSwordCount(-1);
 document.getElementById('bosstestup').onclick=()=>bossTestLevel(1);
 document.getElementById('bosstestdown').onclick=()=>bossTestLevel(-1);
 document.getElementById('bosstestlock').onclick=toggleBossTestHpLock;
