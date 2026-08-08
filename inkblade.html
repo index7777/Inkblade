@@ -262,6 +262,13 @@
   .setbtn { cursor:pointer; font-size:13px; letter-spacing:3px; padding:6px 18px; border-radius:6px;
     border:1px solid #b8a888; background:linear-gradient(180deg,#f6f0e0,#e0d4b8); color:#2e2820; }
   .setbtn.on { background:#8a7a5a; color:#f6f0e0; border-color:#7a6a4a; }
+  /* 四段選擇(震動強度) */
+  .segrow { display:flex; gap:6px; margin-bottom:12px; }
+  .seg { flex:1 1 0; cursor:pointer; text-align:center; font-size:14px; letter-spacing:2px;
+    padding:8px 0; min-height:38px; display:flex; align-items:center; justify-content:center;
+    border:1px solid #b8a888; border-radius:6px; color:#2e2820;
+    background:linear-gradient(180deg,#f6f0e0,#e0d4b8); transition:background .15s,color .15s; }
+  .seg.on { background:#8a7a5a; color:#f6f0e0; border-color:#7a6a4a; }
   #sndbtn { min-height:44px; margin-bottom:14px; display:flex; align-items:center;
     justify-content:center; padding:7px 8px; letter-spacing:2px; }
   /* 洗點:重塑劍意 */
@@ -424,6 +431,10 @@
       <div class="sethead">行 劍 設 定</div>
       <div class="setbtn" id="sndbtn">♪ 音律：開</div>
       <div class="setbtn" id="herobtn" style="min-height:38px;margin-bottom:12px;display:flex;align-items:center;justify-content:center;">墨形：劍客</div>
+      <div class="sethead" style="margin-top:14px;">震 動</div>
+      <div class="segrow" id="shakerow">
+        <div class="seg" data-shake="n">無</div><div class="seg" data-shake="s">小</div><div class="seg" data-shake="m">中</div><div class="seg" data-shake="l">大</div>
+      </div>
       <div id="audioControls">
       <div class="sethead">音 律</div>
       <div class="setrow"><label for="volMaster">總音量</label>
@@ -845,6 +856,7 @@ function loadMeta(){
   meta.up=meta.up||{}; meta.unlock=meta.unlock||{}; meta.best=meta.best||{kills:0,wave:1,level:1};
   meta.gems=meta.gems||0; meta.offCap=meta.offCap||8; meta.skin=meta.skin||'none';
   meta.mute=!!meta.mute; meta.heroSkin = (meta.heroSkin==='m')?'m':'f';   // 預設女修
+  if(!['n','s','m','l'].includes(meta.shake)) meta.shake='m';            // 震動強度,預設中
   meta.vol=Object.assign({master:0.85,music:0.62,sfx:0.75}, meta.vol||{});
   for(const k of ['master','music','sfx'])
     meta.vol[k]=Math.max(0,Math.min(1, isFinite(meta.vol[k])?meta.vol[k]:0.7));
@@ -1058,7 +1070,10 @@ function inkTrail(ctx, tr, size, rgb){
   }
 }
 // 畫面震動 / 頓幀 / 閃光 —— 打擊感三件套
-function shake(v){ G.shake=Math.min(22,G.shake+v); }
+// 震動強度可在靜觀調整:無 / 小 / 中 / 大。大震動會讓戰場很亂,交給玩家自己決定。
+const SHAKE_MUL={ n:0, s:0.45, m:1, l:1.7 };
+function shakeMul(){ return SHAKE_MUL[meta.shake] != null ? SHAKE_MUL[meta.shake] : 1; }
+function shake(v){ const k=shakeMul(); if(k<=0){ G.shake=0; return; } G.shake=Math.min(22,G.shake+v*k); }
 function hitstop(f){ G.hitstop=Math.max(G.hitstop,f); }
 function flash(a,c){ G.flash=Math.max(G.flash,a); G.flashC=c||'255,255,255'; }
 // 宣紙墨漬:斬妖留痕,用預烘貼圖繪製,可保留緩緩滲淡
@@ -2670,7 +2685,7 @@ function togglePause(force){
   // 暫停:背景樂完全停止;繼續:重新起奏
   if(now) SND.stopMusic(0.25); else SND.startMusic();
   document.getElementById('pause').classList.toggle('show',now);
-  if(now){ renderVol(); renderHeroBtn(); respecArmed=false; renderRespec(); }
+  if(now){ renderVol(); renderHeroBtn(); renderShakeBtns(); respecArmed=false; renderRespec(); }
   if(!now) tryLevelUp();          // 暫停期間累積的升級,繼續後補選
 }
 // 隕落:有專屬 death 幀 → 播 7 幀;否則(女修)→ 程式化墨消散(sprite 淡出 + 潑墨爆散)。
@@ -3002,6 +3017,15 @@ renderSndBtn(); bindVol(); renderVol();
 document.getElementById('resumebtn').onclick=()=>togglePause(false);
 document.getElementById('respecbtn').onclick=()=>doRespec();
 document.getElementById('herobtn').onclick=()=>toggleHeroSkin();
+function renderShakeBtns(){
+  document.querySelectorAll('#shakerow .seg').forEach(el=>
+    el.classList.toggle('on', el.dataset.shake===meta.shake));
+}
+document.querySelectorAll('#shakerow .seg').forEach(el=>{
+  el.onclick=()=>{ meta.shake=el.dataset.shake; saveMeta(); renderShakeBtns();
+                   if(meta.shake==='n') G.shake=0; if(!meta.mute) SND.ui(); };
+});
+renderShakeBtns();
 document.getElementById('pausequitbtn').onclick=()=>{ togglePause(false); gameOver(); };
 document.getElementById('splashshopbtn').onclick=openShop;
 document.getElementById('metashopbtn').onclick=openShop;
