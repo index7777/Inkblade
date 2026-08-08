@@ -5,6 +5,15 @@
 
 ---
 
+## [2026-08-08] #36 御劍啟用改為原墨圈自轉;兩顆鈕拿掉白底
+**檔案**:`inkblade.html`
+1. **拿掉白底**:`.inkbtn` 原本背景是「墨圈 SVG + `rgba(250,246,238,.55)` 白底」,改為 `background:none`,直接透出宣紙。御劍與靜觀兩顆同時生效(共用 class)。
+2. **墨圈獨立成一層**:新增 `.inkbtn::before` 承載墨圈 SVG,`.vt` 提到 `z-index:1`。這樣旋轉時**只轉圈、不轉字**(背景圖無法單獨旋轉,必須拆層)。
+3. **啟用動畫換掉虛線**:移除 #35 的 `::after` 虛線環與墨暈 box-shadow,改為讓原本那個手繪墨圈 `::before` 以 7s 等速自轉。圈本身是不規則的(粗細沿圓周變化),轉起來就是一道墨線繞著鈕走。`prefers-reduced-motion` 下停轉。
+
+**驗證(headless)**:兩顆鈕 `background-color: rgba(0,0,0,0)`、`background-image: none`,墨圈確實在 `::before`;啟用後 `::before` 的 animation 為 `inkorbit 7s`;連拍四張確認墨圈粗細位置在移動(有轉)、文字不動、靜觀鈕的圈保持靜止。無 console / page error。
+**還原依據**:git checkout。
+
 ## [2026-08-08] #35 小成/大成/圓滿框架上線;御劍啟用改為環繞墨線
 **檔案**:`data/game-config.js`、`inkblade.html`
 

@@ -92,25 +92,24 @@
     min-height:32px; display:flex; align-items:center; }
   /* 御劍 / 靜觀:共用手繪墨圈(SVG)當外框,內容為直式二字。
      不再用 CSS 圓角與 box-shadow 疊圈 —— 那個太規整,沒有筆味。 */
-  .inkbtn { width:60px; height:60px; min-height:60px; min-width:60px; padding:0;
+  .inkbtn { position:relative; width:60px; height:60px; min-height:60px; min-width:60px; padding:0;
     display:flex; align-items:center; justify-content:center;
-    background:var(--inkring) center/contain no-repeat, rgba(250,246,238,.55);
-    border:none; border-radius:50%; box-shadow:none;
-    transition:filter .18s, transform .12s; }
+    background:none; border:none; border-radius:50%; box-shadow:none;
+    transition:transform .12s; }
+  /* 墨圈外框獨立成一層 —— 這樣可以只轉圈、不轉字。底下不鋪白,直接透出宣紙。 */
+  .inkbtn::before { content:''; position:absolute; inset:0; border-radius:50%;
+    background:var(--inkring) center/contain no-repeat; }
+  .inkbtn .vt { position:relative; z-index:1; }
   .inkbtn .vt { display:flex; flex-direction:column; align-items:center; line-height:1.08; }
   .inkbtn .vt b { display:block; font-weight:600; font-size:17px; color:#241f1a;
     font-family:"Noto Serif TC","STKaiti","KaiTi",serif; letter-spacing:0; }
   .inkbtn:active { transform:scale(.95); }
-  /* 御劍啟用:不再上黃,改成一圈繞著鈕轉的墨線(虛線環 + 緩慢自轉 + 淡淡墨暈) */
-  #autobtn { position:relative; }
-  #autobtn::after { content:''; position:absolute; inset:-5px; border-radius:50%;
-    border:1.6px dashed rgba(38,32,26,.72); opacity:0; transform:rotate(0deg);
-    transition:opacity .25s; pointer-events:none; }
-  #autobtn.on::after { opacity:1; animation:inkorbit 4.2s linear infinite; }
-  #autobtn.on { box-shadow:0 0 0 6px rgba(58,48,38,.07), 0 0 14px rgba(45,37,26,.22); }
+  /* 御劍啟用:不上黃、不加虛線 —— 直接讓原本那個手繪墨圈外框自己緩緩旋轉。
+     圈是不規則的,轉起來就像一道墨線繞著劍令走。 */
+  #autobtn.on::before { animation:inkorbit 7s linear infinite; }
   #autobtn.on .vt b { color:#1c1712; }
   @keyframes inkorbit { to { transform:rotate(360deg); } }
-  @media (prefers-reduced-motion: reduce){ #autobtn.on::after { animation:none; } }
+  @media (prefers-reduced-motion: reduce){ #autobtn.on::before { animation:none; } }
   #pausebtn .pause-label { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); }
   .ctl:hover { color:#7a2b2b; }
   /* 毛筆刷痕:兩端收鋒、腰身略粗,軌道與填色共用同一個遮罩 */
