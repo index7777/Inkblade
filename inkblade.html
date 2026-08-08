@@ -3858,14 +3858,20 @@ function renderBossTestTools(){
 }
 function bossTestLevel(delta){
   if(!G.bossTest||!G.player) return;
+  if(delta>0){
+    // 測試升級必須走正式經驗入口，才能建立 pendingLevels、播放升級回饋並打開三選一。
+    gainXP(Math.max(1,G.xpNeed-G.xp));
+    return;
+  }
+  if(levelChoiceOpen()) return;
   const oldMax=G.player.max||1, ratio=Math.max(0,G.player.hp)/oldMax;
-  G.level=Math.max(1,Math.min(99,G.level+delta));
-  G.xp=0; G.xpNeed=Math.max(6,Math.round(6*Math.pow(1.36,G.level-1)));
+  G.level=Math.max(1,G.level-1);
+  G.xp=0; G.xpNeed=Math.max(6,Math.round((G.xpNeed-4)/1.16));
   syncStat();
   G.player.max=stat.hpMax;
   G.player.hp=G.hpLocked?G.player.max:Math.max(1,Math.min(G.player.max,G.player.max*ratio));
   G.mana=Math.min(stat.manaMax,G.mana);
-  G.banner={txt:(delta>0?'測試升級 · ':'測試降級 · ')+G.level,life:1};
+  G.banner={txt:'測試降級 · '+G.level,life:1};
   updateHUD();
 }
 function toggleBossTestHpLock(){
