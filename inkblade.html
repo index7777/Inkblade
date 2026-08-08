@@ -250,6 +250,18 @@
   @keyframes inkRing { from{ transform:translate(-50%,-50%) scale(.2); opacity:.5 }
     to{ transform:translate(-50%,-50%) scale(2.6); opacity:0 } }
   #gameover { display:none; }
+  /* 結算:大標置中,內容一律靠左(分段落讀,不擠成一大串) */
+  #finalbox { width:min(420px,86vw); margin:6px auto 4px; }
+  #finalbox .stitle { text-align:left; letter-spacing:2px; margin:0; line-height:1.9; }
+  #finalbox .fsec { margin:0 0 14px; }
+  #finalbox .fsec:last-child { margin-bottom:0; }
+  #finalbox .fh { color:#8a7a5a; font-size:12.5px; letter-spacing:4px; margin-bottom:2px; }
+  #finalbox .fl { color:#e2d9c2; font-size:clamp(14px,2vw,17px); letter-spacing:2px; }
+  #finalbox .fl b { color:#c08a2e; }
+  #finalbox .fnote { color:#9a8f78; font-size:12.5px; letter-spacing:1px; margin-top:2px; }
+  #overbtns { width:min(420px,86vw); margin:22px auto 0; gap:12px; flex-wrap:nowrap; }
+  #overbtns .btn { flex:1 1 0; min-width:0; padding:12px 6px;
+    font-size:clamp(14px,2.6vw,17px); letter-spacing:clamp(1px,1vw,4px); }
   .title { color:#f3ecd8; font-size:clamp(38px,9vw,64px); letter-spacing:clamp(8px,2.4vw,16px);
     text-shadow:0 4px 16px rgba(0,0,0,.6); }
   .stitle { color:#c9bfa6; font-size:clamp(13px,1.8vw,16px); letter-spacing:clamp(3px,1vw,6px);
@@ -453,11 +465,11 @@
   </div>
 
   <div id="gameover">
-    <div class="title" style="font-size:52px;">隕 落</div>
-    <div class="stitle" id="finaltxt"></div>
-    <div class="btnrow">
-      <div class="btn" id="againbtn">重入畫卷</div>
+    <div class="title" style="font-size:52px;">卷 未 成</div>
+    <div id="finalbox"><div class="stitle" id="finaltxt"></div></div>
+    <div class="btnrow" id="overbtns">
       <div class="btn ghost" id="metabtn">轉世閣</div>
+      <div class="btn" id="againbtn">重入畫卷</div>
     </div>
   </div>
 
@@ -2288,7 +2300,7 @@ function draw(){
       const depth=(Math.sin(a)+1)/2;                       // 0 後 → 1 前
       const im=SWDSPR.idle[(i*2+Math.floor(G.t*0.04))%SWDSPR.idle.length];
       if(!im||!im.complete||!im.naturalWidth) continue;
-      const L=P.r*(0.95+depth*0.5);                        // 劍長:前排略長
+      const L=P.r*(0.95+depth*0.5)*1.15;                   // 劍長:前排略長(整體放大 15%)
       const w=L/SWDSPR.blade, hh=w/SWDSPR.aspect;
       const dir=Math.atan2(py,px);                         // 離心方向(劍尖朝外)
       ctx.save(); ctx.translate(px,py); ctx.rotate(dir);
@@ -3018,12 +3030,19 @@ function gameOver(){
   if(nxt){ const need=Math.max(0,nxt.cost-meta.souls);
     hint = need>0 ? '再積 <b style="color:#c08a2e">'+need+'</b> 墨魂可習得〈'+nxt.name+'〉'
                   : '墨魂已足以習得〈'+nxt.name+'〉，速入轉世閣'; }
+  const line=(k,l,w)=>'斬妖 '+k+' · 道行 '+num2cn(l)+' 重 · 第 '+num2cn(w)+' 境';
   document.getElementById('finaltxt').innerHTML=
-    '此世 · 斬妖 '+G.kills+' 頭 · 道行 '+num2cn(G.level)+' 重 · 抵第 '+num2cn(G.wave)+' 境'
-    + (nb?'　<span style="color:#c08a2e">✦ 斬妖新猷</span>':'')
-    + '<br>歷史最佳 · 斬妖 '+meta.best.kills+' · 道行 '+num2cn(meta.best.level)+' 重 · 第 '+num2cn(meta.best.wave)+' 境'
-    + '<br><br>此世凝魂 <b style="color:#c08a2e">+'+earned+'</b>'+(autoed?' <span style="color:#8a7a5a">(自動御劍 · 減半不計紀錄)</span>':'')+' · 現有墨魂 <b style="color:#c08a2e">'+meta.souls+'</b>'
-    + (hint?'<br><span style="font-size:13px;color:#c9bfa6">'+hint+'</span>':'');
+      '<div class="fsec"><div class="fh">此 世</div>'
+    +   '<div class="fl">'+line(G.kills,G.level,G.wave)
+    +   (nb?' <span style="color:#c08a2e">✦ 新猷</span>':'')+'</div></div>'
+    + '<div class="fsec"><div class="fh">歷 史 最 佳</div>'
+    +   '<div class="fl">'+line(meta.best.kills,meta.best.level,meta.best.wave)+'</div></div>'
+    + '<div class="fsec">'
+    +   '<div class="fl">獲得墨魂 <b>+'+earned+'</b></div>'
+    +   '<div class="fl">現有墨魂 <b>'+meta.souls+'</b></div>'
+    +   (autoed?'<div class="fnote">自動御劍 · 收益減半且不計紀錄</div>':'')
+    +   (hint?'<div class="fnote">'+hint+'</div>':'')
+    + '</div>';
   document.getElementById('gameover').style.display='flex';
 }
 // 挑一個「最接近解鎖」的目標:所有前置已達成、尚未圓滿的節點中最便宜的一個
