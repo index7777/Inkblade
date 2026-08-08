@@ -319,6 +319,20 @@
   .seg.on { background:#8a7a5a; color:#f6f0e0; border-color:#7a6a4a; }
   #sndbtn { min-height:44px; margin-bottom:14px; display:flex; align-items:center;
     justify-content:center; padding:7px 8px; letter-spacing:2px; }
+  /* 劍訣精進:已滿階的悟道與其三層進度 */
+  #tierbox { margin-top:14px; padding:12px 14px; border-radius:8px;
+    background:rgba(246,240,226,.93); border:1px solid #b8a888; }
+  #tierlist { font-size:12.5px; color:#5a4e3c; letter-spacing:.5px; }
+  #tierlist .trow { margin-bottom:10px; }
+  #tierlist .trow:last-child { margin-bottom:0; }
+  #tierlist .tname { display:flex; align-items:baseline; gap:6px; color:#2e2820;
+    font-size:14px; font-weight:700; letter-spacing:2px; }
+  #tierlist .tname i { font-style:normal; font-size:11.5px; font-weight:400; color:#7a5a2b; letter-spacing:1px; }
+  #tierlist .tbar { height:6px; border-radius:3px; background:rgba(90,70,50,.22); margin:5px 0 3px; overflow:hidden; }
+  #tierlist .tbar > i { display:block; height:100%; background:linear-gradient(90deg,#8a7a5a,#c08a2e); }
+  #tierlist .tsub { font-size:11.5px; color:#7a6a54; letter-spacing:1px; }
+  #tierlist .tdone { color:#6b7a55; }
+  #tierlist .tempty { color:#8a7a5a; line-height:1.7; }
   /* 洗點:重塑劍意 */
   #respec { margin-top:14px; padding:12px 14px; border-radius:8px;
     background:rgba(246,240,226,.93); border:1px solid #b8a888; }
@@ -514,6 +528,10 @@
       <div class="setrow"><label for="volSfx">音 效</label>
         <input type="range" id="volSfx" min="0" max="100" step="1"><span id="volSfxV">75</span></div>
       </div>
+      </div>
+      <div id="tierbox">
+      <div class="sethead">劍 訣 精 進</div>
+      <div id="tierlist"></div>
       </div>
       <div id="respec">
       <div class="sethead">重 塑 劍 意</div>
@@ -1599,8 +1617,14 @@ function drawCards(isReroll=false){
     el.onclick=()=>{
       if(levelChoiceLocked || !G.running) return;
       levelChoiceLocked=true; SND.pick();
+      const rkBefore=runState.ranks[a.id]||0;
       INK_CONFIG.runtime.applyInsight(runState, a.id);  // 真意/劍式互斥回滾由 runtime 處理
       syncStat();
+      // 剛滿階:告訴玩家計數器開始跑了,否則「滿階後再 300 斬」完全沒有回饋
+      if(a.maxRank>1 && rkBefore+1>=a.maxRank && a.tiers && a.tiers.length){
+        G.banner={txt:a.name+' 滿階 · 小成 '+a.tiers[0].kills+' 斬', life:1};
+        floatText(G.player.x, G.player.y-56, a.name+' 滿階', '#c08a2e');
+      }
       closeLevelUp();
     };
     box.appendChild(el);
@@ -3266,7 +3290,7 @@ function togglePause(force){
   // 暫停:背景樂完全停止;繼續:重新起奏
   if(now) SND.stopMusic(0.25); else SND.startMusic();
   document.getElementById('pause').classList.toggle('show',now);
-  if(now){ renderVol(); renderHeroBtn(); renderShakeBtns(); respecArmed=false; renderRespec(); }
+  if(now){ renderVol(); renderHeroBtn(); renderShakeBtns(); renderTierList(); respecArmed=false; renderRespec(); }
   if(!now) tryLevelUp();          // 暫停期間累積的升級,繼續後補選
 }
 // 隕落:有專屬 death 幀 → 播 7 幀;否則(女修)→ 程式化墨消散(sprite 淡出 + 潑墨爆散)。
@@ -3605,6 +3629,29 @@ renderSndBtn(); bindVol(); renderVol();
 document.getElementById('resumebtn').onclick=()=>togglePause(false);
 document.getElementById('respecbtn').onclick=()=>doRespec();
 document.getElementById('herobtn').onclick=()=>toggleHeroSkin();
+// 劍訣精進:列出已滿階的悟道與三層進度。滿階那一刻才開始累計,所以沒滿階的不列。
+function renderTierList(){
+  const box=document.getElementById('tierlist'); if(!box) return;
+  if(!runState){ box.innerHTML=''; return; }
+  const view=INK_CONFIG.runtime.getTierView(runState);
+  if(!view.length){
+    box.innerHTML='<div class="tempty">尚無滿階劍訣。<br>'
+      +'同一道劍訣領悟至滿階後,便開始累計本局斬妖數,<br>'
+      +'依序臻至 小成 · 大成 · 圓滿。</div>';
+    return;
+  }
+  box.innerHTML=view.map(v=>{
+    const cur=v.tierName ? '<i>已臻 '+v.tierName+'</i>' : '<i>累計中</i>';
+    if(!v.nextName)
+      return '<div class="trow"><div class="tname">'+v.rune+' '+v.name+' <i class="tdone">圓滿</i></div>'
+           + '<div class="tsub">本局已斬 '+v.kills+' 頭</div></div>';
+    const prev = v.level>0 ? v.tiers[v.level-1].kills : 0;
+    const pct = Math.max(0, Math.min(100, (v.kills-prev)/(v.nextAt-prev)*100));
+    return '<div class="trow"><div class="tname">'+v.rune+' '+v.name+' '+cur+'</div>'
+      + '<div class="tbar"><i style="width:'+pct.toFixed(1)+'%"></i></div>'
+      + '<div class="tsub">'+v.kills+' / '+v.nextAt+' 斬 · 距 '+v.nextName+' 尚需 '+v.remaining+' 頭</div></div>';
+  }).join('');
+}
 function renderShakeBtns(){
   document.querySelectorAll('#shakerow .seg').forEach(el=>
     el.classList.toggle('on', el.dataset.shake===meta.shake));
