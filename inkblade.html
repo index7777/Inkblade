@@ -1018,6 +1018,11 @@ const HEROF={ idle:[], ok:false, proc:false, aspect:0.9944, foot:0.9833, n:0, ne
     im.src='assets/hero-f/HEROF_idle_'+String(i).padStart(2,'0')+'.png';
     HEROF.idle.push(im); }
 })();
+// 飛劍使用單一水墨母版；所有方向只旋轉同一輪廓，避免多組 sprite 像不同武器。
+const FLYSWORD={ image:new Image(), ok:false, aspect:5.2, grip:0.2013 };
+FLYSWORD.image.onload=()=>{ FLYSWORD.aspect=FLYSWORD.image.naturalWidth/FLYSWORD.image.naturalHeight; FLYSWORD.ok=true; };
+FLYSWORD.image.onerror=()=>{ FLYSWORD.ok=false; };
+FLYSWORD.image.src='assets/hero-f/HEROF_sword.png';
 // 墨劍 sprite:待機 8 幀 + 攻擊 6 幀。素材已離線做「主軸正規化」——
 // 刀身水平、劍尖朝 +X、護手固定在畫布 grip 比例處,所以引擎只要照 s.ang 旋轉即可。
 const SWDSPR={ idle:[], atk:[], ok:false, aspect:2.504, grip:0.22, blade:0.645, n:0, need:14 };
@@ -1397,10 +1402,10 @@ function truncatePath(pts, maxLen){
   return out.length>=2 ? out : null;
 }
 // 劍身實際長度(與 drawJian/drawSwordSprite 的 BL 同一套算法),連珠的車廂間距要靠它
-function bladeLength(){ return 38 + stat.size*1.8; }
+function bladeLength(){ return 44 + stat.size*0.9; }
 // 連珠間距:一節車廂 = 劍身長 + 一點縫。原本用「劍寬×2.2+10」算,
 // 但劍寬永遠小於劍身長,所以任何劍寬下車廂都會疊在一起。
-function inlineGap(){ return bladeLength() + 16; }
+function inlineGap(){ return bladeLength() + 10; }
 // 陣型:相對於「移動中的中心點」的偏移(along=沿行進方向,side=法線方向)
 function formationOffset(formation, i, n, spacing){
   if(n<=1) return {along:0, side:0};
@@ -1663,7 +1668,7 @@ function floatText(x,y,txt,c,critFlag){
     dx:damage?(Math.random()-.5)*0.32:0,damage,crit});
 }
 // 毛筆劍氣拖尾(Ink Engine 筆劃 primitive 的內嵌版):帶錐度毛邊的填充墨緞帶 + 濃芯 + 飛白
-function inkTrail(ctx, tr, size, rgb){
+function inkTrail(ctx, tr, size, rgb, dryWhite){
   const n=tr.length; if(n<2) return;
   ctx.lineCap='round'; ctx.lineJoin='round';
   // 1) 主墨緞帶:沿軌跡法線外擴成寬窄變化的封閉形,近劍身寬、末端急收,邊緣加毛邊抖動
@@ -1686,16 +1691,18 @@ function inkTrail(ctx, tr, size, rgb){
   ctx.strokeStyle='rgba('+rgb+',0.5)';
   for(let i=1;i<n;i++){ const e=(i/(n-1))*(i/(n-1)); ctx.lineWidth=Math.max(0.5,size*0.5*e);
     ctx.beginPath(); ctx.moveTo(tr[i-1].x,tr[i-1].y); ctx.lineTo(tr[i].x,tr[i].y); ctx.stroke(); }
-  // 3) 飛白:頭段乾筆斷白絲(真缺段,非半透明整線)
-  for(let s=0;s<3;s++){
-    const off=(s-1)*size*0.4;
-    for(let i=Math.max(1,n-6);i<n;i++){
-      if(((i*7+s*13)%3)===0) continue;               // 隨機缺段
-      const p=tr[i], a=tr[i-1];
-      let nx=-(p.y-a.y), ny=(p.x-a.x); const L=Math.hypot(nx,ny)||1; nx/=L; ny/=L;
-      const e=(i/(n-1))*(i/(n-1));
-      ctx.strokeStyle='rgba(250,246,236,'+(e*0.26)+')'; ctx.lineWidth=Math.max(0.5,size*0.14*e);
-      ctx.beginPath(); ctx.moveTo(a.x+nx*off,a.y+ny*off); ctx.lineTo(p.x+nx*off,p.y+ny*off); ctx.stroke();
+  if(dryWhite!==false){
+    // 飛白只保留給場景墨筆；飛劍本體不用白色條帶，避免看成 UI 箭頭。
+    for(let s=0;s<3;s++){
+      const off=(s-1)*size*0.4;
+      for(let i=Math.max(1,n-6);i<n;i++){
+        if(((i*7+s*13)%3)===0) continue;
+        const p=tr[i], a=tr[i-1];
+        let nx=-(p.y-a.y), ny=(p.x-a.x); const L=Math.hypot(nx,ny)||1; nx/=L; ny/=L;
+        const e=(i/(n-1))*(i/(n-1));
+        ctx.strokeStyle='rgba(250,246,236,'+(e*0.26)+')'; ctx.lineWidth=Math.max(0.5,size*0.14*e);
+        ctx.beginPath(); ctx.moveTo(a.x+nx*off,a.y+ny*off); ctx.lineTo(p.x+nx*off,p.y+ny*off); ctx.stroke();
+      }
     }
   }
 }
@@ -2967,34 +2974,18 @@ function drawInkFlyingSword(ctx,s){
   ctx.restore();
 }
 function drawJian(ctx, s){
-  // 飛出去的是「劍氣墨痕」,一律用程序化水墨畫(sprite 那把實劍改用於腳下結界)。
-  drawInkFlyingSword(ctx,s); return;
-  const EL=ELEM[stat.element]||ELEM.none;
-  if(ART.ok){
-    const BL=30+stat.size*1.9;
-    const Wd=BL/(1-HERO.gripX), Hd=Math.max(6,Wd*HERO.swAspect);
+  // 飛出去的是同一把母版飛劍；劍寬只小幅影響尺寸，避免升級後變成巨型黑針。
+  if(FLYSWORD.ok){
+    const speed=Math.hypot(s.vx||0,s.vy||0);
+    const w=(44+stat.size*.9+Math.min(5,speed*.22))*(s.echo?.88:1);
+    const h=w/FLYSWORD.aspect;
     ctx.save(); ctx.translate(s.x,s.y); ctx.rotate(s.ang);
-    // 劍氣:沿刃身的光暈,近柄濃、近尖散,顏色由元素決定
-    const hal=ctx.createLinearGradient(-Wd*HERO.gripX,0,BL*1.06,0);
-    hal.addColorStop(0,EL.halo0); hal.addColorStop(0.42,EL.halo1); hal.addColorStop(1,EL.halo2);
-    ctx.lineCap='round'; ctx.strokeStyle=hal;
-    ctx.lineWidth=Hd*(stat.element==='none'?0.9:1.5);
-    ctx.beginPath(); ctx.moveTo(-Wd*HERO.gripX*0.5,0); ctx.lineTo(BL*1.02,0); ctx.stroke();
-    if(Math.cos(s.ang)<0) ctx.scale(1,-1);
-    ctx.drawImage(swordTint(), -Wd*HERO.gripX, -Hd*HERO.gripY, Wd, Hd);
+    ctx.globalAlpha=s.echo?.72:.94;
+    ctx.drawImage(FLYSWORD.image,-w*FLYSWORD.grip,-h/2,w,h);
     ctx.restore();
-    // 劍穗自劍首向後拖曳
-    drawTassel(s.x-Math.cos(s.ang)*Wd*HERO.gripX*0.92,
-               s.y-Math.sin(s.ang)*Wd*HERO.gripX*0.92,
-               s.ang+Math.PI, Wd*0.30, G.t+s.age*2, 0.9);
     return;
   }
-  if(!jianSprite || jianKey!==(stat.size+'|'+stat.element+'|'+meta.skin)) buildJian();
-  ctx.save();
-  ctx.translate(s.x, s.y); ctx.rotate(s.ang);
-  ctx.drawImage(jianSprite, jianOX, jianOY,
-    jianSprite.width/DPR, jianSprite.height/DPR);
-  ctx.restore();
+  drawInkFlyingSword(ctx,s);
 }
 // 墨劍永遠不改造型、不改配色 —— 元素只表現在劍氣與墨痕上。
 // 「劍沒有變,變的是劍勢。」
@@ -3452,8 +3443,14 @@ function draw(){
     if(stat.element==='none' && meta.skin==='gold') rgb='198,150,60'; // 外觀:墨金劍痕
     // 歸念 / 歸藏無痕:折返後的劍痕轉為淡飛白(易辨識回程);殘鋒較細
     if(s.returned && stat.returnDry) rgb='196,186,168';
-    if(FX.trail) inkTrail(ctx, s.trail, stat.size*(s.echo?0.55:1), rgb);
-    // 劍身(程序化水墨劍)
+    if(FX.trail){
+      // 只留靠近劍身的短墨氣；多劍連珠不再疊成大片白色三角形。
+      const shortTrail=s.trail.length>7?s.trail.slice(-7):s.trail;
+      ctx.save(); ctx.globalAlpha=s.echo?.35:.58;
+      inkTrail(ctx,shortTrail,Math.max(1.5,stat.size*.42)*(s.echo?.7:1),rgb,false);
+      ctx.restore();
+    }
+    // 劍身(統一水墨母版)
     drawJian(ctx, s);
   }
 
