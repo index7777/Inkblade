@@ -161,6 +161,10 @@
   .card .cname { font-size:clamp(15px,2.4vw,20px); font-weight:700; letter-spacing:clamp(1px,.5vw,3px);
     margin:0 0 8px; text-align:center; min-height:1.4em; line-height:1.4; }
   /* 功能說明:靠左對齊,佔滿剩餘空間 */
+  /* 劍訣註解「效果」模式:一行一句、數值靠對齊,比散文好掃 */
+  .card .cfx { display:flex; flex-direction:column; gap:4px; align-items:center; margin-top:2px; }
+  .card .cfx span { font-size:clamp(11px,1.7vw,14px); line-height:1.4; letter-spacing:1px;
+    color:#3a3227; font-weight:600; white-space:nowrap; }
   .card .cdesc { font-size:clamp(10px,1.45vw,13px); line-height:1.55; color:#4a4033; letter-spacing:.3px;
     text-align:left; align-self:stretch; flex:1 1 auto; overflow:hidden; }
   #rerollbtn { margin:12px auto 3px; min-height:38px; padding:7px 16px; display:inline-flex;
@@ -442,6 +446,18 @@
       <div class="segrow" id="shakerow">
         <div class="seg" data-shake="n">無</div><div class="seg" data-shake="s">小</div><div class="seg" data-shake="m">中</div><div class="seg" data-shake="l">大</div>
       </div>
+      <div class="sethead" style="margin-top:14px;">畫 質</div>
+      <div class="segrow" id="qualrow">
+        <div class="seg" data-qual="low">低</div><div class="seg" data-qual="med">中</div><div class="seg" data-qual="high">高</div>
+      </div>
+      <div class="sethead" style="margin-top:14px;">幀 數</div>
+      <div class="segrow" id="fpsrow">
+        <div class="seg" data-fps="30">30</div><div class="seg" data-fps="60">60</div><div class="seg" data-fps="120">120</div><div class="seg" data-fps="0">不限</div>
+      </div>
+      <div class="sethead" style="margin-top:14px;">劍 訣 註 解</div>
+      <div class="segrow" id="cardtextrow">
+        <div class="seg" data-cardtext="text">文字</div><div class="seg" data-cardtext="effect">效果</div>
+      </div>
       <div id="audioControls">
       <div class="sethead">音 律</div>
       <div class="setrow"><label for="volMaster">總音量</label>
@@ -509,12 +525,31 @@ const ctx = cv.getContext('2d');
 let W=0,H=0,DPR=Math.min(window.devicePixelRatio||1,2), booted=false;
 let jianSprite=null, jianKey='', jianOX=0, jianOY=0;   // 劍身貼圖(在 resize 前就會被參照)
 
+// 畫質檔位:控制 DPR 上限、裝飾層開關、以及墨滴/粒子的同屏上限。
+// 低檔刻意保留 trail 與潑墨 —— 那兩個是打擊回饋,砍掉會變得沒手感,不是「畫質」。
+const QUALITY={
+  low : { dpr:1,   fx:{bg:true,vig:false,trail:true,ink:false,part:false,glow:false}, ink:0,   part:0   },
+  med : { dpr:1.5, fx:{bg:true,vig:true, trail:true,ink:true, part:true, glow:false}, ink:90,  part:120 },
+  high: { dpr:2,   fx:{bg:true,vig:true, trail:true,ink:true, part:true, glow:true }, ink:220, part:300 }
+};
+// resize() 會在腳本頂層先跑一次,那時 meta 還在 TDZ —— 故取值一律走防呆。
+function qual(){
+  try{ return QUALITY[meta.quality] || QUALITY.high; }catch(_){ return QUALITY.high; }
+}
+function applyQuality(){
+  const q=qual();
+  Object.assign(FX,q.fx);
+  DPR=Math.min(window.devicePixelRatio||1, q.dpr);
+  if(cv && W && H){ cv.width=W*DPR; cv.height=H*DPR; ctx.setTransform(DPR,0,0,DPR,0,0); jianSprite=null; }
+  paperDone=false;
+}
+
 function resize(){
   // 以畫布實際佔位為準(而非 innerWidth),手機瀏覽器工具列伸縮時才不會偏移
   const r=cv.getBoundingClientRect();
   W=Math.max(1,Math.round(r.width)||window.innerWidth);
   H=Math.max(1,Math.round(r.height)||window.innerHeight);
-  DPR=Math.min(window.devicePixelRatio||1,2,DPR||2);   // 已降階過就不再升回
+  DPR=Math.min(window.devicePixelRatio||1,(typeof qual==='function'?qual().dpr:2),DPR||2);   // 已降階過就不再升回;上限由畫質決定
   cv.width=W*DPR; cv.height=H*DPR; ctx.setTransform(DPR,0,0,DPR,0,0);
   jianSprite=null;
   if(booted && G.player){ G.player.x=W/2; G.player.y=H/2; }   // 尺寸變動時靈石重新歸中
@@ -864,6 +899,9 @@ function loadMeta(){
   meta.gems=meta.gems||0; meta.offCap=meta.offCap||8; meta.skin=meta.skin||'none';
   meta.mute=!!meta.mute; meta.heroSkin = (meta.heroSkin==='m')?'m':'f';   // 預設女修
   if(!['n','s','m','l'].includes(meta.shake)) meta.shake='m';            // 震動強度,預設中
+  if(!['low','med','high'].includes(meta.quality)) meta.quality='high'; // 畫質,預設高
+  if(![30,60,120,0].includes(meta.fps)) meta.fps=60;                    // 幀數上限,0=不限
+  if(!['text','effect'].includes(meta.cardText)) meta.cardText='text';  // 劍訣註解:文字/效果
   meta.vol=Object.assign({master:0.85,music:0.62,sfx:0.75}, meta.vol||{});
   for(const k of ['master','music','sfx'])
     meta.vol[k]=Math.max(0,Math.min(1, isFinite(meta.vol[k])?meta.vol[k]:0.7));
@@ -990,9 +1028,13 @@ function launchSword(path){
 }
 
 // ---------- 粒子 / 墨 ----------
-function ink(x,y,vx,vy,r){ G.inks.push({x,y,vx,vy,r,a:0.5,life:1}); }
-function burst(x,y,c,n){ for(let i=0;i<n;i++){const a=Math.random()*6.28,s=1+Math.random()*4;
-  G.particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:1,c});}}
+function ink(x,y,vx,vy,r){ const cap=qual().ink; if(cap<=0) return;
+  if(G.inks.length>=cap) G.inks.shift();
+  G.inks.push({x,y,vx,vy,r,a:0.5,life:1}); }
+function burst(x,y,c,n){ const cap=qual().part; if(cap<=0) return;
+  for(let i=0;i<n;i++){const a=Math.random()*6.28,s=1+Math.random()*4;
+    if(G.particles.length>=cap) G.particles.shift();
+    G.particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:1,c});}}
 // 潑墨(Ink Engine Splash primitive 內嵌版):不規則墨團 + 徑向墨刺 + 飛濺墨滴。取代圓形爆裂粒子。
 function splash(x,y,c,power){
   power=power||1;
@@ -1182,6 +1224,47 @@ function renderReroll(){
   b.disabled=levelRerolls<=0 || levelChoiceLocked;
   document.getElementById('rerollleft').textContent='剩餘次數：'+num2cn(levelRerolls);
 }
+// 劍訣註解「效果」模式:把宣告式 effects 翻成一行一句的直觀敘述。
+// 找不到對照的操作(旗標、狀態、真意標記)不列 —— 那些沒有數值,講不清楚就不講。
+const EFFECT_LABEL={
+  'stats.hpMax':'神識上限','stats.damage':'傷害','stats.swordWidth':'劍寬','stats.swordSpeed':'劍速',
+  'stats.swordLife':'滯空','stats.pierce':'穿透','stats.critChance':'暴擊率','stats.critMultiplier':'暴擊倍率',
+  'stats.manaMax':'劍意上限','stats.manaRegen':'劍意回復','stats.manaOnKill':'斬妖回劍意',
+  'stats.swordCap':'劍匣席次','stats.swordCount':'飛劍數','stats.costMultiplier':'劍意消耗',
+  'stats.manaCostBase':'起手劍意','stats.manaCostPerPixel':'每寸劍意',
+  'mechanics.homingStrength':'追蹤','mechanics.returnHits':'折返次數','mechanics.splashRadius':'潑墨範圍',
+  'mechanics.splashDamage':'潑墨傷害','mechanics.statusDuration':'狀態持續','mechanics.trailOpacity':'墨痕濃度',
+  'mechanics.hitPadding':'命中範圍','mechanics.manaRefund':'劍意返還','mechanics.splashChain':'潑墨連鎖'
+};
+const EFFECT_PCT=new Set(['stats.critChance','mechanics.homingStrength','mechanics.manaRefund']);
+const FORMATION_CN={fan:'扇形',parallel:'平行',inline:'連珠'};
+function fmtNum(v){ return (Math.round(v*100)/100).toString(); }
+function effectLines(item){
+  const out=[];
+  for(const e of item.effects){
+    const L=EFFECT_LABEL[e.path];
+    if(e.op==='add' && L){
+      const v=Number(e.value)||0, neg=v<0, a=Math.abs(v);
+      out.push(L+' '+(neg?'−':'+')+(EFFECT_PCT.has(e.path)?Math.round(a*100)+'%':fmtNum(a)));
+    } else if(e.op==='mul' && L){
+      const d=Math.round((Number(e.value)-1)*100);
+      if(d!==0) out.push(L+' '+(d>0?'+':'−')+Math.abs(d)+'%');
+    } else if(e.op==='set' && e.path==='formation'){
+      out.push('陣型 · '+(FORMATION_CN[e.value]||e.value));
+    } else if(e.op==='set' && e.path==='stats.swordCount'){
+      out.push('飛劍數 = '+e.value);
+    } else if(e.op==='max' && e.path==='stats.mana'){
+      out.push('立即補滿劍意');
+    }
+  }
+  return out;
+}
+function cardBody(item){
+  if(meta.cardText!=='effect') return '<div class="cdesc">'+item.description+'</div>';
+  const lines=effectLines(item);
+  if(!lines.length) return '<div class="cdesc">'+item.description+'</div>';   // 純機制型:回退文字
+  return '<div class="cfx">'+lines.map(t=>'<span>'+t+'</span>').join('')+'</div>';
+}
 function drawCards(isReroll=false){
   if(!G.running) return;
   if(!isReroll) levelRerolls=2;
@@ -1196,7 +1279,7 @@ function drawCards(isReroll=false){
     el.className='card lv-'+leg;
     el.innerHTML=`<div class="rune">${a.rune}</div>
       <div class="cname rar-${leg}">${a.name}</div>
-      <div class="cdesc">${a.description}</div>`;
+      ${cardBody(a)}`;
     el.onclick=()=>{
       if(levelChoiceLocked || !G.running) return;
       levelChoiceLocked=true; SND.pick();
@@ -2572,17 +2655,34 @@ function watchPerf(ts){
     }
   } else perfBad=0;
 }
+// 邏輯固定 60Hz,畫面幀率另計。
+// 這同時修掉一個舊問題:原本 update() 綁在 requestAnimationFrame 上,120Hz 螢幕會讓
+// 整個遊戲跑兩倍速。現在不管畫面多少幀,遊戲速度都一樣。
+const LOGIC_MS=1000/60;
+let logicAcc=0, renderAcc=0, lastFrameTs=0;
 function loop(ts){
   ts=ts||performance.now();
   diagFrame(ts);
+  const dt=Math.min(200, lastFrameTs ? ts-lastFrameTs : LOGIC_MS); lastFrameTs=ts;
   if(G.running){
     watchPerf(ts);
     const m=DIAG.on?performance.now():0;
     if(!G.paused){
-      if(G.hitstop>0) G.hitstop--;   // 頓幀:命中瞬間凍結一兩格,讓斬擊有份量
-      else update();
+      logicAcc+=dt;
+      let steps=0;
+      while(logicAcc>=LOGIC_MS && steps<4){        // 最多補 4 步,卡頓後不暴衝
+        if(G.hitstop>0) G.hitstop--;               // 頓幀:命中瞬間凍結一兩格,讓斬擊有份量
+        else update();
+        logicAcc-=LOGIC_MS; steps++;
+      }
+      if(steps===0 && logicAcc>LOGIC_MS*4) logicAcc=0;
       const m2=DIAG.on?performance.now():0;
-      if(!NODRAW) draw();
+      // 畫面幀率上限(meta.fps,0=不限)
+      let paint=true;
+      const cap=meta.fps|0;
+      if(cap>0){ const iv=1000/cap; renderAcc+=dt;
+        if(renderAcc>=iv){ renderAcc=renderAcc%iv; } else paint=false; }
+      if(paint && !NODRAW) draw();
       if(DIAG.on){ DIAG.upd=DIAG.upd*0.9+(m2-m)*0.1; DIAG.drw=DIAG.drw*0.9+(performance.now()-m2)*0.1; }
     } else if((idleFrame++ & 3)===0){
       if(!NODRAW) draw();                        // 暫停/選卡:畫面靜止,降頻重繪省下遮罩模糊成本
@@ -3041,12 +3141,24 @@ document.getElementById('herobtn').onclick=()=>toggleHeroSkin();
 function renderShakeBtns(){
   document.querySelectorAll('#shakerow .seg').forEach(el=>
     el.classList.toggle('on', el.dataset.shake===meta.shake));
+  document.querySelectorAll('#qualrow .seg').forEach(el=>
+    el.classList.toggle('on', el.dataset.qual===meta.quality));
+  document.querySelectorAll('#fpsrow .seg').forEach(el=>
+    el.classList.toggle('on', (+el.dataset.fps)===(meta.fps|0)));
+  document.querySelectorAll('#cardtextrow .seg').forEach(el=>
+    el.classList.toggle('on', el.dataset.cardtext===meta.cardText));
 }
-document.querySelectorAll('#shakerow .seg').forEach(el=>{
-  el.onclick=()=>{ meta.shake=el.dataset.shake; saveMeta(); renderShakeBtns();
-                   if(meta.shake==='n') G.shake=0; if(!meta.mute) SND.ui(); };
+const segClick=(sel,fn)=>document.querySelectorAll(sel).forEach(el=>{
+  el.onclick=()=>{ fn(el); saveMeta(); renderShakeBtns(); if(!meta.mute) SND.ui(); };
 });
+segClick('#shakerow .seg', el=>{ meta.shake=el.dataset.shake; if(meta.shake==='n') G.shake=0; });
+segClick('#qualrow .seg',  el=>{ meta.quality=el.dataset.qual; applyQuality(); });
+segClick('#fpsrow .seg',   el=>{ meta.fps=+el.dataset.fps; renderAcc=0; });
+segClick('#cardtextrow .seg', el=>{ meta.cardText=el.dataset.cardtext;
+  // 選卡開著就即時換一次呈現(不重抽,只重繪卡面)
+  if(levelChoiceOpen() && !levelChoiceLocked) drawCards(true); });
 renderShakeBtns();
+applyQuality();
 document.getElementById('pausequitbtn').onclick=()=>{ togglePause(false); gameOver(); };
 document.getElementById('splashshopbtn').onclick=openShop;
 document.getElementById('metashopbtn').onclick=openShop;
