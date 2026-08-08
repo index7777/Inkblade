@@ -814,7 +814,7 @@ const SND_LEGACY=(function(){
   // 不走 WebAudio(MediaElementSource 在 file:// 下會被視為跨來源而靜音),
   // 直接操作 HTMLAudioElement.volume,雙擊開啟本機檔也能正常播放。
   const BGM=(function(){
-    const TRACK='assets/audio/bgm/battle01.mp3';
+    let track='assets/audio/bgm/battle01.mp3';
     const XF=2.8;            // 交叉淡入淡出秒數(曲首曲尾各一段)
     let BASE=0.62;           // 背景樂基準音量(由設定的 總音量 × 音樂 決定)
     let els=null, cur=0, gate=0, gateTo=0, gateSpd=1, raf=null, want=false, ok=true;
@@ -822,7 +822,7 @@ const SND_LEGACY=(function(){
     function make(){
       const el=new Audio(); el.preload='auto'; el.loop=false; el.volume=0;
       el.addEventListener('error',()=>{ ok=false; },{once:true});   // 找不到音檔就靜靜略過,不影響音效
-      el.src=TRACK;
+      el.src=track;
       return el;
     }
     function ensure(){ if(!els) els=[make(),make()]; }
@@ -879,6 +879,13 @@ const SND_LEGACY=(function(){
       setBase(v){ BASE=v;
         if(els) for(const el of els) if(!el.paused)
           el.volume=Math.max(0,Math.min(1, BASE*gate*shape(weight(el)) )); },
+      setTrack(src,fade){
+        if(!src||src===track) return;
+        const resume=want;
+        if(els) for(const el of els){ try{el.pause();}catch(e){} el.volume=0; }
+        els=null; cur=0; ok=true; track=src; gate=0; gateTo=0;
+        if(resume) this.play(fade||0.9);
+      },
       get wanted(){ return want; },
     };
   })();
@@ -906,7 +913,13 @@ const SND_LEGACY=(function(){
     startMusic(){ if(S.on&&S.music){ init(); resume(); startMusic(); } },
     stopMusic(f){ stopMusic(f); },
     duck(){},                       // 保留介面;現行設計為暫停即完全停止
-    intensity(){},                  // 預留:日後依波次切換 battle02/03 或 boss01
+    intensity(wave){
+      const src=wave>=60 ? 'assets/audio/bgm/boss01.mp3'
+        : wave>=41 ? 'assets/audio/bgm/battle03.mp3'
+        : wave>=21 ? 'assets/audio/bgm/battle02.mp3'
+        : 'assets/audio/bgm/battle01.mp3';
+      BGM.setTrack(src,0.9);
+    },
 
     cast(len){ if(!S.on||!ac)return; const t=now();
       const l=Math.min(1,len/600);
@@ -1239,7 +1252,8 @@ function spawnCmdSword(c, slot, delay){
              // 聚形要看起來是一把劍,連貼圖動畫幀都得對齊,所以整道劍令共用一個 seed
              seed:(c.formation==='merge' && c.seed!=null) ? c.seed : Math.random()*8,
              delay:delay||0,
-             pierceLeft: c.life || Math.max(1,(stat.pierce|0)+1), hitSet:new Set(),
+             pierceLeft: c.life || Math.max(1,(stat.pierce|0)+1),
+             hitSet:new Set(), contactSet:new Set(),
              returned:false, echo:false };
   c.swords[slot]=sw; G.swords.push(sw);
   return sw;
@@ -1283,7 +1297,7 @@ function spawnAutoCommand(x0,y0,x1,y1,opts){
   G.commands.push(c);
   const sw=spawnCmdSword(c,0,0);
   sw.echo=true;
-  if(opts.skip) sw.hitSet.add(opts.skip);
+  if(opts.skip){ sw.hitSet.add(opts.skip); sw.contactSet.add(opts.skip); }
   return c;
 }
 function launchCommand(path){
@@ -2209,8 +2223,8 @@ function update(){
       const en=nearestEnemy(c.x,c.y,1e9);
       if(en) c.ang=Math.atan2(en.y-c.y, en.x-c.x);
     }
-    // 只有活著的劍照新規則走;穿透耗盡而死的那幾把不會復活(接力已關閉)
-    for(const sw of c.swords) if(sw && !sw.dead){ sw.hitSet.clear(); sw.returned=true;
+    // 只有活著的劍照新規則走；折返時重置本段可穿透的不同目標數。
+    for(const sw of c.swords) if(sw && !sw.dead){ sw.hitSet.clear(); sw.contactSet.clear(); sw.returned=true;
       sw.snap=true;                                   // 這一幀整列前後對調,不做掃掠
       sw.pierceLeft = c.life || Math.max(1,(stat.pierce|0)+1); }
     if(stat.returnDry) whiteCut(c.x,c.y,c.ang);
@@ -2253,15 +2267,27 @@ function update(){
     const s=G.swords[i];
     if(s.dead){ G.swords.splice(i,1); continue; }
     if(s.delay>0) continue;
+    // 只在劍仍貼著怪物時阻止逐幀重複傷害。劍一旦離開碰撞圈，下一次沿手繪
+    // 軌跡重新進入就應再次結算傷害；hitSet 仍保留作穿透成長與歷史紀錄。
+    if(!s.contactSet) s.contactSet=new Set();
+    for(const touched of s.contactSet){
+      const release=touched.r+stat.size+(stat.hitPadding||0)+4;
+      if(!G.enemies.includes(touched)||Math.hypot(s.x-touched.x,s.y-touched.y)>release)
+        s.contactSet.delete(touched);
+    }
     // 命中
     for(let j=G.enemies.length-1;j>=0;j--){
       const en=G.enemies[j];
-      if(s.hitSet.has(en)) continue;
+      if(s.contactSet.has(en)) continue;
       // 掃掠判定:用「這一幀走過的線段」對圓,而不是只測落點。
       // 只測落點的話,劍速夠快或陣型轉向時整把劍一幀跳過一大段,
       // 中間的墨獸會被整個略過 —— 畫面上劍明明穿過去了卻沒傷害。
       if(segCircleDist(s.px, s.py, s.x, s.y, en.x, en.y) < en.r+stat.size+(stat.hitPadding||0)){
         const TF=stat.tierFlags||{}, C=s.cmd;
+        const firstTargetHit=!s.hitSet.has(en);
+        // 劍命限制的是本段能穿過的「不同目標」數；容量用完後仍可沿既有
+        // 手繪軌跡再次切中已命中的目標，只是不再新增穿透對象。
+        if(firstTargetHit && s.pierceLeft<=0) continue;
         let dmg=stat.damage;
         let isCrit = Math.random()<stat.crit;
         if(stat.firstStrike && !G.firstStrikeDone){ isCrit=true; G.firstStrikeDone=true; }
@@ -2279,7 +2305,7 @@ function update(){
           const nHit=(C.frameHit.get(en)||0)+1; C.frameHit.set(en,nHit);
           if(nHit>=2){ volley=true; dmg*=1.6; }
         }
-        dmgTo(en,dmg); en.hit=6; s.hitSet.add(en);
+        dmgTo(en,dmg); en.hit=6; s.hitSet.add(en); s.contactSet.add(en);
         if(C){ C.anyHit=true; if(!C.hitOrder.includes(en)) C.hitOrder.push(en); }
         // 散鋒式·大成:殘鋒也能觸發墨痕(否則自動劍令不上狀態)
         if(!(C && C.noIntent) || TF.scatterEchoIntent) applyIntent(en);   // 墨痕:蝕 / 鎮
@@ -2338,9 +2364,9 @@ function update(){
           for(let k=0;k<8;k++)ink(s.x,s.y,(Math.random()-.5)*4,(Math.random()-.5)*4,10+Math.random()*14);
         }
         if(en.hp<=0){ killEnemy(j); }
-        // 穿透用盡 → 這把劍死。劍令是預付制:收筆時付的錢已經決定這道令出幾把劍,
-        // 死掉不再補 —— 補上去等於白拿。劍令帶著剩下的劍繼續走完。
-        if(--s.pierceLeft<=0){ s.dead=true; break; }
+        // 劍令是預付制；劍命控制本段可穿透的不同目標數，不限制重切同一目標。
+        // 「劍命」按穿透過幾隻不同墨獸消耗；同一路徑再次切回同一目標會再傷害。
+        if(firstTargetHit) s.pierceLeft--;
       }
     }
     if(s.dead){
@@ -2421,6 +2447,7 @@ function killEnemy(idx){
   if(en.isBoss){
     G.wave=61; G.waveTimer=0;
     G.banner={txt:'玄冥墨蛟 · 墨散卷復',life:1};
+    SND.intensity(41);
     updateHUD();
   }
 }
@@ -3760,7 +3787,7 @@ function start(mode){
     hurtT:0,castT:0,deathT:0,deathMax:56,heroPhase:Math.random()*9});
   renderAutoBtn();          // 開新局時 G.auto 已重設為 false,按鈕也要跟著回到「關」
   // 戰鬥樂不在這裡起 —— 開場過場有 3 秒,要留給首頁樂,過場結束才交棒(見下方 playOpening 回呼)
-  SND.unlock(); SND.intensity(1); SND.duck(false);
+  SND.unlock(); SND.intensity(bossTest?60:1); SND.duck(false);
   // 以 runtime 建立本局狀態(含永久問道加成),再映射回 stat.*
   runState = INK_CONFIG.runtime.createRunState(buildPermanentSave(), 1);
   syncStat();
@@ -4289,7 +4316,7 @@ window.addEventListener('keydown',e=>{
       const b=document.getElementById('bosstestbtn');
       b.classList.toggle('show');
       if(b.classList.contains('show')) b.focus();
-    } else bisect();
+    }
   }
   else if(e.key==='v'||e.key==='V'){ e.preventDefault(); bisectDraw(); }
   else if(e.key==='n'||e.key==='N'){ e.preventDefault(); bisectMicro(); }
