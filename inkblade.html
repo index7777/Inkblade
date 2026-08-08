@@ -91,6 +91,19 @@
   #scorewrap::after { content:''; position:absolute; left:50%; top:100%; transform:translateX(-50%);
     margin-top:7px; width:7px; height:26px; border-radius:0 0 4px 4px;
     background:linear-gradient(180deg,rgba(60,48,34,.58),rgba(60,48,34,.10)); }
+  #scorewrap { cursor:pointer; }
+  /* 可展開的小三角 —— 告訴玩家這塊吊牌點得下去 */
+  #scorewrap .caret { margin:5px auto -3px; font-size:10px; line-height:1;
+    color:rgba(52,42,32,.72); transition:transform .18s; }
+  #scorewrap.open .caret { transform:rotate(180deg); }
+  /* 戰況遙測面板:預設收合 */
+  #dpsbox { display:none; margin-top:7px; padding-top:7px; border-top:1px solid rgba(52,42,32,.45);
+    text-align:left; }
+  #scorewrap.open #dpsbox { display:block; }
+  #dpsbox .drow { display:flex; align-items:baseline; justify-content:space-between; gap:10px;
+    font-size:11px; letter-spacing:1px; color:#3f3529; margin-bottom:3px; white-space:nowrap; }
+  #dpsbox .drow b { font-size:13px; font-weight:700; color:#1c1712; letter-spacing:.5px; }
+  #dpsbox .dfoot { margin-top:4px; font-size:9.5px; letter-spacing:1px; color:#5a4e3c; text-align:center; }
   #scorewrap .divider { height:1px; margin:7px 2px; background:rgba(52,42,32,.45); }
   #scorewrap .sub { color:#3f3529; }
   #scorewrap .big { color:#1c1712; }
@@ -485,6 +498,13 @@
       <div class="sub">斬妖數</div>
       <div class="divider"></div>
       <div class="sub" id="wavetxt">第 一 波</div>
+      <div class="caret" id="dpscaret" aria-hidden="true">▾</div>
+      <div id="dpsbox">
+        <div class="drow"><span>秒　傷</span><b id="dps_d">—</b></div>
+        <div class="drow"><span>每秒劍意</span><b id="dps_m">—</b></div>
+        <div class="drow"><span>每秒斬妖</span><b id="dps_k">—</b></div>
+        <div class="dfoot" id="dps_f">近十息</div>
+      </div>
     </div>
   </div>
 
@@ -1210,7 +1230,8 @@ function launchCommand(path){
     floatText(s0.x,s0.y-14,'劍意不足','#c08a2e'); burst(s0.x,s0.y,'#8a7a5a',5); SND.nomana(); return;
   }
   const len=pathLen(cut);
-  G.mana=Math.max(0, G.mana - (stat.costBase + len*perPx));
+  { const spend=Math.min(G.mana, stat.costBase + len*perPx);
+    G.mana=Math.max(0, G.mana - spend); dpsAdd('m', spend); }
   SND.cast(len);
   G.castT=24;                                      // 施放 6 幀 × 4 影格
   G.intent=1;                                      // 意念起 —— 只反映在腳下法陣,身體不動
@@ -1810,6 +1831,32 @@ cv.addEventListener('mousedown',down); cv.addEventListener('mousemove',move); wi
 cv.addEventListener('touchstart',down,{passive:false}); cv.addEventListener('touchmove',move,{passive:false}); window.addEventListener('touchend',up,{passive:false});
 
 // ---------- 更新 ----------
+// ---------- 戰況遙測(DPS) ----------
+// 全部用「實際發生的事」累計,不做任何公式推導 ——
+// 傷害走 dmgTo()、劍意走 launchCommand 的扣款、斬妖走 killEnemy,
+// 三者都是遊戲真的執行到的那一行,所以面板不可能跟引擎對不上。
+const DPS={ win:10, f:0, cur:{d:0,m:0,k:0}, buckets:[], totD:0, totM:0, totK:0, secs:0, open:false };
+function dpsReset(){ DPS.f=0; DPS.cur={d:0,m:0,k:0}; DPS.buckets.length=0;
+  DPS.totD=0; DPS.totM=0; DPS.totK=0; DPS.secs=0; }
+function dpsAdd(k,v){ if(!(v>0)) return; DPS.cur[k]+=v;
+  if(k==='d') DPS.totD+=v; else if(k==='m') DPS.totM+=v; else DPS.totK+=v; }
+// 每 60 個邏輯影格(= 1 秒,loop 的邏輯是固定 60Hz)收一格
+function dpsTick(){
+  if(++DPS.f<60) return;
+  DPS.f=0; DPS.secs++;
+  DPS.buckets.push(DPS.cur); DPS.cur={d:0,m:0,k:0};
+  if(DPS.buckets.length>DPS.win) DPS.buckets.shift();
+}
+function dpsRate(k){
+  const n=DPS.buckets.length;
+  if(!n) return null;                                   // 不滿一秒:近況還沒有意義
+  let sum=0; for(const b of DPS.buckets) sum+=b[k];
+  return sum/n;
+}
+function dpsAvg(k){ return DPS.secs>0 ? (k==='d'?DPS.totD:k==='m'?DPS.totM:DPS.totK)/DPS.secs : 0; }
+// 統一的扣血入口 —— 原本 7 個地方各自 en.hp-=,遙測抓不到
+function dmgTo(en, v){ if(v>0){ en.hp-=v; dpsAdd('d',v); } }
+
 function update(){
   G.t++;
   const P=G.player;
@@ -1902,7 +1949,7 @@ function update(){
         if(cfg.damagePerSecond){
           e.acc += cfg.damagePerSecond * e.stk / 60;
           if(e.acc>=1){
-            const hurt=Math.floor(e.acc); e.acc-=hurt; en.hp-=hurt;
+            const hurt=Math.floor(e.acc); e.acc-=hurt; dmgTo(en,hurt);
             if(key==='erosion'){                       // 蝕:每次結算裂痕短暫加深並滲出墨滴
               const EV=ensureEroV(en); EV.flash=12; if(e.stk>=3) EV.suck=10;
               const a=Math.random()*6.283, rr=en.r*0.7;
@@ -1939,10 +1986,10 @@ function update(){
     en.wob+=0.1;
     if(en.hit>0)en.hit--;
     // 業火灼燒
-    if(en.ember>0){ en.emberT++; if(en.emberT%18===0){ en.hp-=2*en.ember;
+    if(en.ember>0){ en.emberT++; if(en.emberT%18===0){ dmgTo(en,2*en.ember);
       floatText(en.x,en.y-en.r,'焱','#c0662e'); if(en.hp<=0){killEnemy(i);continue;} } }
     // 寒霜霜傷
-    if(en.chill>0){ if(en.chill%22===0){ en.hp-=1.5*stat.ice;
+    if(en.chill>0){ if(en.chill%22===0){ dmgTo(en,1.5*stat.ice);
       floatText(en.x,en.y-en.r,'凍','#5a9cc0'); if(en.hp<=0){killEnemy(i);continue;} } }
     // 觸及靈石
     if(d < en.r+P.r){
@@ -2089,7 +2136,7 @@ function update(){
           const nHit=(C.frameHit.get(en)||0)+1; C.frameHit.set(en,nHit);
           if(nHit>=2){ volley=true; dmg*=1.6; }
         }
-        en.hp-=dmg; en.hit=6; s.hitSet.add(en);
+        dmgTo(en,dmg); en.hit=6; s.hitSet.add(en);
         if(C){ C.anyHit=true; if(!C.hitOrder.includes(en)) C.hitOrder.push(en); }
         // 散鋒式·大成:殘鋒也能觸發墨痕(否則自動劍令不上狀態)
         if(!(C && C.noIntent) || TF.scatterEchoIntent) applyIntent(en);   // 墨痕:蝕 / 鎮
@@ -2100,7 +2147,7 @@ function update(){
           C.volley=(C.volley||0)+1;
           if(TF.volleyHeavy && C.volley%4===0){
             splash(en.x,en.y,'#2b2620',3.2); shake(8); hitstop(4); SND.boom();
-            for(const e2 of G.enemies) if(Math.hypot(e2.x-en.x,e2.y-en.y)<110){ e2.hp-=stat.damage*1.2; e2.hit=6; }
+            for(const e2 of G.enemies) if(Math.hypot(e2.x-en.x,e2.y-en.y)<110){ dmgTo(e2,stat.damage*1.2); e2.hit=6; }
             floatText(en.x,en.y-en.r-26,'重斬','#8a2b2b');
           } else floatText(en.x,en.y-en.r-26,'齊斬','#5a4e3c');
         }
@@ -2145,7 +2192,7 @@ function update(){
         if(stat.explode>0){
           splash(s.x,s.y,'#c0662e',2.2); SND.boom(); shake(7); stain(s.x,s.y,stat.explode*0.5,'170,90,40');
           for(const e2 of G.enemies){ if(e2!==en && Math.hypot(e2.x-s.x,e2.y-s.y)<stat.explode){
-            e2.hp-=stat.damage*0.6; e2.hit=6; }}
+            dmgTo(e2,stat.damage*0.6); e2.hit=6; }}
           for(let k=0;k<8;k++)ink(s.x,s.y,(Math.random()-.5)*4,(Math.random()-.5)*4,10+Math.random()*14);
         }
         if(en.hp<=0){ killEnemy(j); }
@@ -2186,6 +2233,7 @@ function update(){
   if(P.pulse>0)P.pulse-=0.05;
   if(G.hurtT>0)G.hurtT--;
   if(G.castT>0)G.castT--;
+  dpsTick();
   if(G.t%5===0) updateHUD();
 }
 function killEnemy(idx){
@@ -2200,7 +2248,7 @@ function killEnemy(idx){
     splash(en.x,en.y,en.c,1.3);
     for(let k=0;k<6;k++) ink(en.x,en.y,(Math.random()-.5)*3.6,(Math.random()-.5)*3.6,9+Math.random()*12);
     for(const e2 of G.enemies){
-      if(e2!==en && Math.hypot(e2.x-en.x,e2.y-en.y)<R){ e2.hp-=sd; e2.hit=6; }   // 收屍交給敵人迴圈
+      if(e2!==en && Math.hypot(e2.x-en.x,e2.y-en.y)<R){ dmgTo(e2,sd); e2.hit=6; }   // 收屍交給敵人迴圈
     }
   }
   // 蝕痕滿層的焦墨斑,死亡時再潑散一次
@@ -2208,7 +2256,7 @@ function killEnemy(idx){
     splash(en.x,en.y,'#1a1714',2.4);
     for(let k=0;k<10;k++) ink(en.x,en.y,(Math.random()-.5)*4,(Math.random()-.5)*4,6+Math.random()*10);
   }
-  G.kills++; G.player.hp=Math.min(G.player.max,G.player.hp+stat.regen);
+  G.kills++; dpsAdd('k',1); G.player.hp=Math.min(G.player.max,G.player.hp+stat.regen);
   // 階級推進:每個滿階技能各自累計局內擊殺,達 300/500/1000 進小成/大成/圓滿
   if(runState){
     const gained=INK_CONFIG.runtime.noteKill(runState,1);
@@ -2953,6 +3001,18 @@ function updateHUD(){
   setTxt('lvtxt',num2cn(G.level));
   setTxt('killtxt',String(G.kills));
   setTxt('wavetxt','第 '+num2cn(G.wave)+' 境');
+  if(DPS.open) renderDps();
+}
+// 收合時完全不算,展開才每 5 幀更新一次(跟 updateHUD 同一個節流)
+function renderDps(){
+  const rd=dpsRate('d'), rm=dpsRate('m'), rk=dpsRate('k');
+  const one=v=>v.toFixed(1), two=v=>v.toFixed(2);
+  setTxt('dps_d', rd==null ? '—' : one(rd));
+  // 劍意是「支出 vs 回氣」:只看支出會誤判,回氣是每幀 stat.manaRegen × 60
+  setTxt('dps_m', rm==null ? '—' : one(rm));
+  setTxt('dps_k', rk==null ? '—' : two(rk));
+  setTxt('dps_f', DPS.secs<1 ? '尚未成局'
+    : '近'+Math.min(DPS.win,DPS.buckets.length)+'息 · 回氣 '+one(stat.manaRegen*60)+'/秒');
 }
 
 // ---------- 迴圈 ----------
@@ -3375,6 +3435,7 @@ function playOpening(done){
   requestAnimationFrame(frame);
 }
 function start(){
+  dpsReset();
   Object.assign(G,{running:true,paused:false,t:0,enemies:[],swords:[],particles:[],inks:[],texts:[],stains:[],splashes:[],commands:[],
     kills:0,wave:1,waveTimer:0,spawnAcc:0,xp:0,xpNeed:6,level:1,pendingLevels:0,mana:100,
     auto:false,autoUsed:false,autoTimer:0,
@@ -3732,6 +3793,13 @@ document.getElementById('metabtn').onclick=openMeta;
 document.getElementById('splashmetabtn').onclick=openMeta;
 document.getElementById('metaplaybtn').onclick=start;
 document.getElementById('metaclosebtn').onclick=closeMeta;
+// 斬妖吊牌:點一下展開戰況遙測(秒傷 / 每秒劍意 / 每秒斬妖)
+document.getElementById('scorewrap').onclick=()=>{
+  DPS.open=!DPS.open;
+  document.getElementById('scorewrap').classList.toggle('open', DPS.open);
+  if(DPS.open) renderDps();
+  if(!meta.mute) SND.ui();
+};
 document.getElementById('pausebtn').onclick=()=>togglePause();
 document.getElementById('autobtn').onclick=toggleAuto;
 document.getElementById('rerollbtn').onclick=rerollCards;

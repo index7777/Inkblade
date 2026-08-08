@@ -5,6 +5,34 @@
 
 ---
 
+## [2026-08-08] #57 斬妖吊牌可展開:戰況遙測(秒傷 / 每秒劍意 / 每秒斬妖)
+
+**變更內容**
+1. 新增 `DPS` 遙測物件與 `dpsReset/dpsAdd/dpsTick/dpsRate/dpsAvg`。
+   每 60 個邏輯影格收一格(loop 的邏輯層固定 60Hz),保留最近 10 格滾動視窗。
+2. 新增統一扣血入口 `dmgTo(en,v)`,把原本散在 **7 個地方**的 `en.hp-=` 全部改走它
+   (劍意 DoT / 燼 / 寒 / 飛劍命中 / 殘鋒波及 / 齊斬波及 / 斬殺潑墨)。
+   不這樣做的話遙測會漏算,而漏算的面板比沒有面板更糟。
+3. 劍意支出記在 `launchCommand` 實際扣款那一行(取 `Math.min(G.mana, …)`,劍意不足時不會記到超額)。
+   斬妖記在 `killEnemy` 的 `G.kills++` 旁邊。
+4. HUD 斬妖吊牌底部加 `▾`(`#scorewrap .caret`,展開時 rotate 180°),點整塊吊牌切換 `#dpsbox`。
+5. `updateHUD()` 只在展開時才呼叫 `renderDps()`,沿用既有的每 5 幀節流;`start()` 呼叫 `dpsReset()`。
+
+**面板欄位**:秒傷 / 每秒劍意 / 每秒斬妖,底部一行「近N息 · 回氣 X/秒」。
+
+**實測(headless,10 秒定點餵怪)**
+```
+totD 240 · totK 9 · G.kills 9(遙測斬妖數與遊戲計數一致)
+UI: 秒傷 24.0 / 每秒劍意 274.4 / 每秒斬妖 0.90
+```
+
+**怎麼推回去(還原依據)**
+- `dmgTo(en,v)` 七個呼叫點改回 `en.hp-=v`,刪掉 `dmgTo`。
+- 刪掉 `DPS` 物件與五個 dps* 函式、`update()` 尾端的 `dpsTick()`、`start()` 的 `dpsReset()`。
+- 刪掉 `#dpscaret`/`#dpsbox` 的 HTML、`#scorewrap.open`/`#dpsbox` 的 CSS、`scorewrap.onclick`、`renderDps()`。
+
+---
+
 ## [2026-08-08] #56 三選一加上「劍意帳」:把暗的耗劍意規則攤開
 
 **問題**:耗劍意完全是暗規則。25 道劍訣裡**有 11 道會動到每寸成本**(劍寬、劍數、costMultiplier 都在乘),
