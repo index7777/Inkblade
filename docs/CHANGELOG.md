@@ -5,6 +5,34 @@
 
 ---
 
+## [2026-08-08] #55 靜觀新增「戰鬥模式」:三選一要不要凍結世界
+
+**問題**:三選一開著的時候,`down()` 本來就擋住畫劍令(`if(!G.running||G.paused||levelChoiceOpen())return`),
+但世界照跑 —— 等於玩家單方面挨打,而且卡片文字愈長愈虧。原本沒有任何開關可調。
+
+**變更內容**
+1. `loadMeta()`:新增 `meta.battleMode`,合法值 `wait|live`,**預設 `wait`**。
+2. 靜觀「本 局」頁最上方新增 `#modebox`(等待 / 即時 + 一行說明 `#bmodehint`),CSS 沿用 `#tierbox` 的卡片樣式,另加 `.sethint`。
+3. 新增 `applyBattleMode()`:選卡開著時 `G.paused = (wait ? true : pausedByUser)`,並把 `G.shake` 歸零。
+   `drawCards()` 結尾呼叫它 —— 連升多重會反覆走 `drawCards()`,所以每一張都會重新套用。
+4. `renderShakeBtns()` 補上 `#bmoderow` 的高亮與提示文字;`segClick('#bmoderow .seg')` 切換後即時生效(卡片開著也能當場切)。
+
+**為什麼預設給「等待」**:選卡期間玩家沒有任何反制手段,「即時」在設計上是純懲罰。想要壓力的人自己切過去。
+
+**實測(headless)**
+```
+wait:  overlay開=true  G.paused=true   60幀後敵人位移=false  選完 paused=false
+live:  overlay開=true  G.paused=false  60幀後敵人位移=true   選完 paused=false
+熱切換:卡片開著時 live→wait,G.paused false→true
+```
+
+**怎麼推回去(還原依據)**
+- 刪掉 `applyBattleMode()` 與 `drawCards()` 結尾那一行呼叫 → 回到「選卡時世界照跑」。
+- 刪掉 `loadMeta()` 的 `meta.battleMode` 那兩行、`#modebox` 整段 HTML、`.sethint`/`#modebox` CSS、
+  `renderShakeBtns()` 裡的 `#bmoderow` 區塊與 `segClick('#bmoderow .seg')`。
+
+---
+
 ## [2026-08-08] #54 陣型「聚」上線(聚鋒式)
 
 **目的**:把「既有並行劍數」合成一把大劍 —— 視覺上完全重疊看著像一把,傷害是 N 把各自結算(等同 N 倍),死掉的劍消失、沒死的留下,劍令出鞘時 N 把一起出去。

@@ -328,6 +328,11 @@
   .seg.on { background:#8a7a5a; color:#f6f0e0; border-color:#7a6a4a; }
   #sndbtn { min-height:44px; margin-bottom:14px; display:flex; align-items:center;
     justify-content:center; padding:7px 8px; letter-spacing:2px; }
+  /* 戰鬥模式:三選一時世界要不要靜止 */
+  #modebox { padding:12px 14px; border-radius:8px;
+    background:rgba(246,240,226,.93); border:1px solid #b8a888; }
+  #modebox .segrow { margin-bottom:8px; }
+  .sethint { font-size:11.5px; line-height:1.6; color:#7a6a54; letter-spacing:1px; text-align:center; }
   /* 劍訣精進:已滿階的悟道與其三層進度 */
   #tierbox { margin-top:14px; padding:12px 14px; border-radius:8px;
     background:rgba(246,240,226,.93); border:1px solid #b8a888; }
@@ -553,6 +558,13 @@
       </div>
 
       <div class="pane" data-pane="run">
+        <div id="modebox">
+        <div class="sethead">戰 鬥 模 式</div>
+        <div class="segrow" id="bmoderow">
+          <div class="seg" data-bmode="wait">等待</div><div class="seg" data-bmode="live">即時</div>
+        </div>
+        <div class="sethint" id="bmodehint"></div>
+        </div>
         <div id="tierbox">
         <div class="sethead">劍 訣 精 進</div>
         <div id="tierlist"></div>
@@ -993,6 +1005,8 @@ function loadMeta(){
   if(!['low','med','high'].includes(meta.quality)) meta.quality='high'; // 畫質,預設高
   if(![30,60,120,0].includes(meta.fps)) meta.fps=60;                    // 幀數上限,0=不限
   if(!['text','effect'].includes(meta.cardText)) meta.cardText='text';  // 劍訣註解:文字/效果
+  // 戰鬥模式:wait=三選一時世界靜止(預設)、live=選卡時墨獸照打
+  if(!['wait','live'].includes(meta.battleMode)) meta.battleMode='wait';
   meta.vol=Object.assign({master:0.85,music:0.62,sfx:0.75}, meta.vol||{});
   for(const k of ['master','music','sfx'])
     meta.vol[k]=Math.max(0,Math.min(1, isFinite(meta.vol[k])?meta.vol[k]:0.7));
@@ -1689,6 +1703,14 @@ function drawCards(isReroll=false){
   q.textContent = G.pendingLevels>1 ? '連升 '+num2cn(G.pendingLevels)+' 重 · 尚餘 '+num2cn(G.pendingLevels-1)+' 次待選' : '';
   renderReroll();
   document.getElementById('overlay').classList.add('show');
+  applyBattleMode();
+}
+// 三選一期間要不要凍結世界。選卡時 down() 本來就擋住畫劍令,
+// 所以「即時」等於單方面挨打;預設給「等待」,想要壓力的人自己切回去。
+function applyBattleMode(){
+  if(!levelChoiceOpen()) return;
+  G.paused = (meta.battleMode==='wait') ? true : pausedByUser;
+  if(G.paused) G.shake=0;
 }
 function rerollCards(){
   if(!G.running || levelChoiceLocked || levelRerolls<=0 || !levelChoiceOpen()) return;
@@ -3734,6 +3756,12 @@ function renderShakeBtns(){
     el.classList.toggle('on', (+el.dataset.fps)===(meta.fps|0)));
   document.querySelectorAll('#cardtextrow .seg').forEach(el=>
     el.classList.toggle('on', el.dataset.cardtext===meta.cardText));
+  document.querySelectorAll('#bmoderow .seg').forEach(el=>
+    el.classList.toggle('on', el.dataset.bmode===meta.battleMode));
+  const bh=document.getElementById('bmodehint');
+  if(bh) bh.textContent = meta.battleMode==='wait'
+    ? '三選一時世界靜止,可以慢慢看。'
+    : '三選一時墨獸照樣進逼,但你畫不了劍令。';
 }
 const segClick=(sel,fn)=>document.querySelectorAll(sel).forEach(el=>{
   el.onclick=()=>{ fn(el); saveMeta(); renderShakeBtns(); if(!meta.mute) SND.ui(); };
@@ -3741,6 +3769,7 @@ const segClick=(sel,fn)=>document.querySelectorAll(sel).forEach(el=>{
 segClick('#shakerow .seg', el=>{ meta.shake=el.dataset.shake; if(meta.shake==='n') G.shake=0; });
 segClick('#qualrow .seg',  el=>{ meta.quality=el.dataset.qual; applyQuality(); });
 segClick('#fpsrow .seg',   el=>{ meta.fps=+el.dataset.fps; renderAcc=0; });
+segClick('#bmoderow .seg', el=>{ meta.battleMode=el.dataset.bmode; applyBattleMode(); });
 segClick('#cardtextrow .seg', el=>{ meta.cardText=el.dataset.cardtext;
   // 選卡開著就即時換一次呈現(不重抽,只重繪卡面)
   if(levelChoiceOpen() && !levelChoiceLocked) drawCards(true); });
