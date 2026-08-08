@@ -21,7 +21,7 @@
 | 墨刃兵 Mo-Ren-Bing | 近戰雜兵 | 黑墨剪影武者、持簡易墨刀 |
 | 墨獸 Mo-Shou | 本章 Boss | 胸口龜裂紅核=**弱點**,命中紅核加傷/破防;**每幀必留可見紅核與紅眼** |
 
-設定參考圖:`assets/references/ch1-enemies-ref.png`(墨靈+墨刃兵)、`assets/references/moshou-ref.png`(墨獸)。
+設定參考圖:`assets/references/ch1-enemies-ref.png`(墨靈+墨刃兵)、`assets/references/xuanming-mojiao-master.png`(第一章正式 Boss 母版)。`assets/references/moshou-ref.png` 降為歷史參考；玄冥墨蛟的攻擊與動作規格以 `docs/ch1-boss-xuanming-master.md` 為準。
 逐動作提詞、檔名、用途與資產清單見:`docs/ch1-asset-library.md`。
 
 ## 產圖一致性要求

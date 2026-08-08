@@ -295,9 +295,20 @@
     width:100%; margin-bottom:9vh; }
   #splash .btncol .btn { width:min(70vw,300px); text-align:center; font-size:22px;
     letter-spacing:8px; padding:14px 0; }
+  #bosstestbtn { display:none; }
+  #bosstestbtn.show { display:block; }
   /* 點按潑墨回饋 */
   #inkfx { position:fixed; inset:0; pointer-events:none; z-index:200; overflow:hidden; }
   #inkfx .ink-splat { position:absolute; border-radius:50%; background:#15110c; will-change:transform,opacity; }
+  #bosstesttools { position:absolute; left:50%; bottom:18px; z-index:45; display:none;
+    transform:translateX(-50%); gap:7px; align-items:center; padding:7px 9px;
+    background:rgba(235,228,211,.86); border:1px solid rgba(48,42,34,.42);
+    box-shadow:0 2px 10px rgba(28,23,17,.18); backdrop-filter:blur(3px); }
+  #bosstesttools.show { display:flex; }
+  #bosstesttools button { border:1px solid rgba(43,38,32,.58); background:rgba(246,241,228,.9);
+    color:#2b2620; min-width:58px; min-height:34px; padding:5px 8px;
+    font:600 14px "Noto Serif TC",serif; white-space:nowrap; }
+  #bosstesttools button.on { color:#f5ead3; background:#6f2924; border-color:#6f2924; }
   @keyframes inkOut { from{ transform:translate(-50%,-50%) scale(.25); opacity:.92 }
     to{ transform:translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1); opacity:0 } }
   @keyframes inkCore { from{ transform:translate(-50%,-50%) scale(.2); opacity:.85 }
@@ -546,6 +557,7 @@
     <div class="splashspacer"></div>
     <div class="btncol">
       <div class="btn" id="startbtn">入 局</div>
+      <div class="btn ghost" id="bosstestbtn">BOSS 測試</div>
       <div class="btn ghost" id="splashmetabtn">轉世閣</div>
       <div class="btn ghost" id="splashshopbtn">商城</div>
     </div>
@@ -558,6 +570,13 @@
       <div class="btn ghost" id="metabtn">轉世閣</div>
       <div class="btn" id="againbtn">重入畫卷</div>
     </div>
+  </div>
+
+  <div id="bosstesttools" aria-label="BOSS 測試工具">
+    <button id="bosstestup" type="button">升級</button>
+    <button id="bosstestdown" type="button">降級</button>
+    <button id="bosstestlock" type="button" aria-pressed="false">鎖血</button>
+    <button id="bosstestretry" type="button">重打一次</button>
   </div>
 
   <div id="pause">
@@ -991,7 +1010,9 @@ const ENESPR = { inkling:{frames:[],ok:false}, blade:{frames:[],ok:false}, boss:
            'assets/enemies/ENE_BLADE_walk_05.png','assets/enemies/ENE_BLADE_walk_06.png',
            'assets/enemies/ENE_BLADE_walk_07.png','assets/enemies/ENE_BLADE_walk_08.png',
            'assets/enemies/ENE_BLADE_walk_09.png'],
-    boss:['assets/boss/BOSS_MOSHOU_idle_01.png']
+    // 第一章正式 Boss 母版：玄冥墨蛟。戰鬥動作與攻擊節奏見
+    // docs/ch1-boss-xuanming-master.md；缺圖時仍回退程序化墨團。
+    boss:['assets/boss/BOSS_XUANMING_idle_01.png']
   };
   for(const k in ENESPR){ const grp=ENESPR[k];
     srcs[k].forEach((s,i)=>{ const img=new Image();
@@ -1116,6 +1137,16 @@ function spawnEnemy(){
   const scale=1+(G.wave-1)*0.11;
   G.enemies.push({x,y,r:base.r,hp:base.hp*scale,max:base.hp*scale,sp:base.sp+G.wave*0.02,
     c:base.c,tier,type:tier===0?'inkling':'blade',anim:Math.random()*1000,ember:0,emberT:0,chill:0,hit:0,broken:0,wob:Math.random()*7,st:{}});
+}
+
+// 首頁 BOSS 測試專用：直接生成第 60 波玄冥墨蛟，不混入一般墨靈。
+// 目前先驗證母版比例、透明邊緣、受擊與死亡；完整三階段攻擊依母版文件逐步接入。
+function spawnBossTest(){
+  const hp=3600;
+  G.enemies.push({
+    x:W*0.5,y:H*0.27,r:118,hp,max:hp,sp:0,c:'#211f1d',tier:2,type:'boss',isBoss:true,
+    anim:0,ember:0,emberT:0,chill:0,hit:0,broken:0,wob:Math.random()*7,st:{}
+  });
 }
 
 // ---------- 劍 ----------
@@ -2013,12 +2044,16 @@ function update(){
     }
   }
   // 波次與生成
-  G.waveTimer++;
-  if(G.waveTimer> 60*14){ G.waveTimer=0; G.wave++; updateHUD();
-    SND.wave(); SND.intensity(G.wave); flash(0.14,'250,244,226');
-    G.banner={txt:'第 '+num2cn(G.wave)+' 境', life:1}; }
-  G.spawnAcc += (0.55 + G.wave*0.14);
-  while(G.spawnAcc>=60){ G.spawnAcc-=60; if(G.enemies.length<70) spawnEnemy(); }
+  if(!G.bossTest){
+    G.waveTimer++;
+    if(G.waveTimer> 60*14){ G.waveTimer=0; G.wave++; updateHUD();
+      SND.wave(); SND.intensity(G.wave); flash(0.14,'250,244,226');
+      G.banner={txt:'第 '+num2cn(G.wave)+' 境', life:1}; }
+  }
+  if(!G.bossTest){
+    G.spawnAcc += (0.55 + G.wave*0.14);
+    while(G.spawnAcc>=60){ G.spawnAcc-=60; if(G.enemies.length<70) spawnEnemy(); }
+  }
 
   // 敵人
   for(let i=G.enemies.length-1;i>=0;i--){
@@ -2084,7 +2119,10 @@ function update(){
       floatText(en.x,en.y-en.r,'凍','#5a9cc0'); if(en.hp<=0){killEnemy(i);continue;} } }
     // 觸及靈石
     if(d < en.r+P.r){
-      P.hp -= en.tier===2?18:en.tier===1?11:7; P.pulse=1; G.hurtT=20;   // 受擊 4 幀 × 5 影格
+      // BOSS 測試的「鎖血」只保護玩家神識；Boss 仍照常受傷、死亡。
+      if(!G.hpLocked) P.hp -= en.tier===2?18:en.tier===1?11:7;
+      else P.hp=P.max;
+      P.pulse=1; G.hurtT=20;   // 受擊 4 幀 × 5 影格
       splash(en.x,en.y,en.c,1); G.enemies.splice(i,1); updateHUD();
       SND.hurt(); shake(9+en.tier*3); flash(0.22,'176,64,48'); hitstop(4);
       if(P.hp<=0){ beginDeath(); return; }
@@ -2293,7 +2331,8 @@ function update(){
         }
         else { SND.hit(); shake(1.1); }
         if(stat.explode>0){
-          splash(s.x,s.y,'#c0662e',2.2); SND.boom(); shake(7); stain(s.x,s.y,stat.explode*0.5,'170,90,40');
+          // 範圍傷害只播放短暫爆墨與霧散；禁止把半透明墨斑寫進紙面長效層。
+          splash(s.x,s.y,'#c0662e',2.2); SND.boom(); shake(7);
           for(const e2 of G.enemies){ if(e2!==en && Math.hypot(e2.x-s.x,e2.y-s.y)<stat.explode){
             dmgTo(e2,stat.damage*0.6); e2.hit=6; }}
           for(let k=0;k<8;k++)ink(s.x,s.y,(Math.random()-.5)*4,(Math.random()-.5)*4,10+Math.random()*14);
@@ -2379,6 +2418,11 @@ function killEnemy(idx){
   }
   gainXP(en.tier===2?4:en.tier===1?2:1);
   G.enemies.splice(idx,1); updateHUD();
+  if(en.isBoss){
+    G.wave=61; G.waveTimer=0;
+    G.banner={txt:'玄冥墨蛟 · 墨散卷復',life:1};
+    updateHUD();
+  }
 }
 
 // ---------- 角色:程序化動態 ----------
@@ -2936,18 +2980,8 @@ function draw(){
   ctx.setTransform(DPR,0,0,DPR,0,0);
   buildPaper();
   ctx.clearRect(0,0,W,H);                    // 紙層在畫布底下,由 CSS 合成
-  // 墨漬:一道一次小貼圖,不再需要滿版圖層
-  if(FX.bg&&DRAWLV>=1&&blots){
-    for(const st of G.stains){
-      ctx.globalAlpha=Math.max(0,st.a);
-      const d=st.r*2;
-      ctx.save(); ctx.translate(st.x,st.y); ctx.rotate(st.rot);
-      ctx.globalCompositeOperation='source-over';
-      ctx.drawImage(st.im,-d/2,-d/2,d,d);
-      ctx.restore();
-    }
-    ctx.globalAlpha=1;
-  }
+  // 怪物與範圍技能不可在紙面留下長效墨痕；畫卷污染只由背景階段圖控制。
+  // G.stains 僅保留舊存檔/除錯相容，不再繪入戰場。
 
 
   // 畫面震動:整個戰場位移(HUD 不動)
@@ -3713,10 +3747,12 @@ function playOpening(done){
   }
   requestAnimationFrame(frame);
 }
-function start(){
+function start(mode){
+  const bossTest=mode==='boss'||mode==='boss-fast';
+  const fastRestart=mode==='boss-fast';
   dpsReset();
   Object.assign(G,{running:true,paused:false,t:0,enemies:[],swords:[],particles:[],inks:[],texts:[],stains:[],splashes:[],mists:[],commands:[],
-    kills:0,wave:1,waveTimer:0,spawnAcc:0,xp:0,xpNeed:6,level:1,pendingLevels:0,mana:100,
+    kills:0,wave:bossTest?60:1,waveTimer:0,spawnAcc:0,bossTest,hpLocked:false,xp:0,xpNeed:6,level:1,pendingLevels:0,mana:100,
     reserve:0,reserveT:0,reserveFlash:0,strokeAvg:0,strokeN:0,
     auto:false,autoUsed:false,autoTimer:0,
     shake:0,hitstop:0,flash:0,flashC:'255,255,255',banner:null,
@@ -3730,6 +3766,10 @@ function start(){
   syncStat();
   G.mana = stat.manaMax;
   G.player=new Player();
+  if(bossTest){
+    spawnBossTest();
+    G.banner={txt:'第 六十 境 · 玄冥墨蛟',life:1};
+  }
   pausedByUser=false;
   levelChoiceLocked=false;
   drawing=false; path=[]; curLen=0; maxed=false;
@@ -3737,12 +3777,44 @@ function start(){
   document.getElementById('gameover').style.display='none';
   document.getElementById('meta').classList.remove('show');
   document.getElementById('pause').classList.remove('show');
+  document.getElementById('bosstesttools').classList.toggle('show',bossTest);
+  renderBossTestTools();
   updateHUD();
   // 開場畫卷過場:過場完成才解除暫停、開始生怪/計時
-  G.paused=true;
-  playOpening(()=>{ G.paused=false;
-    SND.startMusic();          // 畫卷拉開完畢 → 首頁樂淡出、戰鬥樂淡入(startMusic 內含 stopMenu)
-  });
+  if(fastRestart){
+    G.paused=false; SND.startMusic();
+  } else {
+    G.paused=true;
+    playOpening(()=>{ G.paused=false;
+      SND.startMusic();        // 畫卷拉開完畢 → 首頁樂淡出、戰鬥樂淡入(startMusic 內含 stopMenu)
+    });
+  }
+}
+
+function renderBossTestTools(){
+  const lock=document.getElementById('bosstestlock');
+  if(!lock) return;
+  lock.classList.toggle('on',!!G.hpLocked);
+  lock.setAttribute('aria-pressed',G.hpLocked?'true':'false');
+  lock.textContent=G.hpLocked?'鎖血中':'鎖血';
+}
+function bossTestLevel(delta){
+  if(!G.bossTest||!G.player) return;
+  const oldMax=G.player.max||1, ratio=Math.max(0,G.player.hp)/oldMax;
+  G.level=Math.max(1,Math.min(99,G.level+delta));
+  G.xp=0; G.xpNeed=Math.max(6,Math.round(6*Math.pow(1.36,G.level-1)));
+  syncStat();
+  G.player.max=stat.hpMax;
+  G.player.hp=G.hpLocked?G.player.max:Math.max(1,Math.min(G.player.max,G.player.max*ratio));
+  G.mana=Math.min(stat.manaMax,G.mana);
+  G.banner={txt:(delta>0?'測試升級 · ':'測試降級 · ')+G.level,life:1};
+  updateHUD();
+}
+function toggleBossTestHpLock(){
+  if(!G.bossTest||!G.player) return;
+  G.hpLocked=!G.hpLocked;
+  if(G.hpLocked) G.player.hp=G.player.max;
+  renderBossTestTools(); updateHUD();
 }
 // ---------- 暫停 / 繼續 ----------
 let pausedByUser=false;
@@ -3780,6 +3852,7 @@ function beginDeath(){
 }
 function gameOver(){
   G.running=false; G.pendingLevels=0; if(!heroSet().ok) SND.over();
+  document.getElementById('bosstesttools').classList.remove('show');
   levelChoiceLocked=false;
   drawing=false; path=[]; curLen=0; maxed=false;
   document.getElementById('overlay').classList.remove('show');
@@ -4068,6 +4141,11 @@ function inkSplashAt(x,y){
 }
 document.addEventListener('pointerdown', (e)=>{ const b=e.target.closest && e.target.closest('.btn'); if(b) inkSplashAt(e.clientX,e.clientY); }, true);
 document.getElementById('startbtn').onclick=start;
+document.getElementById('bosstestbtn').onclick=()=>start('boss');
+document.getElementById('bosstestup').onclick=()=>bossTestLevel(1);
+document.getElementById('bosstestdown').onclick=()=>bossTestLevel(-1);
+document.getElementById('bosstestlock').onclick=toggleBossTestHpLock;
+document.getElementById('bosstestretry').onclick=()=>start('boss-fast');
 document.getElementById('againbtn').onclick=start;
 document.getElementById('metabtn').onclick=openMeta;
 document.getElementById('splashmetabtn').onclick=openMeta;
@@ -4205,7 +4283,14 @@ window.addEventListener('keydown',e=>{
     DIAG.hist.length=0; if(!DIAG.on) toggleDiag(); }
   else if(e.key==='7'){ e.preventDefault(); NOAUDIO=!NOAUDIO;
     SND.hardMute(NOAUDIO); DIAG.hist.length=0; if(!DIAG.on) toggleDiag(); }
-  else if(e.key==='b'||e.key==='B'){ e.preventDefault(); bisect(); }
+  else if(e.key==='b'||e.key==='B'){
+    e.preventDefault();
+    if(!G.running){
+      const b=document.getElementById('bosstestbtn');
+      b.classList.toggle('show');
+      if(b.classList.contains('show')) b.focus();
+    } else bisect();
+  }
   else if(e.key==='v'||e.key==='V'){ e.preventDefault(); bisectDraw(); }
   else if(e.key==='n'||e.key==='N'){ e.preventDefault(); bisectMicro(); }
   else if(e.key==='k'||e.key==='K'){ e.preventDefault(); bisectPage(); }   // P 已是暫停,改用 K
