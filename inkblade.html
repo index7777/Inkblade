@@ -1213,7 +1213,12 @@ function launchCommand(path){
   const s0=path[0];
   // 收筆計價:成本 = 長度 × 每像素成本(每像素成本已含劍寬/劍數係數)
   const perPx=Math.max(0.001, stat.costPerPx);
-  const budget=Math.max(0, G.mana - stat.costBase);
+  let budget=Math.max(0, G.mana - stat.costBase);
+  // 劍匣存量:劍意連起手都付不出來時,燒掉一把存劍,整道免費。
+  // 免費那道的長度上限 = 滿劍意能畫的長度 —— 存量等於「一管滿劍意」,不是無限,
+  // 否則玩家會在劍意見底時畫一條橫跨全場的超長劍令白嫖。
+  const freeCast = (budget<=0 && G.reserve>0);
+  if(freeCast) budget=Math.max(0, stat.manaMax - stat.costBase);
   if(budget<=0){
     floatText(s0.x,s0.y-14,'劍意不足','#c08a2e'); burst(s0.x,s0.y,'#8a7a5a',5); SND.nomana(); return;
   }
@@ -1222,8 +1227,13 @@ function launchCommand(path){
     floatText(s0.x,s0.y-14,'劍意不足','#c08a2e'); burst(s0.x,s0.y,'#8a7a5a',5); SND.nomana(); return;
   }
   const len=pathLen(cut);
-  { const spend=Math.min(G.mana, stat.costBase + len*perPx);
-    G.mana=Math.max(0, G.mana - spend); dpsAdd('m', spend); }
+  if(freeCast){
+    G.reserve--; G.reserveFlash=1;
+    floatText(s0.x, s0.y-14, '劍匣', '#c08a2e');
+  } else {
+    const spend=Math.min(G.mana, stat.costBase + len*perPx);
+    G.mana=Math.max(0, G.mana - spend); dpsAdd('m', spend);
+  }
   SND.cast(len);
   G.castT=24;                                      // 施放 6 幀 × 4 影格
   G.intent=1;                                      // 意念起 —— 只反映在腳下法陣,身體不動
@@ -1809,7 +1819,13 @@ function pos(e){
   return {x:p.clientX-r.left, y:p.clientY-r.top};
 }
 // 目前劍意還能畫多長的墨痕
-function allowedLen(){ return Math.max(0,(G.mana-stat.costBase)/stat.costPerPx); }
+function allowedLen(){
+  let b=Math.max(0, G.mana-stat.costBase);
+  // 劍匣存量:劍意見底但匣裡還有劍時,可畫長度等於「一管滿劍意」——
+  // 畫線時的金色截斷線必須跟收筆時的實際計價同一套,否則玩家會被騙。
+  if(b<=0 && G.reserve>0) b=Math.max(0, stat.manaMax-stat.costBase);
+  return b/stat.costPerPx;
+}
 function down(e){ if(!G.running||G.paused||levelChoiceOpen())return; e.preventDefault(); drawing=true; path=[pos(e)]; curLen=0; maxed=false; }
 function move(e){ if(!drawing)return; e.preventDefault(); const p=pos(e);
   const last=path[path.length-1]; const seg=Math.hypot(p.x-last.x,p.y-last.y);
@@ -2233,6 +2249,14 @@ function update(){
   if(P.pulse>0)P.pulse-=0.05;
   if(G.hurtT>0)G.hurtT--;
   if(G.castT>0)G.castT--;
+  // 開匣·圓滿:劍匣自行存劍。存量上限 = 當下劍數(匣有幾格存幾把),
+  // 劍數掉下來時多的存量也要跟著收掉,否則卸掉劍式還留著超額存量。
+  if(stat.tierFlags && stat.tierFlags.autoRefill){
+    const cap=Math.max(1, stat.count|0);
+    if(++G.reserveT>=480){ G.reserveT=0; if(G.reserve<cap){ G.reserve++; G.reserveFlash=1; } }
+    if(G.reserve>cap) G.reserve=cap;
+  } else { G.reserve=0; G.reserveT=0; }
+  if(G.reserveFlash>0) G.reserveFlash-=0.02;
   dpsTick();
   if(G.t%5===0) updateHUD();
 }
@@ -2934,6 +2958,9 @@ function draw(){
   // ---- 以下不受震動影響 ----
   ctx.setTransform(DPR,0,0,DPR,0,0);
 
+  // 劍匣存量:畫面下緣一排朝上的劍,像彈匣存量。超過三把改用「劍 ×N」免得佔滿寬度。
+  if(G.reserve>0) drawReserve();
+
   // 波次題字:如落款鈐印般淡入淡出
   if(DRAWLV>=8 && G.banner){
     const L=G.banner.life, al=Math.min(1,L*2.4)*Math.min(1,(1-L)*6+0.2);
@@ -2983,6 +3010,43 @@ function num2cn(n){
     return out;
   }
   return String(n);                      // 破萬就不硬翻了,維持數字
+}
+// 劍匣存量指示:用飛劍 sprite 轉 -90° 朝上畫。沒有 sprite 就退回一個簡單的墨劍形。
+function drawReserve(){
+  const n=G.reserve, show=Math.min(n,3);
+  const BL=34, gap=BL*0.62;
+  const y=H-30, flash=Math.max(0,G.reserveFlash);
+  ctx.save();
+  ctx.globalAlpha=0.86+flash*0.14;
+  const im=(SWDSPR.ok&&SWDSPR.idle[0]&&SWDSPR.idle[0].complete&&SWDSPR.idle[0].naturalWidth)?SWDSPR.idle[0]:null;
+  const totalW=(show-1)*gap;
+  for(let i=0;i<show;i++){
+    const x=W/2 - totalW/2 + i*gap;
+    ctx.save(); ctx.translate(x,y); ctx.rotate(-Math.PI/2);
+    if(im){
+      const w=BL/SWDSPR.blade, h=w/SWDSPR.aspect;
+      ctx.drawImage(im, -w*SWDSPR.grip, -h/2, w, h);
+    } else {
+      ctx.strokeStyle='rgba(43,38,32,.86)'; ctx.lineCap='round';
+      ctx.lineWidth=2.4; ctx.beginPath(); ctx.moveTo(-BL*0.28,0); ctx.lineTo(BL*0.72,0); ctx.stroke();
+      ctx.lineWidth=3.4; ctx.beginPath(); ctx.moveTo(-BL*0.3,-4); ctx.lineTo(-BL*0.3,4); ctx.stroke();
+    }
+    ctx.restore();
+  }
+  if(n>3){
+    ctx.textAlign='left'; ctx.textBaseline='middle';
+    ctx.font='700 15px "Noto Serif TC",serif';
+    ctx.fillStyle='rgba(43,38,32,.9)';
+    ctx.shadowColor='rgba(250,246,238,.9)'; ctx.shadowBlur=5;
+    ctx.fillText('×'+n, W/2 + totalW/2 + BL*0.42, y-BL*0.42);
+    ctx.shadowColor='transparent';
+  }
+  // 剛存進一把時整排亮一下,告訴玩家「多了一發」
+  if(flash>0){
+    ctx.globalAlpha=flash*0.45; ctx.fillStyle='rgba(246,240,226,1)';
+    ctx.beginPath(); ctx.ellipse(W/2, y-BL*0.35, totalW/2+BL*0.7, BL*0.75, 0,0,6.283); ctx.fill();
+  }
+  ctx.restore();
 }
 const hudCache={};
 function setTxt(id,v){ if(hudCache[id]!==v){ const e=document.getElementById(id); if(!e) return;
@@ -3438,6 +3502,7 @@ function start(){
   dpsReset();
   Object.assign(G,{running:true,paused:false,t:0,enemies:[],swords:[],particles:[],inks:[],texts:[],stains:[],splashes:[],commands:[],
     kills:0,wave:1,waveTimer:0,spawnAcc:0,xp:0,xpNeed:6,level:1,pendingLevels:0,mana:100,
+    reserve:0,reserveT:0,reserveFlash:0,
     auto:false,autoUsed:false,autoTimer:0,
     shake:0,hitstop:0,flash:0,flashC:'255,255,255',banner:null,
     aim:0.85,facing:1,intent:0,streaks:[],cuts:[],firstStrikeDone:false,respecWave:0,
