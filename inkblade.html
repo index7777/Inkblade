@@ -93,8 +93,9 @@
     background:linear-gradient(180deg,rgba(60,48,34,.58),rgba(60,48,34,.10)); }
   #scorewrap { cursor:pointer; }
   /* 可展開的小三角 —— 告訴玩家這塊吊牌點得下去 */
-  #scorewrap .caret { margin:5px auto -3px; font-size:10px; line-height:1;
-    color:rgba(52,42,32,.72); transition:transform .18s; }
+  #scorewrap .caret { margin:6px auto -2px; font-size:14px; line-height:1;
+    color:#7a2b2b; transition:transform .18s;
+    text-shadow:0 1px 2px rgba(246,240,226,.98), 0 0 6px rgba(246,240,226,.9); }
   #scorewrap.open .caret { transform:rotate(180deg); }
   /* 戰況遙測面板:預設收合 */
   #dpsbox { display:none; margin-top:7px; padding-top:7px; border-top:1px solid rgba(52,42,32,.45);
@@ -1751,24 +1752,21 @@ function drawCards(isReroll=false){
 function renderManaBill(){
   const el=document.getElementById('manabill'); if(!el) return;
   const perPx=Math.max(0.001, stat.costPerPx);
-  const full=Math.max(0, (stat.manaMax - stat.costBase) / perPx);   // 滿劍意能畫多長
-  const now =Math.max(0, (G.mana       - stat.costBase) / perPx);   // 此刻還能畫多長
   // 「滿劍可畫 225 寸」對玩家太抽象 —— 他要問的是「那到底是幾劍」。
   // 用他自己近期的出手長度換算,不用我編的參考值。
   const DEFAULT_STROKE=300;
   const ref = G.strokeN>0 ? G.strokeAvg : DEFAULT_STROKE;
   const oneCost = stat.costBase + ref*perPx;                 // 依他的手感,一劍多少錢
   const casts = oneCost>0 ? stat.manaMax/oneCost : 0;        // 滿劍意能出幾劍
+  // 全部用「劍意 / 劍」講話。寸是內部單位,玩家對它沒有感覺,
+  // 只在最底下的換算依據裡出現一次(那裡需要說明數字為什麼會變)。
   const rows=[
-    // 地板價:只點一下不拉線的最低出手成本。升階不會動到它 ——
+    // 只點一下不拉線的最低出手成本。升階不會動到它 ——
     // 這正是玩家要知道的事:劍訣升上去不會讓你出不了手,只會讓你畫不長。
-    ['一劍地板', Math.round(stat.costBase)+' 劍意', 0],
+    ['最省一劍', Math.round(stat.costBase)+' 劍意', 0],
     ['你的一劍', Math.round(oneCost)+' 劍意', 0],
-    ['滿劍意可出', casts.toFixed(1)+' 劍', 1],
-    ['滿劍可畫', Math.round(full)+' 寸', 0]
+    ['滿劍意可出', casts.toFixed(1)+' 劍', 1]
   ];
-  // 劍意滿的時候兩欄一樣,重複印只是噪音;等待模式下劍意凍結,這欄才有意義
-  if(Math.round(now) !== Math.round(full)) rows.push(['此刻可畫', Math.round(now)+' 寸', 0]);
   el.innerHTML = rows.map(r=>'<span class="'+(r[2]?'key':'')+'">'+r[0]+'<b>'+r[1]+'</b></span>').join('')
     + '<span class="note">'+(G.strokeN>0
         ? '依你近期出手 '+Math.round(ref)+' 寸估'
