@@ -152,6 +152,14 @@
     font-size:clamp(12px,1.6vw,14px); }
   #lvqueue { color:#d8b65a; margin:-8px 0 8px; }
   #lvqueue:empty { display:none; }
+  /* 劍意帳:三選一時常駐,把「暗的」耗劍意規則攤在檯面上 */
+  #manabill { display:flex; flex-wrap:wrap; justify-content:center; align-items:baseline;
+    gap:4px 14px; width:min(100%,620px); margin:0 auto clamp(10px,2vw,16px);
+    padding:7px 12px; box-sizing:border-box; border-radius:5px;
+    background:rgba(243,236,216,.09); border:1px solid rgba(201,191,166,.26); }
+  #manabill span { font-size:clamp(10.5px,1.5vw,12.5px); letter-spacing:1px; color:#c9bfa6; white-space:nowrap; }
+  #manabill span b { font-weight:700; color:#e8dcbc; margin-left:4px; letter-spacing:.5px; }
+  #manabill span.key b { color:#d8b65a; }
   #cards { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:clamp(8px,1.8vw,16px);
     width:min(100%,620px); margin:0 auto; }
   /* 卡片固定高度、內容置頂對齊 —— 字數不同也不會造成格子縮放或標題上下位移 */
@@ -484,6 +492,7 @@
     <h2>悟 · 選一道劍訣</h2>
     <p class="tip">道行精進，天地賜法。點選一張以承其力。</p>
     <p class="tip" id="lvqueue"></p>
+    <div id="manabill"></div>
     <div id="cards"></div>
     <button id="rerollbtn" type="button">重鑄</button>
     <div id="rerollleft">剩餘次數：二</div>
@@ -1701,9 +1710,29 @@ function drawCards(isReroll=false){
   // 連升多重時,標示還剩幾次可選
   const q=document.getElementById('lvqueue');
   q.textContent = G.pendingLevels>1 ? '連升 '+num2cn(G.pendingLevels)+' 重 · 尚餘 '+num2cn(G.pendingLevels-1)+' 次待選' : '';
+  renderManaBill();
   renderReroll();
   document.getElementById('overlay').classList.add('show');
   applyBattleMode();
+}
+// 劍意帳:耗劍意本來完全是暗的 —— 25 道劍訣裡有 11 道會動到每寸成本
+// (劍寬、劍數、costMultiplier 都在乘),玩家只會覺得「劍怎麼突然畫不長了」。
+// 這裡把當下的實際數字攤開;數字一律取 stat.*(已經是 getCombatSnapshot 算完的實際值),
+// 不自己照公式手推,否則畫面會跟引擎慢慢對不上。
+function renderManaBill(){
+  const el=document.getElementById('manabill'); if(!el) return;
+  const perPx=Math.max(0.001, stat.costPerPx);
+  const full=Math.max(0, (stat.manaMax - stat.costBase) / perPx);   // 滿劍意能畫多長
+  const now =Math.max(0, (G.mana       - stat.costBase) / perPx);   // 此刻還能畫多長
+  const rows=[
+    ['劍意上限', Math.round(stat.manaMax), 0],
+    ['起手',     Math.round(stat.costBase), 0],
+    ['每寸',     perPx.toFixed(3), 0],
+    ['滿劍可畫', Math.round(full)+' 寸', 1]
+  ];
+  // 劍意滿的時候兩欄一樣,重複印只是噪音;等待模式下劍意凍結,這欄才有意義
+  if(Math.round(now) !== Math.round(full)) rows.push(['此刻可畫', Math.round(now)+' 寸', 0]);
+  el.innerHTML = rows.map(r=>'<span class="'+(r[2]?'key':'')+'">'+r[0]+'<b>'+r[1]+'</b></span>').join('');
 }
 // 三選一期間要不要凍結世界。選卡時 down() 本來就擋住畫劍令,
 // 所以「即時」等於單方面挨打;預設給「等待」,想要壓力的人自己切回去。
