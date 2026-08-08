@@ -189,7 +189,7 @@
     z-index:35; text-align:center; background:rgba(25,22,18,.78);
     padding:calc(14px + env(safe-area-inset-top)) 12px calc(14px + env(safe-area-inset-bottom)); }
   #pause.show { display:flex; }
-  #pausepanel { width:min(430px,100%); max-height:100%; overflow:auto; padding:22px 16px 18px;
+  #pausepanel { width:min(430px,100%); max-height:100%; overflow:auto; padding:22px 16px 22px;
     border:1px solid rgba(214,199,166,.44); border-radius:14px;
     background:linear-gradient(180deg,rgba(42,37,30,.94),rgba(27,24,20,.97));
     box-shadow:0 22px 60px rgba(0,0,0,.55); }
@@ -234,6 +234,11 @@
   .btn:hover { transform:translateY(-3px); }
   .seal { color:#a44; font-size:13px; letter-spacing:3px; margin-top:clamp(14px,2.8vw,28px); opacity:.8; }
   .btnrow { display:flex; gap:clamp(8px,1.6vw,16px); justify-content:center; flex-wrap:wrap; padding:0 12px; }
+  /* 靜觀面板底部的兩顆主鈕:與上方「重塑」框拉開間距、等寬平分、不換行也不溢出。
+     原本沿用全域 .btn 的大字級與大內距,在 430px 面板裡會頂到邊框。 */
+  #pausepanel .btnrow { margin-top:18px; padding:0; gap:10px; flex-wrap:nowrap; align-items:stretch; }
+  #pausepanel .btnrow .btn { flex:1 1 0; min-width:0; white-space:nowrap;
+    padding:12px 6px; font-size:clamp(14px,3.4vw,17px); letter-spacing:clamp(1px,0.8vw,4px); }
   .btn.ghost { background:rgba(244,238,224,.12); color:#e6dcc4; border-color:rgba(230,220,196,.5); }
 
   /* 暫停畫面的設定(宣紙卷軸質感,拉桿為墨條) */
@@ -418,7 +423,7 @@
       <div id="settings">
       <div class="sethead">行 劍 設 定</div>
       <div class="setbtn" id="sndbtn">♪ 音律：開</div>
-      <div class="setbtn" id="herobtn" style="min-height:38px;margin-bottom:12px;display:flex;align-items:center;justify-content:center;">執筆者：劍客</div>
+      <div class="setbtn" id="herobtn" style="min-height:38px;margin-bottom:12px;display:flex;align-items:center;justify-content:center;">墨形：劍客</div>
       <div id="audioControls">
       <div class="sethead">音 律</div>
       <div class="setrow"><label for="volMaster">總音量</label>
@@ -436,7 +441,7 @@
       </div>
       <div class="btnrow">
         <div class="btn" id="resumebtn">繼 續</div>
-        <div class="btn ghost" id="pausequitbtn">認輸轉世</div>
+        <div class="btn ghost" id="pausequitbtn">重入畫卷</div>
       </div>
     </div>
   </div>
@@ -2858,7 +2863,7 @@ function toggleAuto(){
 const VOLS=[['volMaster','master'],['volMusic','music'],['volSfx','sfx']];
 function renderHeroBtn(){
   const b=document.getElementById('herobtn'); if(!b) return;
-  b.textContent='執筆者：'+(meta.heroSkin==='f'?'女修':'劍客');
+  b.textContent='墨形：'+(meta.heroSkin==='f'?'女修':'劍客');
   b.classList.toggle('on', meta.heroSkin==='f');
 }
 function toggleHeroSkin(){

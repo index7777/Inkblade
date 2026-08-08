@@ -5,6 +5,17 @@
 
 ---
 
+## [2026-08-08] #33 靜觀面板:底部主鈕重新排版;執筆者→墨形、認輸轉世→重入畫卷
+**檔案**:`inkblade.html`
+**問題**:「繼續 / 認輸轉世」沿用全域 `.btn`(字級到 20px、左右內距到 42px、`white-space:nowrap`),在 430px 的靜觀面板裡會頂到邊框、也緊貼「重塑劍意」框下緣,看起來像壓在其他框架上。
+**修正**:
+1. 新增 `#pausepanel .btnrow` 專屬版面 —— `margin-top:18px` 與上方拉開、`flex-wrap:nowrap`、`padding:0`;兩顆鈕 `flex:1 1 0; min-width:0`,等寬平分面板,字級與字距改用較小的 clamp。
+2. `#pausepanel` 底部內距 18px → 22px,捲到底時不貼邊。
+3. 用語:`執筆者` → **墨形**(標記與 `renderHeroBtn` 兩處);`認輸轉世` → **重入畫卷**。
+
+**驗證(headless Chromium,兩種視窗)**:720×1100 與 400×780 皆量測 `溢出:false`,鈕列與重塑框間距 18px,鈕列左右都在面板內緣之內;無 console / page error。
+**還原依據**:移除 `#pausepanel .btnrow` 兩條規則、面板內距改回 18px、三處字串改回。
+
 ## [2026-08-08] #32 轉世閣:靈府初成 4→10 階、新增「識海初開」(神識上限)
 **檔案**:`data/game-config.js`、`inkblade.html`
 
