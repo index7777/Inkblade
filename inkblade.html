@@ -76,18 +76,24 @@
      條改為毛筆刷痕造型 —— 用 SVG 遮罩把軌道與填色一起裁成兩端收鋒的一筆。 */
   #barwrap { width:clamp(158px,48vw,212px); background:none; border:none; box-shadow:none; padding:2px 4px;
     text-shadow:0 1px 2px rgba(246,240,226,.98), 0 0 8px rgba(246,240,226,.9); }
+  /* 吊牌不鋪白底,直接透出宣紙。雙框改用「內 border + 外 box-shadow 環」畫,
+     因為 inset 陰影會塗滿內部,拿掉底色的話那圈紙色又會蓋回來。
+     可讀性靠文字的紙色描邊維持(同左上狀態列的做法),不靠色塊。 */
   #scorewrap { position:absolute; top:calc(var(--scroll-top-safe) + 70px + env(safe-area-inset-top)); right:12px;
-    min-width:94px; text-align:center; padding:9px 12px 11px; border-radius:4px;
-    background:rgba(250,246,238,.96); border:1px solid rgba(60,48,34,.5);
-    box-shadow:inset 0 0 0 3px rgba(250,246,238,1), inset 0 0 0 4px rgba(60,48,34,.26),
-               0 4px 14px rgba(45,37,26,.16); }
+    min-width:94px; text-align:center; padding:9px 12px 11px; border-radius:3px;
+    background:none; border:1px solid rgba(52,42,32,.62);
+    box-shadow:0 0 0 3px rgba(0,0,0,0), 0 0 0 4px rgba(52,42,32,.30);
+    text-shadow:0 1px 2px rgba(246,240,226,.98), 0 0 8px rgba(246,240,226,.9),
+                0 0 14px rgba(246,240,226,.7); }
   /* 吊牌的繩結與流蘇 */
   #scorewrap::before { content:''; position:absolute; left:50%; top:100%; transform:translateX(-50%);
     width:9px; height:9px; margin-top:-1px; border-radius:50%; background:rgba(60,48,34,.62); }
   #scorewrap::after { content:''; position:absolute; left:50%; top:100%; transform:translateX(-50%);
     margin-top:7px; width:7px; height:26px; border-radius:0 0 4px 4px;
     background:linear-gradient(180deg,rgba(60,48,34,.58),rgba(60,48,34,.10)); }
-  #scorewrap .divider { height:1px; margin:7px 2px; background:rgba(60,48,34,.32); }
+  #scorewrap .divider { height:1px; margin:7px 2px; background:rgba(52,42,32,.45); }
+  #scorewrap .sub { color:#3f3529; }
+  #scorewrap .big { color:#1c1712; }
   #ctrls { position:absolute; top:calc(var(--scroll-top-safe) + env(safe-area-inset-top)); right:12px;
     display:flex; align-items:center; gap:10px; }
   .ctl { pointer-events:auto; cursor:pointer; font-size:clamp(12px,1.5vw,14px);

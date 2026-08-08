@@ -5,6 +5,13 @@
 
 ---
 
+## [2026-08-08] #43 戰況吊牌拿掉白底
+**檔案**:`inkblade.html`
+**做法**:`#scorewrap` 改 `background:none`,直接透出宣紙。
+**這裡有個坑**:原本的雙框是用 `inset` 陰影疊出來的(`inset 0 0 0 3px 紙色` + `inset 0 0 0 4px 墨色`)—— inset 會**塗滿內部**,所以光是拿掉 `background` 沒有用,那圈紙色照樣把底蓋回去。改為用「內 `border` + 外 `box-shadow` 環」畫雙框(`0 0 0 3px 透明, 0 0 0 4px 墨色`),外陰影不覆蓋內容區,內部才會真的透明。
+**可讀性**:不靠色塊,改用文字的紙色描邊(同左上狀態列的做法,三層 text-shadow);分隔線與文字顏色一併加深(`.sub #3f3529`、`.big #1c1712`)。
+**驗證(headless)**:`backgroundColor: rgba(0,0,0,0)`、`backgroundImage: none`、邊框與 text-shadow 皆在;實跑截圖於一般宣紙底與選卡暗底兩種情境下文字皆清晰。
+
 ## [2026-08-08] #42 暴擊傷害數字不再加「!」;靜觀時暴擊回饋完全凍結
 **檔案**:`inkblade.html`
 
