@@ -193,7 +193,7 @@
     rebirthNode({ id: 'foundation_sword_bone', branch: REBIRTH_BRANCH.FOUNDATION, name: '劍骨凝成', description: '每階令開局劍傷提高三。', maxRank: 4, costs: [30, 65, 125, 220], effects: [op('add', 'stats.damage', 3)] }),
     rebirthNode({ id: 'foundation_flow', branch: REBIRTH_BRANCH.FOUNDATION, name: '行氣如劍', description: '每階令開局劍速提高一。', maxRank: 3, costs: [40, 95, 190], effects: [op('add', 'stats.swordSpeed', 1)] }),
     rebirthNode({ id: 'foundation_cycle', branch: REBIRTH_BRANCH.FOUNDATION, name: '周天養息', description: '每階令劍意回復提高。', maxRank: 3, costs: [40, 95, 190], effects: [op('add', 'stats.manaRegen', 0.05)] }),
-    rebirthNode({ id: 'foundation_sword_case', branch: REBIRTH_BRANCH.FOUNDATION, name: '劍匣初開', description: '開局增一劍,並以扇形起手。', maxRank: 1, costs: [320], effects: [op('add', 'stats.swordCount', 1), op('set', 'formation', 'fan')] }),
+    rebirthNode({ id: 'foundation_sword_case', branch: REBIRTH_BRANCH.FOUNDATION, name: '劍匣初開', description: '開局劍匣多開一格,增一飛劍。', maxRank: 1, costs: [320], effects: [op('add', 'stats.swordCount', 1)] }),
     // 心法:永久改變節奏,不直接堆疊大量傷害。
     rebirthNode({ id: 'mind_clear_strike', branch: REBIRTH_BRANCH.MIND, name: '明心一斬', description: '每局第一道有效劍痕必定暴擊。', costs: [140], requires: ['foundation_sword_bone:2'], effects: [op('flag', 'flags.firstStrikeCrit', true)] }),
     rebirthNode({ id: 'mind_return_thought', branch: REBIRTH_BRANCH.MIND, name: '歸念', description: '折返的飛劍留下淡飛白,回程更易辨識。', costs: [170], requires: ['foundation_flow:2'], effects: [op('flag', 'flags.returnLeavesDryBrush', true)] }),

@@ -5,6 +5,22 @@
 
 ---
 
+## [2026-08-08] #58 轉世閣「劍匣初開」不再強制扇形
+
+**問題**:`foundation_sword_case` 的 effects 是 `[add swordCount +1, set formation 'fan']`。
+花 320 買一把劍,卻連帶被鎖成扇形起手 —— 玩家沒要求陣型,那是副作用不是收益。
+
+**變更內容**:effects 只留 `op('add','stats.swordCount',1)`;
+文案 `開局增一劍,並以扇形起手。` → `開局劍匣多開一格,增一飛劍。`
+
+**注意**:主檔 `syncStat()` 仍有 `formation==='single' → 'fan'` 的引擎預設,
+所以沒拿劍式時多劍還是排成扇形 —— 那是引擎預設值,不是這個節點塞的,兩者不同。
+validateConfig 通過;全 rebirth 節點已無任何 `set formation`。
+
+**怎麼推回去**:effects 加回 `op('set','formation','fan')`,文案改回原句。
+
+---
+
 ## [2026-08-08] #57 斬妖吊牌可展開:戰況遙測(秒傷 / 每秒劍意 / 每秒斬妖)
 
 **變更內容**
