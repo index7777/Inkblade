@@ -998,6 +998,7 @@ const ENESPR = { inkling:{frames:[],ok:false}, blade:{frames:[],ok:false}, boss:
 // gripX 取在護手位置,劍身自此往 +x 延伸
 const HERO={ handX:0.9652, handY:0.5097, gripX:0.279, gripY:0.50,
              aspect:417/620, swAspect:45/520 };
+const HERO_VISUAL_SCALE=0.85; // 中央角色只縮視覺，不動碰撞半徑與戰鬥數值
 
 // ---------- 遊戲狀態 ----------
 const G = {
@@ -2395,7 +2396,7 @@ function tintFrame(im,col){
 }
 function drawHeroSprite(P){
   const S=heroSet();
-  const h=P.r*5.0, w=h*S.aspect, feet=P.y+P.r*1.18;
+  const h=P.r*5.0*HERO_VISUAL_SCALE, w=h*S.aspect, feet=P.y+P.r*1.18;
   const dying=G.deathT>0;
   const hasDeath=!!(S.death&&S.death.length), hasHurt=!!(S.hurt&&S.hurt.length), hasCast=!!(S.cast&&S.cast.length);
   const br=dying?0:Math.sin(G.t*0.042);
@@ -2452,11 +2453,11 @@ function bakeHeroF(h,w){
 }
 // 環繞軌道:圓心在腰腹偏下(視覺上像從腳邊繞起),ry 很小 → 幾乎正側看的橢圓
 function hfOrbit(P){
-  const h=P.r*5.0, w=h*HEROF.aspect, feet=P.y+P.r*1.18;
+  const h=P.r*5.0*HERO_VISUAL_SCALE, w=h*HEROF.aspect, feet=P.y+P.r*1.18;
   return { cx:P.x, cy:feet-h*0.20, rx:w*0.62, ry:h*0.088, h:h, w:w };
 }
 function drawHeroFBody(P,alpha){
-  const h=P.r*5.0, w=h*HEROF.aspect, feet=P.y+P.r*1.18;
+  const h=P.r*5.0*HERO_VISUAL_SCALE, w=h*HEROF.aspect, feet=P.y+P.r*1.18;
   bakeHeroF(h,w);
   const dying=G.deathT>0;
   const br=dying?0:Math.sin(G.t*0.042);
@@ -2526,7 +2527,7 @@ function drawHeroF(P){
 // 舊的程序化剪影(逐列風動),沒有 sprite 時的回退
 function drawHeroProc(P){
 
-  const h=P.r*4.7;
+  const h=P.r*4.7*HERO_VISUAL_SCALE;
   bakeHero(h);
   const w=heroW, feet=P.y+P.r*1.05;
   const br=Math.sin(G.t*0.042);
