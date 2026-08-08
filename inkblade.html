@@ -1162,6 +1162,14 @@ function formationOffset(formation, i, n, spacing){
   if(formation==='inline')   return {along:(mid-i)*inlineGap(), side:0};
   return {along:-Math.abs(t)*spacing*0.55, side:t*spacing*1.15};                   // 散鋒:扇面
 }
+// 劍生命力:畫得長 → 這道劍令的每把劍能多斬幾隻才耗盡。
+// 續飛本來就會把劍送到出畫面,所以長度買的不是射程,是「命」。
+// 低消 6 劍意的劍砍一隻就化墨散去,長劍令的劍能一路穿過去。
+function cmdLife(len){
+  const LM=(window.INK_CONFIG && INK_CONFIG.lifeModel) || {pixelsPerLife:120, maxBonus:12};
+  const bonus=Math.min(LM.maxBonus, Math.floor(Math.max(0,len)/LM.pixelsPerLife));
+  return Math.max(1, (stat.pierce|0) + 1 + bonus);
+}
 // 在劍令的某個槽位生出一把劍(接力也走這裡)
 function spawnCmdSword(c, slot, delay){
   const sw={ cmd:c, slot:slot, x:c.x, y:c.y, ang:c.ang, vx:0, vy:0,
@@ -1169,7 +1177,7 @@ function spawnCmdSword(c, slot, delay){
              // 聚形要看起來是一把劍,連貼圖動畫幀都得對齊,所以整道劍令共用一個 seed
              seed:(c.formation==='merge' && c.seed!=null) ? c.seed : Math.random()*8,
              delay:delay||0,
-             pierceLeft:Math.max(1,(stat.pierce|0)+1), hitSet:new Set(),
+             pierceLeft: c.life || Math.max(1,(stat.pierce|0)+1), hitSet:new Set(),
              returned:false, echo:false };
   c.swords[slot]=sw; G.swords.push(sw);
   return sw;
@@ -1200,7 +1208,8 @@ function extendCommand(c, tx, ty){
 function spawnAutoCommand(x0,y0,x1,y1,opts){
   if(G.commands.length>=28) return null;
   opts=opts||{};
-  const c={ id:++cmdSeq, pts:[{x:x0,y:y0},{x:x1,y:y1}], len:Math.hypot(x1-x0,y1-y0),
+  const _len=Math.hypot(x1-x0,y1-y0);
+  const c={ id:++cmdSeq, pts:[{x:x0,y:y0},{x:x1,y:y1}], len:_len, life:cmdLife(_len),
     seg:1, step:1, x:x0, y:y0, ang:Math.atan2(y1-y0,x1-x0),
     formation:'single', spacing:0, swords:[null], slots:1,
     returnsLeft:opts.returns||0, alive:true, age:0,
@@ -1256,6 +1265,7 @@ function launchCommand(path){
   const n=Math.max(1, stat.count|0);
   const c={
     id:++cmdSeq, pts:cut, len:len,
+    life: cmdLife(len),                             // 這道劍令買到的「命」(每把劍能斬幾隻)
     seg:1, step:1,                                  // step 1=順走,-1=倒走(歸鋒)
     x:cut[0].x, y:cut[0].y,
     ang:Math.atan2(cut[1].y-cut[0].y, cut[1].x-cut[0].x),
@@ -2105,7 +2115,7 @@ function update(){
     }
     // 只有活著的劍照新規則走;穿透耗盡而死的那幾把不會復活(接力已關閉)
     for(const sw of c.swords) if(sw && !sw.dead){ sw.hitSet.clear(); sw.returned=true;
-      sw.pierceLeft=Math.max(1,(stat.pierce|0)+1); }
+      sw.pierceLeft = c.life || Math.max(1,(stat.pierce|0)+1); }
     if(stat.returnDry) whiteCut(c.x,c.y,c.ang);
     return true;
   }
@@ -3035,7 +3045,8 @@ function num2cn(n){
 function drawStrokeCost(x, y, chargedLen){
   const free = (G.mana - stat.costBase <= 0) && G.reserve > 0;
   const cost = stat.costBase + chargedLen * Math.max(0.001, stat.costPerPx);
-  const txt  = free ? '劍匣 · 免費' : '-' + Math.round(cost) + ' 劍意';
+  const life = cmdLife(chargedLen);
+  const txt  = (free ? '劍匣 · 免費' : '-' + Math.round(cost) + ' 劍意') + '　斬 ' + life;
   // 指尖會蓋住正下方,所以往上擺;靠畫面邊緣時翻到另一側,不要被切掉
   const up = (y > 96);
   const dx = (x > W - 96) ? -1 : 1;

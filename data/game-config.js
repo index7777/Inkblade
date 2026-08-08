@@ -107,6 +107,11 @@
   // 指數 <1 是刻意的:純線性會讓四劍直接四倍貴,重到沒人敢點劍式。
   // costMultiplier 是給流派用的乘數(斂鋒、細雨如織會把它壓下去)。
   const COST_MODEL = Object.freeze({ baseWidth: 18, widthExponent: 0.8, countExponent: 0.6 });
+  // ── 劍生命力模型 ──────────────────────────────────────────────
+  // 「畫得長」買到的不是射程(續飛本來就會把劍送到出畫面),而是**這把劍能斬幾隻才耗盡**。
+  // 每畫滿 pixelsPerLife 寸,這道劍令的每把劍就多一條命(= 多穿透一隻墨獸)。
+  // 這才是低消 6 劍意跟長劍令的實際差別:低消的劍砍一隻就化墨散去。
+  const LIFE_MODEL = Object.freeze({ pixelsPerLife: 120, maxBonus: 12 });
   // 道行成長:每提升一重,神識與劍意上限的額外加成。
   // 存在的理由 —— 敵人的總血量到第 40 境是第 10 境的 8.4 倍,但玩家被咬一口的傷害是固定值,
   // 容錯永遠停在「漏 10 隻就死」。不隨道行成長的話後期容錯率會掉到 12%。
@@ -884,6 +889,7 @@
     schemaVersion: 2,
     terminology: Object.freeze({ upgradeTitle: '悟道', upgradePrompt: '請領悟一縷劍意', rebirthTitle: '問道', currency: '劍意' }),
     growth: GROWTH,
+    lifeModel: LIFE_MODEL,
     category: CATEGORY,
     rebirthBranch: REBIRTH_BRANCH,
     rarity,
