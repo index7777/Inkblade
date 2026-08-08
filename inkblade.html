@@ -2613,7 +2613,8 @@ function start(){
     aim:0.85,facing:1,intent:0,streaks:[],cuts:[],firstStrikeDone:false,respecWave:0,
     hurtT:0,castT:0,deathT:0,deathMax:56,heroPhase:Math.random()*9});
   renderAutoBtn();          // 開新局時 G.auto 已重設為 false,按鈕也要跟著回到「關」
-  SND.unlock(); SND.intensity(1); SND.startMusic(); SND.duck(false);
+  // 戰鬥樂不在這裡起 —— 開場過場有 3 秒,要留給首頁樂,過場結束才交棒(見下方 playOpening 回呼)
+  SND.unlock(); SND.intensity(1); SND.duck(false);
   // 以 runtime 建立本局狀態(含永久問道加成),再映射回 stat.*
   runState = INK_CONFIG.runtime.createRunState(buildPermanentSave(), 1);
   syncStat();
@@ -2629,7 +2630,9 @@ function start(){
   updateHUD();
   // 開場畫卷過場:過場完成才解除暫停、開始生怪/計時
   G.paused=true;
-  playOpening(()=>{ G.paused=false; });
+  playOpening(()=>{ G.paused=false;
+    SND.startMusic();          // 畫卷拉開完畢 → 首頁樂淡出、戰鬥樂淡入(startMusic 內含 stopMenu)
+  });
 }
 // ---------- 暫停 / 繼續 ----------
 let pausedByUser=false;
@@ -2957,9 +2960,19 @@ document.getElementById('autobtn').onclick=toggleAuto;
 document.getElementById('rerollbtn').onclick=rerollCards;
 document.getElementById('sndbtn').onclick=toggleSnd;
 renderSndBtn(); bindVol(); renderVol();
-// 首次互動即解鎖音訊(瀏覽器自動播放限制);若還在首頁(未入局),淡入首頁 BGM(game_op,Loop)
-['pointerdown','keydown','touchstart'].forEach(ev=>
-  window.addEventListener(ev,()=>{ SND.unlock(); if(!G.running && !meta.mute) SND.startMenu(); },{once:true,passive:true}));
+// 首次互動即解鎖音訊(瀏覽器自動播放限制);還在首頁就淡入首頁 BGM(game_op_loop,Loop)。
+// 這裡刻意不用 {once:true}:玩家很可能第一下就點在靜音鍵上、或當下 meta.mute 還是開的,
+// 一旦把唯一一次機會用掉,之後整局都不會再有首頁樂。改為「播起來才解除監聽」。
+(function bindMenuBgm(){
+  const EV=['pointerdown','keydown','touchstart'];
+  const onGesture=()=>{
+    SND.unlock();
+    if(G.running || meta.mute) return;                 // 已入局或靜音:這次不算,繼續聽下一次
+    SND.startMenu();
+    if(SND.menuPlaying()) EV.forEach(ev=>window.removeEventListener(ev,onGesture));
+  };
+  EV.forEach(ev=>window.addEventListener(ev,onGesture,{passive:true}));
+})();
 document.getElementById('resumebtn').onclick=()=>togglePause(false);
 document.getElementById('respecbtn').onclick=()=>doRespec();
 document.getElementById('herobtn').onclick=()=>toggleHeroSkin();

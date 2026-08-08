@@ -189,6 +189,7 @@
     duck() {},
     // 首頁 BGM(game_op)
     startMenu, stopMenu,
+    menuPlaying() { return !!(menu && !menu.paused); },
     // 依波次切換戰鬥樂段(1–20 / 21–40 / 41–60)
     intensity(wave) { setBand(bandOf(Number(wave)||1)); },
     stopAll() { for (const pool of pools.values()) for (const audio of pool) { try { audio.pause(); audio.currentTime=0; } catch (_) {} } },

@@ -5,6 +5,31 @@
 
 ---
 
+## [2026-08-08] #30 首頁 BGM 真正播得出來(#28 只修了一半)
+**檔案**:`data/sound-system.js`、`inkblade.html`
+**背景**:#28 修好了檔名(`game_op.mp3` → `game_op_loop.mp3`),但驗收回報「首頁還是沒音樂」。攔截 `Audio.play/pause` 實跑,時間軸如下:
+```
+1385ms play  game_op_loop.mp3   ← 點「入局」的 pointerdown 觸發 startMenu()
+1388ms play  battle01.mp3       ← 3ms 後 start() 的 startMusic()
+1997ms pause game_op_loop.mp3   ← 被 startMusic 內的 stopMenu 淡掉
+結果:首頁樂只播 0.27 秒,且全程還在 1200ms 淡入途中(音量幾乎為 0)
+```
+**根因**(兩個,都不是檔名):
+1. 首頁樂綁在「第一次互動」上,但玩家第一個動作幾乎必然是**點入局** —— 同一下 pointerdown 先開它、3ms 後又殺它。
+2. 監聽用 `{once:true}`:唯一一次機會若落在靜音狀態或會離開首頁的動作上,整局就再也不會有首頁樂。
+
+**修正**:
+1. `start()` 不再立刻 `SND.startMusic()`,改到 `playOpening` 的完成回呼 —— 開場畫卷有 3.0 秒(ZOOM 1100 + UNFURL 1400 + HUDF 520),整段留給首頁樂,拉開完畢才交棒淡入戰鬥樂。
+2. 首頁樂改為 `bindMenuBgm()`:不用 `{once:true}`,每次手勢都試,`SND.menuPlaying()` 回報真的在播才解除監聽;已入局或靜音時這次不算、繼續聽下一次。
+3. `sound-system.js` 新增 `menuPlaying()`。
+
+**驗證(headless Chromium,攔 play/pause 看時間軸)**:
+- 情境 A(第一下就點入局,最壞情況):首頁樂 0.27s → **2.98s**,完整覆蓋開場過場;battle01 於 4365ms 接手,交叉淡出正常。
+- 情境 B(先點首頁空白再入局):首頁樂 5.9s,交棒同樣乾淨。
+- 無 console / page error;HUD 與女修士演出不受影響。
+
+**還原依據**:`start()` 把 `SND.startMusic()` 移回 `SND.unlock()` 那行、`playOpening` 回呼還原成只有 `G.paused=false`;`bindMenuBgm()` 換回原本三行 `{once:true}` 監聽;移除 `menuPlaying()`。
+
 ## [2026-08-07] #29 女修士改為程序化演出(拆劍/風動/墨痕旋渦)、HUD 依參考稿重做、鎖右鍵
 **檔案**:`assets/hero-f/HEROF_body.png`(新)、`assets/hero-f/HEROF_sword.png`(新)、`inkblade.html`
 
