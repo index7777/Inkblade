@@ -2941,6 +2941,7 @@ function draw(){
     const ang=Math.atan2(b.y-a.y,b.x-a.x);
     ctx.save(); ctx.translate(b.x,b.y); ctx.rotate(ang); ctx.fillStyle='#7a2b2b';
     ctx.beginPath(); ctx.moveTo(14,0); ctx.lineTo(2,7); ctx.lineTo(2,-7); ctx.closePath(); ctx.fill(); ctx.restore();
+    drawStrokeCost(b.x, b.y, Math.min(curLen, budget));
   }
 
   // 粒子
@@ -3023,6 +3024,30 @@ function num2cn(n){
     return out;
   }
   return String(n);                      // 破萬就不硬翻了,維持數字
+}
+// 畫線時跟著指尖跑的即時計價。玩家在收筆前就知道這一筆要花多少,
+// 不用去記「每寸多少」這種抽象數字 —— 數字直接長在他手上。
+// 用的是 truncate 後的長度,所以顯示的就是收筆時真的會被扣的錢。
+function drawStrokeCost(x, y, chargedLen){
+  const free = (G.mana - stat.costBase <= 0) && G.reserve > 0;
+  const cost = stat.costBase + chargedLen * Math.max(0.001, stat.costPerPx);
+  const txt  = free ? '劍匣 · 免費' : '-' + Math.round(cost) + ' 劍意';
+  // 指尖會蓋住正下方,所以往上擺;靠畫面邊緣時翻到另一側,不要被切掉
+  const up = (y > 96);
+  const dx = (x > W - 96) ? -1 : 1;
+  const tx = x + dx * 26, ty = y + (up ? -34 : 34);
+  ctx.save();
+  ctx.textAlign = dx > 0 ? 'left' : 'right';
+  ctx.textBaseline = 'middle';
+  ctx.font = '700 17px "Noto Serif TC","STKaiti","KaiTi",serif';
+  // 可讀性靠紙色柔暈,不用描邊(描邊會把筆畫糊成一團,跟傷害數字同一套規則)
+  ctx.shadowColor = 'rgba(250,246,238,.95)'; ctx.shadowBlur = 7;
+  // 劍意還夠 → 墨色;這一筆會把劍意畫空 → 朱砂紅;動用劍匣 → 金
+  ctx.fillStyle = free ? '#c08a2e'
+                : (cost >= G.mana - 0.5 ? '#7a2b2b' : 'rgba(43,38,32,.92)');
+  ctx.fillText(txt, tx, ty);
+  ctx.shadowColor = 'transparent';
+  ctx.restore();
 }
 // 劍匣存量指示:用飛劍 sprite 轉 -90° 朝上畫。沒有 sprite 就退回一個簡單的墨劍形。
 function drawReserve(){
