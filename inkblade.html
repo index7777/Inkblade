@@ -63,8 +63,10 @@
   /* 直向 HUD：左上狀態、右上暫停、其下為戰況。中央全留給畫劍。 */
   #hud { position:absolute; top:0; left:var(--paper-inset); right:var(--paper-inset); pointer-events:none; color:#3a332a;
     padding:calc(var(--scroll-top-safe) + env(safe-area-inset-top)) 10px 0; }
-  /* 毛筆刷痕遮罩:兩端收鋒的一筆,拉伸後供所有狀態條共用 */
-  #hud { --brush:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 12' preserveAspectRatio='none'%3E%3Cpath d='M3.4 2.7c37-1.1 87-.6 137-.2 25 .2 44 .8 57.6 2L200 6l-2 1.5c-13.6 1.2-32.6 1.8-57.6 2-50 .4-100 .9-137-.2-2.4-.5-3-6.1 0-6.6z' fill='%23000'/%3E%3C/svg%3E"); }
+  /* 毛筆刷痕遮罩:程式生成的乾筆刷痕(鈍起筆 + 厚腰身 + 右端飛白分岔),
+     由 tools 端以噪聲取樣輸出成 SVG path;軌道與填色共用同一個遮罩。 */
+  #hud { --brush:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 14' preserveAspectRatio='none'%3E%3Cpath d='M2 7.19L4.18 1.98L6.36 0.41L8.53 0.41L10.71 0.41L12.89 0.42L15.07 0.42L17.24 0.43L19.42 0.43L21.6 0.44L23.78 0.44L25.96 0.44L28.13 0.44L30.31 0.43L32.49 0.42L34.67 0.41L36.84 0.4L39.02 0.38L41.2 0.36L43.38 0.35L45.56 0.33L47.73 0.32L49.91 0.3L52.09 0.29L54.27 0.28L56.44 0.28L58.62 0.27L60.8 0.27L62.98 0.27L65.16 0.28L67.33 0.28L69.51 0.28L71.69 0.29L73.87 0.29L76.04 0.29L78.22 0.29L80.4 0.28L82.58 0.27L84.76 0.26L86.93 0.24L89.11 0.22L91.29 0.2L93.47 0.18L95.64 0.15L97.82 0.13L100 0.1L102.18 0.08L104.36 0.06L106.53 0.05L108.71 0.04L110.89 0.04L113.07 0.05L115.24 0.06L117.42 0.07L119.6 0.09L121.78 0.12L123.96 0.15L126.13 0.18L128.31 0.22L130.49 0.25L132.67 0.29L134.84 0.32L137.02 0.35L139.2 0.37L141.38 0.39L143.56 0.41L145.73 0.42L147.91 0.42L150.09 0.42L152.27 0.42L154.44 0.41L156.62 0.4L158.8 0.39L160.98 0.38L163.16 0.37L165.33 0.36L167.51 0.35L169.69 0.34L171.87 0.33L174.04 0.33L176.22 0.55L178.4 0.84L180.58 1.16L182.76 1.5L184.93 1.86L187.11 2.26L189.29 2.7L191.47 3.21L193.64 3.83L195.82 4.65L198 6.89L198 7L195.82 9.23L193.64 10.04L191.47 10.65L189.29 11.15L187.11 11.59L184.93 11.98L182.76 12.34L180.58 12.67L178.4 12.98L176.22 13.27L174.04 13.49L171.87 13.48L169.69 13.47L167.51 13.46L165.33 13.45L163.16 13.44L160.98 13.42L158.8 13.41L156.62 13.4L154.44 13.38L152.27 13.38L150.09 13.37L147.91 13.37L145.73 13.38L143.56 13.39L141.38 13.4L139.2 13.43L137.02 13.45L134.84 13.48L132.67 13.52L130.49 13.55L128.31 13.59L126.13 13.63L123.96 13.66L121.78 13.7L119.6 13.73L117.42 13.75L115.24 13.77L113.07 13.78L110.89 13.79L108.71 13.79L106.53 13.79L104.36 13.78L102.18 13.76L100 13.75L97.82 13.73L95.64 13.7L93.47 13.68L91.29 13.66L89.11 13.64L86.93 13.62L84.76 13.61L82.58 13.6L80.4 13.59L78.22 13.59L76.04 13.59L73.87 13.59L71.69 13.59L69.51 13.6L67.33 13.61L65.16 13.62L62.98 13.62L60.8 13.63L58.62 13.63L56.44 13.64L54.27 13.64L52.09 13.63L49.91 13.63L47.73 13.62L45.56 13.62L43.38 13.61L41.2 13.6L39.02 13.6L36.84 13.59L34.67 13.59L32.49 13.59L30.31 13.59L28.13 13.6L25.96 13.61L23.78 13.62L21.6 13.63L19.42 13.65L17.24 13.66L15.07 13.68L12.89 13.7L10.71 13.71L8.53 13.73L6.36 13.74L4.18 12.17L2 6.98Z' fill='%23000'/%3E%3Cpath d='M178.97 3.58L180.63 3.3L182.3 3.08L183.96 3.08L185.62 3.02L187.29 3.02L188.95 3.21L190.61 3.25L192.27 3.12L193.94 3.21L195.6 3.43L197.26 3.57L198.92 3.94L198.92 3.94L197.26 3.88L195.6 3.87L193.94 3.75L192.27 3.74L190.61 3.95L188.95 3.98L187.29 3.85L185.62 3.9L183.96 4.02L182.3 4.07L180.63 4.34L178.97 4.66ZM168.47 5.03L170.71 5.2L172.95 5.28L175.18 5.14L177.42 5.17L179.65 5.37L181.89 5.49L184.12 5.69L186.36 6L188.59 6.01L190.83 5.81L193.07 5.75L195.3 5.79L195.3 5.79L193.07 6.08L190.83 6.27L188.59 6.58L186.36 6.66L184.12 6.42L181.89 6.29L179.65 6.23L177.42 6.09L175.18 6.12L172.95 6.32L170.71 6.29L168.47 6.17ZM168.89 7.18L170.83 7.32L172.78 7.48L174.72 7.8L176.66 7.88L178.61 7.67L180.55 7.56L182.49 7.49L184.44 7.35L186.38 7.42L188.32 7.65L190.27 7.67L192.21 7.75L192.21 7.75L190.27 8.09L188.32 8.24L186.38 8.14L184.44 8.19L182.49 8.43L180.55 8.58L178.61 8.78L176.66 9.07L174.72 9.06L172.78 8.81L170.83 8.71L168.89 8.64ZM161.72 9.84L164.66 9.69L167.61 9.63L170.56 9.47L173.51 9.45L176.46 9.66L179.41 9.69L182.36 9.58L185.31 9.66L188.25 9.77L191.2 9.85L194.15 10.19L197.1 10.7L197.1 10.7L194.15 10.6L191.2 10.43L188.25 10.48L185.31 10.48L182.36 10.5L179.41 10.69L176.46 10.74L173.51 10.61L170.56 10.7L167.61 10.92L164.66 11.05L161.72 11.26Z' fill='%23000'/%3E%3C/svg%3E");
+         --inkring:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M95.3 50L95.18 52.37L94.94 54.72L94.59 57.06L94.13 59.38L93.55 61.67L92.86 63.92L92.06 66.14L91.15 68.32L90.13 70.45L89.02 72.53L87.8 74.55L86.48 76.5L85.06 78.39L83.55 80.21L81.95 81.95L80.26 83.61L78.48 85.17L76.62 86.64L74.69 88.01L72.68 89.28L70.6 90.43L68.47 91.47L66.27 92.39L64.03 93.19L61.75 93.86L59.44 94.4L57.1 94.8L54.74 95.08L52.37 95.22L50 95.22L47.64 95.09L45.29 94.82L42.96 94.43L40.67 93.9L38.41 93.26L36.2 92.49L34.03 91.6L31.92 90.6L29.88 89.49L27.9 88.28L25.99 86.97L24.15 85.57L22.4 84.09L20.72 82.52L19.12 80.88L17.61 79.16L16.19 77.38L14.86 75.53L13.61 73.63L12.46 71.67L11.4 69.67L10.44 67.61L9.57 65.52L8.8 63.39L8.14 61.22L7.57 59.02L7.11 56.79L6.76 54.54L6.51 52.28L6.38 50L6.35 47.71L6.45 45.42L6.65 43.13L6.98 40.86L7.42 38.59L7.98 36.35L8.66 34.13L9.45 31.95L10.36 29.8L11.39 27.71L12.53 25.67L13.78 23.69L15.14 21.77L16.6 19.93L18.17 18.17L19.83 16.49L21.58 14.9L23.41 13.4L25.33 12.01L27.32 10.72L29.38 9.53L31.5 8.46L33.68 7.49L35.91 6.65L38.19 5.92L40.5 5.32L42.85 4.84L45.22 4.48L47.6 4.24L50 4.14L52.4 4.16L54.8 4.31L57.19 4.58L59.57 4.99L61.92 5.52L64.24 6.17L66.52 6.95L68.76 7.86L70.95 8.88L73.08 10.02L75.15 11.28L77.14 12.65L79.05 14.12L80.88 15.7L82.62 17.38L84.26 19.15L85.8 21.01L87.24 22.94L88.57 24.95L89.78 27.03L90.88 29.17L91.86 31.36L92.72 33.6L93.45 35.88L94.07 38.19L94.56 40.53L94.93 42.88L95.17 45.25L95.29 47.63L95.3 50Z M93.64 50L91.34 50L91.31 47.84L91.17 45.67L90.94 43.52L90.6 41.37L90.16 39.24L89.62 37.13L88.97 35.04L88.21 32.99L87.35 30.97L86.39 28.99L85.33 27.06L84.16 25.18L82.89 23.36L81.53 21.61L80.08 19.92L78.53 18.32L76.9 16.79L75.18 15.34L73.39 13.99L71.52 12.73L69.58 11.57L67.58 10.51L65.52 9.56L63.41 8.72L61.26 7.99L59.06 7.38L56.83 6.89L54.57 6.52L52.29 6.27L50 6.15L47.7 6.15L45.4 6.28L43.12 6.54L40.85 6.93L38.6 7.45L36.38 8.09L34.21 8.86L32.08 9.76L30.02 10.78L28.01 11.92L26.08 13.17L24.23 14.54L22.47 16.01L20.8 17.57L19.24 19.24L17.78 20.99L16.43 22.81L15.19 24.71L14.08 26.67L13.08 28.68L12.21 30.74L11.46 32.84L10.83 34.97L10.33 37.11L9.95 39.27L9.68 41.43L9.53 43.59L9.49 45.74L9.56 47.88L9.73 50L10 52.1L10.37 54.17L10.83 56.2L11.37 58.21L12 60.18L12.71 62.12L13.49 64.02L14.35 65.87L15.27 67.69L16.27 69.47L17.34 71.21L18.48 72.9L19.69 74.55L20.96 76.15L22.31 77.69L23.72 79.19L25.2 80.63L26.74 82.01L28.36 83.32L30.04 84.56L31.79 85.73L33.61 86.82L35.48 87.82L37.42 88.73L39.41 89.54L41.45 90.25L43.53 90.85L45.66 91.33L47.81 91.7L50 91.95L52.21 92.08L54.42 92.07L56.64 91.94L58.86 91.68L61.07 91.3L63.25 90.78L65.41 90.14L67.53 89.37L69.6 88.48L71.63 87.47L73.6 86.34L75.5 85.1L77.34 83.76L79.1 82.32L80.78 80.78L82.37 79.14L83.87 77.43L85.28 75.63L86.58 73.76L87.79 71.82L88.89 69.82L89.88 67.76L90.77 65.65L91.53 63.5L92.19 61.3L92.72 59.08L93.13 56.83L93.42 54.56L93.59 52.28Z' fill='%23241f1a' fill-rule='evenodd'/%3E%3Cpath d='M89.17 50L89.17 52.05L89.06 54.11L88.85 56.15L88.52 58.19L88.08 60.2L87.52 62.19L86.85 64.15L86.08 66.06L85.19 67.93L84.2 69.74L83.1 71.5L81.9 73.18L80.61 74.79L79.23 76.32L77.77 77.77L76.22 79.13L74.61 80.39L72.93 81.56L71.19 82.63L69.4 83.59L67.56 84.46L65.68 85.22L63.77 85.87L61.84 86.42L59.88 86.87L57.91 87.22L55.93 87.46L53.95 87.6L51.97 87.65L50 87.59L48.04 87.44L46.09 87.2L44.16 86.86L42.26 86.44L40.37 85.92L38.52 85.32L36.71 84.63L34.93 83.86L33.19 83L31.49 82.06L29.84 81.04L28.24 79.95L26.7 78.77L25.22 77.52L23.8 76.2L22.44 74.81L21.16 73.36L19.95 71.83L18.82 70.25L17.76 68.61L16.8 66.92L15.92 65.17L15.13 63.39L14.43 61.56L13.83 59.69L13.32 57.8L12.92 55.87L12.61 53.93L12.4 51.97L12.29 50L12.29 48.02L12.38 46.05L12.58 44.07L12.88 42.11L13.28 40.16L13.78 38.23L14.37 36.32L15.07 34.45L15.86 32.61L16.75 30.8L17.73 29.04L18.8 27.33L19.96 25.68L21.21 24.08L22.55 22.55L23.97 21.09L25.46 19.7L27.03 18.39L28.68 17.17L30.39 16.03L32.16 15L34 14.05L35.88 13.22L37.81 12.48L39.78 11.86L41.78 11.35L43.82 10.96L45.87 10.67L47.93 10.51L50 10.46L52.07 10.54L54.13 10.72L56.17 11.03L58.2 11.44L60.19 11.97L62.15 12.6L64.07 13.34L65.95 14.18L67.78 15.11L69.55 16.14L71.26 17.26L72.92 18.46L74.5 19.74L76.02 21.1L77.47 22.53L78.85 24.03L80.15 25.59L81.37 27.21L82.51 28.89L83.57 30.62L84.55 32.4L85.44 34.22L86.24 36.09L86.95 37.99L87.57 39.93L88.09 41.9L88.51 43.9L88.84 45.92L89.05 47.95L89.17 50Z M88.66 50L87.99 50L87.88 48.01L87.66 46.04L87.35 44.08L86.94 42.15L86.44 40.24L85.85 38.35L85.16 36.5L84.39 34.69L83.53 32.91L82.59 31.18L81.57 29.5L80.47 27.86L79.29 26.28L78.04 24.76L76.71 23.29L75.31 21.89L73.84 20.56L72.31 19.3L70.71 18.11L69.05 17L67.33 15.98L65.56 15.05L63.74 14.2L61.87 13.46L59.97 12.81L58.02 12.26L56.05 11.82L54.05 11.49L52.03 11.27L50 11.16L47.96 11.16L45.93 11.28L43.9 11.51L41.89 11.86L39.91 12.33L37.95 12.9L36.02 13.59L34.14 14.38L32.31 15.28L30.54 16.29L28.82 17.39L27.17 18.58L25.6 19.86L24.1 21.23L22.68 22.68L21.35 24.2L20.1 25.79L18.95 27.44L17.9 29.15L16.94 30.91L16.08 32.72L15.32 34.56L14.67 36.44L14.11 38.34L13.66 40.26L13.32 42.2L13.08 44.15L12.94 46.11L12.91 48.06L12.98 50L13.14 51.93L13.41 53.85L13.77 55.74L14.23 57.6L14.78 59.44L15.42 61.23L16.15 62.99L16.97 64.71L17.86 66.38L18.83 67.99L19.88 69.56L21 71.07L22.19 72.52L23.45 73.91L24.76 75.24L26.14 76.5L27.57 77.69L29.06 78.82L30.6 79.88L32.18 80.86L33.81 81.78L35.48 82.61L37.19 83.38L38.93 84.06L40.71 84.66L42.52 85.18L44.36 85.62L46.22 85.97L48.1 86.23L50 86.41L51.91 86.49L53.83 86.47L55.76 86.36L57.68 86.15L59.61 85.85L61.51 85.44L63.41 84.93L65.28 84.31L67.12 83.59L68.92 82.77L70.68 81.85L72.4 80.83L74.06 79.71L75.65 78.49L77.18 77.18L78.63 75.78L80 74.3L81.29 72.73L82.48 71.09L83.58 69.39L84.58 67.62L85.47 65.79L86.26 63.92L86.93 62L87.5 60.05L87.96 58.07L88.3 56.07L88.53 54.05L88.65 52.03Z' fill='%23241f1a' fill-rule='evenodd' opacity='.55'/%3E%3C/svg%3E"); }
   .panel { background:rgba(248,243,232,.94); border:1px solid rgba(66,52,38,.45);
     border-radius:6px; padding:7px 10px; box-shadow:0 3px 12px rgba(45,37,26,.14); }
   /* 左上狀態列:文字一律不透明墨色(不再用半透明躲怪),靠紙色描邊維持可讀性。
@@ -88,28 +90,20 @@
   .ctl { pointer-events:auto; cursor:pointer; font-size:clamp(12px,1.5vw,14px);
     letter-spacing:2px; color:#2b2620; white-space:nowrap;
     min-height:32px; display:flex; align-items:center; }
-  /* 暫停:圓角方印 */
-  #pausebtn { width:52px; height:52px; min-height:52px; padding:0; justify-content:center;
-    border-radius:13px; font:700 22px/1 system-ui,sans-serif; letter-spacing:0;
-    background:rgba(250,246,238,.96); border:1px solid rgba(60,48,34,.5);
-    box-shadow:inset 0 0 0 3px rgba(250,246,238,1), inset 0 0 0 4px rgba(60,48,34,.24),
-               0 3px 12px rgba(45,37,26,.14); }
+  /* 御劍 / 靜觀:共用手繪墨圈(SVG)當外框,內容為直式二字。
+     不再用 CSS 圓角與 box-shadow 疊圈 —— 那個太規整,沒有筆味。 */
+  .inkbtn { width:60px; height:60px; min-height:60px; min-width:60px; padding:0;
+    display:flex; align-items:center; justify-content:center;
+    background:var(--inkring) center/contain no-repeat, rgba(250,246,238,.55);
+    border:none; border-radius:50%; box-shadow:none;
+    transition:filter .18s, transform .12s; }
+  .inkbtn .vt { display:flex; flex-direction:column; align-items:center; line-height:1.08; }
+  .inkbtn .vt b { display:block; font-weight:600; font-size:17px; color:#241f1a;
+    font-family:"Noto Serif TC","STKaiti","KaiTi",serif; letter-spacing:0; }
+  .inkbtn:active { transform:scale(.95); }
+  #autobtn.on { filter:sepia(.7) saturate(3.2) hue-rotate(-14deg) brightness(1.06); }
+  #autobtn.on .vt b { color:#5a3f0d; }
   #pausebtn .pause-label { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); }
-  /* 御劍 AUTO:手繪雙圈印 */
-  #autobtn { width:58px; height:58px; min-height:58px; min-width:58px; padding:0; justify-content:center;
-    flex-direction:column; gap:2px; border-radius:50%; letter-spacing:1px;
-    font-family:system-ui,sans-serif; background:rgba(250,246,238,.72);
-    border:1.5px solid rgba(52,42,32,.66);
-    box-shadow:0 0 0 3px rgba(250,246,238,.62), 0 0 0 4.2px rgba(52,42,32,.24),
-               0 3px 12px rgba(45,37,26,.14);
-    transition:color .18s,border-color .18s,background .18s,box-shadow .18s,transform .12s; }
-  #autobtn .auto-mark { font-size:9.5px; line-height:1; letter-spacing:2px; opacity:1; color:#4a4038; }
-  #autobtn .auto-label { font-size:15px; font-weight:800; line-height:1; color:#241f1a; }
-  #autobtn.on { border-color:#b78e2c; background:linear-gradient(180deg,#f6de92,#d8ae48);
-    box-shadow:0 0 0 3px rgba(250,246,238,.5), 0 0 0 4.2px rgba(183,142,44,.5),
-               0 3px 14px rgba(139,99,22,.36); }
-  #autobtn.on .auto-mark, #autobtn.on .auto-label { color:#4a3510; }
-  #autobtn:active { transform:scale(.96); }
   .ctl:hover { color:#7a2b2b; }
   /* 毛筆刷痕:兩端收鋒、腰身略粗,軌道與填色共用同一個遮罩 */
   .bar { position:relative; height:12px; margin-top:5px; border-radius:0; overflow:hidden;
@@ -377,8 +371,8 @@
       <div class="barrow"><div class="bar"><i id="xpfill"></i></div><span class="knob" id="xpknob"></span></div>
     </div>
     <div id="ctrls">
-      <button class="panel ctl" id="autobtn" type="button" aria-label="自動御劍" aria-pressed="false"><span class="auto-mark">御劍</span><span class="auto-label">AUTO</span></button>
-      <button class="panel ctl" id="pausebtn" type="button" aria-label="暫停遊戲">Ⅱ<span class="pause-label">暫停</span></button>
+      <button class="ctl inkbtn" id="autobtn" type="button" aria-label="自動御劍" aria-pressed="false"><span class="vt"><b>御</b><b>劍</b></span></button>
+      <button class="ctl inkbtn" id="pausebtn" type="button" aria-label="靜觀(暫停)"><span class="vt"><b>靜</b><b>觀</b></span><span class="pause-label">暫停</span></button>
     </div>
     <div class="panel" id="scorewrap">
       <div class="big" id="killtxt">0</div>
@@ -1007,9 +1001,17 @@ function drawSplash(ctx,sp){
   ctx.restore(); ctx.globalAlpha=1;
 }
 function floatText(x,y,txt,c){
-  const damage=/^-?\d/.test(String(txt));
-  G.texts.push({x,y,txt:String(txt),c,life:1,age:0,vy:damage?-1.45:-0.75,
-    dx:damage?(Math.random()-.5)*0.32:0,damage,crit:damage&&String(txt).includes('!')});
+  const raw=String(txt);
+  const damage=/^-?\d/.test(raw) || /^-\d/.test(raw) || /^[-]?\d+!?$/.test(raw);
+  const crit=damage && raw.includes('!');
+  // 傷害數值改中文:抓出數字部分翻譯,保留負號與暴擊的「!」
+  let show=raw;
+  if(damage){
+    const m=raw.match(/^(-?)(\d+)(!?)$/);
+    if(m) show = num2cn(+m[2]) + (m[3]||'');   // 參考稿的傷害只寫「廿四」,不帶負號(紅字本身就是扣血)
+  }
+  G.texts.push({x,y,txt:show,c,life:1,age:0,vy:damage?-1.45:-0.75,
+    dx:damage?(Math.random()-.5)*0.32:0,damage,crit});
 }
 // 毛筆劍氣拖尾(Ink Engine 筆劃 primitive 的內嵌版):帶錐度毛邊的填充墨緞帶 + 濃芯 + 飛白
 function inkTrail(ctx, tr, size, rgb){
@@ -1297,7 +1299,7 @@ function update(){
   G.waveTimer++;
   if(G.waveTimer> 60*14){ G.waveTimer=0; G.wave++; updateHUD();
     SND.wave(); SND.intensity(G.wave); flash(0.14,'250,244,226');
-    G.banner={txt:'第 '+num2cn(G.wave)+' 波', life:1}; }
+    G.banner={txt:'第 '+num2cn(G.wave)+' 境', life:1}; }
   G.spawnAcc += (0.55 + G.wave*0.14);
   while(G.spawnAcc>=60){ G.spawnAcc-=60; if(G.enemies.length<70) spawnEnemy(); }
 
@@ -1595,21 +1597,12 @@ function drawHeroFBody(P,alpha){
   ctx.save();
   ctx.translate(P.x, feet+br*1.1);
   ctx.scale(dying?1:G.facing, 1+br*0.013);
-  const N=26, sh=h/N, sDPR=hfCv.height/h, top=-h*HEROF.foot;
-  const wind=(1+G.intent*0.22)*(dying?0.4:1);
-  for(let i=0;i<N;i++){
-    const y0=i*sh, ry=(y0+sh*0.5)/h;
-    // 風動幅度:腳底 0;裙襬最大;袖與髮各給一份小的
-    const robe  =Math.max(0,Math.min(1,(ry-0.34)/0.40))*(1-Math.max(0,Math.min(1,(ry-0.88)/0.12)));
-    const sleeve=Math.max(0,1-Math.abs(ry-0.29)/0.15);
-    const hair  =Math.max(0,1-Math.abs(ry-0.10)/0.13);
-    const amp=(robe*0.062+sleeve*0.040+hair*0.034)*w*wind;
-    const dx=Math.sin(ry*6.6-G.t*0.046)*amp + Math.sin(ry*2.7-G.t*0.026)*amp*0.5;
-    ctx.globalAlpha=alpha;
-    ctx.drawImage(hfCv, 0, y0*sDPR, hfCv.width, sh*sDPR+1, -w/2+dx, top+y0, w, sh+0.7);
-    if(glow>0.02){ ctx.globalAlpha=alpha*glow*0.7;
-      ctx.drawImage(hfRed, 0, y0*sDPR, hfRed.width, sh*sDPR+1, -w/2+dx, top+y0, w, sh+0.7); }
-  }
+  // 整張一次畫完。原本的逐列水平位移(風動)被判定看起來像水波濾鏡,已移除 ——
+  // 動態只留呼吸(上面的微縮放與上下浮動)與轉身。
+  const top=-h*HEROF.foot;
+  ctx.globalAlpha=alpha;
+  ctx.drawImage(hfCv, -w/2, top, w, h);
+  if(glow>0.02){ ctx.globalAlpha=alpha*glow*0.7; ctx.drawImage(hfRed, -w/2, top, w, h); }
   ctx.globalAlpha=1; ctx.restore();
 }
 // 配劍:沿橢圓公轉,劍尖順著切線方向;身後淡而小、身前濃而大,後面拖一道乾筆墨痕。
@@ -2140,11 +2133,14 @@ function draw(){
   if(DRAWLV>=7) for(const t of G.texts){
     ctx.save(); ctx.globalAlpha=Math.max(0,Math.min(1,t.life*1.45));
     if(t.damage){
-      const pop=t.age<6?.72+t.age*.055:1, size=t.crit?23:20;
-      ctx.translate(t.x,t.y); ctx.scale(pop,pop); ctx.font='italic 800 '+size+'px Arial,"Noto Sans TC",sans-serif';
-      ctx.lineJoin='round'; ctx.miterLimit=2; ctx.lineWidth=t.crit?5.5:4.5;
-      ctx.strokeStyle='rgba(18,15,12,.96)'; ctx.shadowColor='rgba(0,0,0,.5)'; ctx.shadowBlur=3; ctx.shadowOffsetY=2;
-      ctx.strokeText(t.txt,0,0); ctx.shadowColor='transparent'; ctx.fillStyle=t.c; ctx.fillText(t.txt,0,0);
+      const pop=t.age<6?.72+t.age*.055:1, size=t.crit?26:22;
+      ctx.translate(t.x,t.y); ctx.scale(pop,pop);
+      // 中文數值:用襯線體、不加外框(外框會把筆畫糊成一團)。
+      // 可讀性改靠一層極淡的紙色柔暈,不是描邊。
+      ctx.font=(t.crit?'700 ':'600 ')+size+'px "Noto Serif TC","STKaiti","KaiTi",serif';
+      ctx.shadowColor='rgba(250,246,238,.9)'; ctx.shadowBlur=6; ctx.shadowOffsetY=0;
+      ctx.fillStyle=t.c; ctx.fillText(t.txt,0,0);
+      ctx.shadowColor='transparent';
     }else{
       ctx.font='bold 16px serif'; ctx.fillStyle=t.c; ctx.fillText(t.txt,t.x,t.y);
     }
@@ -2180,8 +2176,31 @@ function draw(){
 
 // ---------- HUD ----------
 const CN=['零','一','二','三','四','五','六','七','八','九','十'];
-function num2cn(n){ if(n<=10)return CN[n]; if(n<20)return '十'+CN[n-10];
-  return CN[Math.floor(n/10)]+'十'+(n%10?CN[n%10]:''); }
+// 中文數字:原版只做到 99(百位會算錯)。改為支援到 9999,並沿用傳統的 廿/卅
+// (參考稿的傷害寫「廿四」而不是「二十四」)。十位為 1 時省略「一」:十四,不是一十四。
+const CN_TENS={2:'廿',3:'卅'};
+function num2cn(n){
+  n=Math.max(0,Math.round(n));
+  if(n<=10) return CN[n];
+  if(n<100){
+    const t=Math.floor(n/10), o=n%10;
+    const head = t===1 ? '十' : (CN_TENS[t] || CN[t]+'十');
+    return head + (o?CN[o]:'');
+  }
+  if(n<10000){
+    const units=['','十','百','千'], d=String(n).split('').map(Number);
+    let out='', zero=false;
+    for(let i=0;i<d.length;i++){
+      const v=d[i], u=units[d.length-1-i];
+      if(v===0){ zero=true; continue; }
+      if(zero && out) out+='零';
+      zero=false;
+      out += (v===1 && u==='十' && i===0) ? '十' : CN[v]+u;
+    }
+    return out;
+  }
+  return String(n);                      // 破萬就不硬翻了,維持數字
+}
 const hudCache={};
 function setTxt(id,v){ if(hudCache[id]!==v){ const e=document.getElementById(id); if(!e) return;
   hudCache[id]=v; e.textContent=v; } }
@@ -2200,7 +2219,7 @@ function updateHUD(){
     const kb=document.getElementById('xpknob'); if(kb) kb.style.left=pct; }
   setTxt('lvtxt',num2cn(G.level));
   setTxt('killtxt',String(G.kills));
-  setTxt('wavetxt','第 '+num2cn(G.wave)+' 波');
+  setTxt('wavetxt','第 '+num2cn(G.wave)+' 境');
 }
 
 // ---------- 迴圈 ----------
@@ -2692,9 +2711,9 @@ function gameOver(){
     hint = need>0 ? '再積 <b style="color:#c08a2e">'+need+'</b> 墨魂可習得〈'+nxt.name+'〉'
                   : '墨魂已足以習得〈'+nxt.name+'〉，速入轉世閣'; }
   document.getElementById('finaltxt').innerHTML=
-    '此世 · 斬妖 '+G.kills+' 頭 · 道行 '+num2cn(G.level)+' 重 · 抵第 '+num2cn(G.wave)+' 波'
+    '此世 · 斬妖 '+G.kills+' 頭 · 道行 '+num2cn(G.level)+' 重 · 抵第 '+num2cn(G.wave)+' 境'
     + (nb?'　<span style="color:#c08a2e">✦ 斬妖新猷</span>':'')
-    + '<br>歷史最佳 · 斬妖 '+meta.best.kills+' · 道行 '+num2cn(meta.best.level)+' 重 · 第 '+num2cn(meta.best.wave)+' 波'
+    + '<br>歷史最佳 · 斬妖 '+meta.best.kills+' · 道行 '+num2cn(meta.best.level)+' 重 · 第 '+num2cn(meta.best.wave)+' 境'
     + '<br><br>此世凝魂 <b style="color:#c08a2e">+'+earned+'</b>'+(autoed?' <span style="color:#8a7a5a">(自動禦劍 · 減半不計紀錄)</span>':'')+' · 現有墨魂 <b style="color:#c08a2e">'+meta.souls+'</b>'
     + (hint?'<br><span style="font-size:13px;color:#c9bfa6">'+hint+'</span>':'');
   document.getElementById('gameover').style.display='flex';
@@ -2823,7 +2842,7 @@ function closeMeta(){ document.getElementById('meta').classList.remove('show'); 
 // 自動禦劍開關
 function renderAutoBtn(){
   const b=document.getElementById('autobtn');
-  b.innerHTML='<span class="auto-mark">御劍</span><span class="auto-label">AUTO</span>';
+  b.innerHTML='<span class="vt"><b>御</b><b>劍</b></span>';
   b.classList.toggle('on',!!G.auto);
   b.setAttribute('aria-pressed',String(!!G.auto));
   b.title=G.auto?'自動御劍：開':'自動御劍：關';
