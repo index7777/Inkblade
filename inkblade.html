@@ -462,7 +462,7 @@
   </div></div>
 
   <div id="splash">
-    <img id="splashlogo" src="assets/ui/logo.png?v=1" alt="墨劍訣 Inkblade">
+    <img id="splashlogo" src="assets/ui/logo.png?v=2" alt="墨劍訣 Inkblade">
     <div class="tagline">一筆成劍　一墨斬妖</div>
     <div class="splashspacer"></div>
     <div class="btncol">
@@ -1100,7 +1100,7 @@ function spawnAutoCommand(x0,y0,x1,y1,opts){
     returnsLeft:opts.returns||0, alive:true, age:0,
     // 這幾個欄位主劍令有、自動劍令也必須有 —— 命中處理是共用的,
     // 少一個 hitOrder 就會在第一次命中丟例外,把後面的破甲/齊斬/歸鋒整串打斷。
-    hitOrder:[], volley:0, frameHit:null, extended:0, anyHit:false,
+    hitOrder:[], volley:0, frameHit:null, extended:0, anyHit:false, free:false,
     auto:true, dmgMul:opts.dmgMul||1, noIntent:!opts.intent };
   G.commands.push(c);
   const sw=spawnCmdSword(c,0,0);
@@ -1143,7 +1143,7 @@ function launchCommand(path){
     slots:n,
     returnsLeft: stat.ret ? Math.max(1, stat.returnHits||1) : 0,
     alive:true, age:0,
-    hitOrder:[], volley:0, frameHit:null, extended:0, dmgMul:1, anyHit:false
+    hitOrder:[], volley:0, frameHit:null, extended:0, dmgMul:1, anyHit:false, free:false
   };
   G.commands.push(c);
   for(let i=0;i<n;i++) spawnCmdSword(c, i, c.formation==='inline' ? i*4 : 0);
@@ -1731,8 +1731,14 @@ function update(){
         // 出鞘點沿「真實瞄準線」擺放(扇形繞起點旋轉,起點在線上才能完全歸零誤差)
         const nx=-Math.sin(ang)*shift, ny=Math.cos(ang)*shift;
         const ox=P.x+Math.cos(aim)*P.r+nx, oy=P.y+Math.sin(aim)*P.r+ny;
+        // 劍令系統移除了「續飛」——舊版這 90px 只是引導段,劍跑完會繼續橫穿畫面。
+        // 現在 Reach End → Destroy,固定 90px 等於自動御劍只打得到腳邊。
+        // 改為畫到目標身後(貫穿),長度受劍意可負擔上限約束,行為才接近人類玩家。
+        const dist=Math.hypot(best.x-P.x, best.y-P.y) - P.r;
+        const want=Math.max(120, dist + 150);              // 穿過目標再延伸一段
+        const L=Math.max(60, Math.min(want, allowedLen()));
         const path=[{x:ox, y:oy},
-                    {x:ox+Math.cos(ang)*90, y:oy+Math.sin(ang)*90}];
+                    {x:ox+Math.cos(ang)*L, y:oy+Math.sin(ang)*L}];
         const before=G.mana; launchSword(path);
         if(G.mana<before){ G.autoUsed=true; G.autoTimer=0; } else { G.autoTimer=28; }
       }
@@ -1826,6 +1832,14 @@ function update(){
     c.frameHit=null;                                   // 齊斬:每幀重置同幀命中統計
     // 1) 推進中心點(歸鋒·小成:回程加速三成)
     let budget=stat.speed * ((c.step<0 && TF.returnFaster) ? 1.3 : 1);
+    // 續飛:筆跡走完後,劍令沿最後方向繼續前進,直到飛出畫面。
+    // 劍沒打到東西就憑空消失不合理 —— 筆跡定義的是「怎麼去」,不是「走完就結束」。
+    if(c.free){
+      c.x+=Math.cos(c.ang)*budget; c.y+=Math.sin(c.ang)*budget;
+      const OUT=60;
+      if(c.x<-OUT||c.x>W+OUT||c.y<-OUT||c.y>H+OUT||c.age>900) c.alive=false;
+      budget=0;
+    }
     while(budget>0 && c.alive){
       const tgt=c.pts[c.seg];
       if(!tgt){ cmdReachedEnd(c); break; }
@@ -1892,7 +1906,14 @@ function update(){
       const first=c.hitOrder.find(en=>G.enemies.includes(en));
       if(first) spawnAutoCommand(c.x,c.y,first.x,first.y,{dmgMul:0.8,intent:true});
     }
-    c.alive=false;
+    // 筆跡走完 → 轉續飛(不是消散)。飛出畫面才真的結束。
+    c.free=true;
+    c.ang=Math.atan2(c.y-(c.py!=null?c.py:c.y), c.x-(c.px!=null?c.px:c.x)) || c.ang;
+    { // 用筆跡最後兩點決定方向,比用上一幀位移穩定
+      const a=c.pts[Math.max(0,c.pts.length-2)], b=c.pts[c.pts.length-1];
+      if(a&&b&&(a!==b)) c.ang = c.step>0 ? Math.atan2(b.y-a.y,b.x-a.x)
+                                         : Math.atan2(c.pts[0].y-c.pts[1].y, c.pts[0].x-c.pts[1].x);
+    }
   }
 
   // 劍(命中判定與生命週期)
