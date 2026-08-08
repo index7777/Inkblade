@@ -101,8 +101,16 @@
   .inkbtn .vt b { display:block; font-weight:600; font-size:17px; color:#241f1a;
     font-family:"Noto Serif TC","STKaiti","KaiTi",serif; letter-spacing:0; }
   .inkbtn:active { transform:scale(.95); }
-  #autobtn.on { filter:sepia(.7) saturate(3.2) hue-rotate(-14deg) brightness(1.06); }
-  #autobtn.on .vt b { color:#5a3f0d; }
+  /* 御劍啟用:不再上黃,改成一圈繞著鈕轉的墨線(虛線環 + 緩慢自轉 + 淡淡墨暈) */
+  #autobtn { position:relative; }
+  #autobtn::after { content:''; position:absolute; inset:-5px; border-radius:50%;
+    border:1.6px dashed rgba(38,32,26,.72); opacity:0; transform:rotate(0deg);
+    transition:opacity .25s; pointer-events:none; }
+  #autobtn.on::after { opacity:1; animation:inkorbit 4.2s linear infinite; }
+  #autobtn.on { box-shadow:0 0 0 6px rgba(58,48,38,.07), 0 0 14px rgba(45,37,26,.22); }
+  #autobtn.on .vt b { color:#1c1712; }
+  @keyframes inkorbit { to { transform:rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce){ #autobtn.on::after { animation:none; } }
   #pausebtn .pause-label { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); }
   .ctl:hover { color:#7a2b2b; }
   /* 毛筆刷痕:兩端收鋒、腰身略粗,軌道與填色共用同一個遮罩 */
@@ -1144,6 +1152,11 @@ function syncStat(){
   stat.splashOnKill  = !!snap.globalFlags.splashOnKill;     // 破墨心訣/墨海無涯
   stat.returnDry     = !!snap.returnBlade.leaveDryBrush;    // 歸念/歸藏無痕:折返飛白
   stat.returnDmgMul  = snap.returnBlade.damageMultiplier||1;
+  // ===== 小成/大成/圓滿:新增的 mechanics 與行為旗標 =====
+  stat.hitPadding  = m.hitPadding||0;      // 展鋒·大成:命中判定加寬
+  stat.manaRefund  = m.manaRefund||0;      // 納息·大成:御劍返還比例
+  stat.splashChain = m.splashChain||0;     // 破墨·圓滿:潑墨連鎖層數
+  stat.tierFlags   = runState.flags||{};   // 其餘行為旗標,由各玩法位置自行判讀
 }
 // 命中時把劍意狀態掛到墨獸身上(每次命中疊「該劍意階數」層,封頂 maxStacks,並刷新時間)
 function applyIntent(en){
@@ -1421,7 +1434,7 @@ function update(){
     for(let j=G.enemies.length-1;j>=0;j--){
       const en=G.enemies[j];
       if(s.hitSet.has(en)) continue;
-      if(Math.hypot(en.x-s.x,en.y-s.y) < en.r+stat.size){
+      if(Math.hypot(en.x-s.x,en.y-s.y) < en.r+stat.size+(stat.hitPadding||0)){
         // 追蹤降傷已由 config 的 mul 併入 stat.damage(不再另扣);暴擊倍率讀 critMul;可否暴擊看 homingCanCrit
         let dmg=stat.damage;
         let isCrit = (stat.homingCanCrit!==false) && Math.random()<stat.crit;
@@ -1509,6 +1522,15 @@ function killEnemy(idx){
     }
   }
   G.kills++; G.player.hp=Math.min(G.player.max,G.player.hp+stat.regen);
+  // 階級推進:每個滿階技能各自累計局內擊殺,達 300/500/1000 進小成/大成/圓滿
+  if(runState){
+    const gained=INK_CONFIG.runtime.noteKill(runState,1);
+    if(gained.length){ syncStat();
+      G.tierToast=(G.tierToast||[]).concat(gained.map(g=>g.name+' · '+g.tier));
+      G.banner={txt:gained[0].name+' · '+gained[0].tier, life:1};
+      SND.level();
+    }
+  }
   gainXP(en.tier===2?4:en.tier===1?2:1);
   G.enemies.splice(idx,1); updateHUD();
 }

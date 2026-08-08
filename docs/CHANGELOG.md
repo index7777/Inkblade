@@ -5,6 +5,25 @@
 
 ---
 
+## [2026-08-08] #35 小成/大成/圓滿框架上線;御劍啟用改為環繞墨線
+**檔案**:`data/game-config.js`、`inkblade.html`
+
+### A. 階級系統(RANK 滿階後的第二/三/四層機制)
+- **常數**:`TIER_NAMES = [小成,大成,圓滿]`、`TIER_KILLS = [300,500,1000]`;`tier(level, description, effects, pending)` 工廠。
+- **計數規則(依指示「每個技能各自累計」)**:`applyInsight` 在該技能**達到 maxRank 的那一刻**把 `tierKills[id]` 歸零起算。所以早抽滿的先進化、晚抽滿的晚進化,不會全部擠在同一波爆開 —— 這也讓 300/500/1000 這組原始數字重新合理(全域計數的話第 14 波就會全開)。
+- **runtime**:`noteKill(state, n)` 推進所有已滿階技能並套用跨過的層級效果,回傳升級清單;`getTierView(state)` 供 UI。`runState` 加 `tierKills{}` / `tierLevel{}`。
+- **資料**:17 條技能 × 3 層全部就位。其中 **15 層標記 `pending:'劍令'`**(散鋒式/齊鋒式/貫鋒式/引鋒/歸鋒各三層)—— 這些行為直接依賴尚未完工的劍令系統,`noteKill` 會照常升級與題字但不套效果,等劍令做完再拆掉標記即可。
+- **主檔接線**:`killEnemy` 呼叫 `noteKill` → 有升級就 `syncStat()` + 題字 + 音效;`syncStat` 新增 `stat.hitPadding`/`manaRefund`/`splashChain`/`tierFlags`;命中判定套用 `hitPadding`。
+- **未涵蓋**:`透墨` 不在使用者的三層規格裡,暫無 tiers;真意(6 條)為 maxRank 1,不適用階級。
+
+**驗證(node)**:展鋒+開匣抽滿後,第 299 殺未升級 → 第 300 殺同時進小成(劍寬 46→52、劍數 1→2)→ 第 500 殺大成(hitPadding 0→6)→ 第 1000 殺圓滿;隨後才抽滿的凝神計數器為 0(展鋒已 1000),確認各自累計正確。
+
+### B. 御劍啟用態:黃色 → 環繞墨線
+原本 `filter:sepia(...)` 把整顆鈕染黃,與水墨語言不合。改為 `#autobtn::after` 一圈 1.6px 虛線墨環(`inset:-5px`),啟用時淡入並以 4.2s 等速自轉(`@keyframes inkorbit`),另加一層極淡墨暈;文字轉為更濃的墨色。`prefers-reduced-motion` 下停止自轉。
+**驗證(headless)**:開啟後 `::after` 為 `dashed`、`opacity:1`、`animation:inkorbit 4.2s`;連拍三張確認墨環在轉且無黃色殘留。
+
+**還原依據**:git checkout。
+
 ## [2026-08-08] #34 劍意成本改為「劍大劍多就貴」、新增小劍流派、修好劍式不疊加、震動強度可調
 **檔案**:`data/game-config.js`、`inkblade.html`
 
