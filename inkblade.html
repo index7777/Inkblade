@@ -1167,10 +1167,10 @@ function drawSplash(ctx,sp){
   }
   ctx.restore(); ctx.globalAlpha=1;
 }
-function floatText(x,y,txt,c){
+function floatText(x,y,txt,c,critFlag){
   const raw=String(txt);
   const damage=/^-?\d/.test(raw) || /^-\d/.test(raw) || /^[-]?\d+!?$/.test(raw);
-  const crit=damage && raw.includes('!');
+  const crit=damage && (critFlag===true || raw.includes('!'));
   // 傷害數值改中文:抓出數字部分翻譯,保留負號與暴擊的「!」
   let show=raw;
   if(damage){
@@ -1679,7 +1679,9 @@ function update(){
         }
         if(stat.ember>0){ en.ember=Math.max(en.ember,stat.ember); }
         if(stat.ice>0){ en.chill=100; }
-        floatText(en.x,en.y-en.r-10, '-'+Math.round(dmg)+(isCrit?'!':''), isCrit?'#f1d18a':'#fffaf0');
+        // 暴擊不再加「!」。原本「!」兼作暴擊旗標(floatText 靠它判斷 crit),
+        // 所以改用第五個參數明確傳入,而不是只把字刪掉。
+        floatText(en.x,en.y-en.r-10, '-'+Math.round(dmg), isCrit?'#f1d18a':'#fffaf0', isCrit);
         splash(s.x,s.y,(ELEM[stat.element]||ELEM.none).hit,1);
         if(isCrit){ SND.crit(); shake(4); hitstop(3); flash(0.12,'240,220,160');
           if(stat.whiteCut) whiteCut(s.x,s.y,s.ang);
@@ -2241,7 +2243,9 @@ function draw(){
 
 
   // 畫面震動:整個戰場位移(HUD 不動)
-  if(G.shake>0){
+  // 暫停時震動與閃光一律凍結:衰減寫在 update() 裡,靜觀時不跑,
+  // 但 draw() 仍會每幾幀重繪 —— 不擋的話 Math.random() 會讓畫面永遠在抖。
+  if(G.shake>0 && !G.paused){
     const a=Math.random()*6.283, m=G.shake*0.55;
     ctx.translate(Math.cos(a)*m, Math.sin(a)*m);
   }
@@ -2448,7 +2452,7 @@ function draw(){
   }
 
   // 全屏閃光(暴擊、受傷、升級、換波)
-  if(DRAWLV>=8 && G.flash>0){
+  if(DRAWLV>=8 && G.flash>0 && !G.paused){
     ctx.fillStyle='rgba('+G.flashC+','+Math.max(0,G.flash)+')';
     ctx.fillRect(0,0,W,H);
   }
@@ -2957,6 +2961,7 @@ function togglePause(force){
   if(document.getElementById('overlay').classList.contains('show')) return; // 悟劍訣選卡時不干涉
   const now = (typeof force==='boolean') ? force : !pausedByUser;
   pausedByUser=now; G.paused=now; SND.ui();
+  if(now){ G.shake=0; G.flash=0; G.hitstop=0; }   // 靜觀:暴擊的震動/閃光/頓幀全部歸零
   // 暫停:背景樂完全停止;繼續:重新起奏
   if(now) SND.stopMusic(0.25); else SND.startMusic();
   document.getElementById('pause').classList.toggle('show',now);
