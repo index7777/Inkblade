@@ -54,8 +54,10 @@
      整頁也只剩一張畫布(先前三張滿版畫布並存 + 每幀滿版 blit 是效能疑點)。*/
   #depthpaper { position:absolute; inset:-18px; z-index:0; background-repeat:no-repeat;
     filter:blur(15px) brightness(.68) saturate(.72); transform:scale(1.07); opacity:.82; }
-  #paper { position:absolute; top:0; bottom:0; left:var(--paper-inset); right:var(--paper-inset); z-index:0;
-    background-repeat:no-repeat; box-shadow:0 0 18px rgba(12,10,8,.34); }
+  #paper, .paperphase { position:absolute; top:0; bottom:0; left:var(--paper-inset); right:var(--paper-inset); z-index:0;
+    background-repeat:no-repeat; background-position:center; background-size:cover; }
+  #paper { box-shadow:0 0 18px rgba(12,10,8,.34); }
+  .paperphase { pointer-events:none; opacity:0; transition:opacity 1.8s ease-in-out; }
   canvas { position:absolute; top:0; bottom:0; left:var(--paper-inset); right:auto;
     display:block; width:calc(100% - (var(--paper-inset) + var(--paper-inset))); height:100%; z-index:1; }
   #vig { position:absolute; top:0; bottom:0; left:var(--paper-inset); right:var(--paper-inset); z-index:2; pointer-events:none;
@@ -490,6 +492,9 @@
 <div id="wrap">
   <div id="depthpaper"></div>
   <div id="paper"></div>
+  <div id="paperlight" class="paperphase"></div>
+  <div id="papermid" class="paperphase"></div>
+  <div id="paperheavy" class="paperphase"></div>
   <canvas id="game"></canvas>
   <div id="vig"></div>
   <div id="opening" aria-hidden="true">
@@ -1003,7 +1008,7 @@ const HERO_VISUAL_SCALE=0.85; // 中央角色只縮視覺，不動碰撞半徑�
 // ---------- 遊戲狀態 ----------
 const G = {
   running:false, paused:false, t:0,
-  player:null, enemies:[], swords:[], particles:[], inks:[], texts:[], stains:[], splashes:[],commands:[],
+  player:null, enemies:[], swords:[], particles:[], inks:[], texts:[], stains:[], splashes:[], mists:[],commands:[],
   kills:0, wave:1, waveTimer:0, spawnAcc:0,
   xp:0, xpNeed:6, level:1, pendingLevels:0,
   shake:0, hitstop:0, flash:0, flashC:'255,255,255', banner:null,
@@ -1354,6 +1359,27 @@ function drawSplash(ctx,sp){
     ctx.closePath(); ctx.fill();
   }
   ctx.restore(); ctx.globalAlpha=1;
+}
+// 墨獸死亡只化為短暫霧團，不潑墨、不落地、不改變畫卷污染層。
+function mistDissolve(x,y,power,color){
+  power=power||1; color=color||'48,45,41';
+  const n=4+Math.min(4,Math.round(power*2));
+  for(let i=0;i<n;i++) G.mists.push({
+    x:x+(Math.random()-.5)*18*power, y:y+(Math.random()-.5)*22*power,
+    vx:(Math.random()-.5)*.42, vy:-.18-Math.random()*.42,
+    r:(12+Math.random()*18)*power, age:0, dur:30+((Math.random()*18)|0),
+    color, squash:.62+Math.random()*.42
+  });
+  if(G.mists.length>48) G.mists.splice(0,G.mists.length-48);
+}
+function drawMistDissolve(ctx,m){
+  const t=m.age/m.dur, ease=1-Math.pow(1-t,2), r=m.r*(.72+ease*.78), a=Math.pow(1-t,1.7);
+  ctx.save(); ctx.translate(m.x+m.vx*m.age,m.y+m.vy*m.age); ctx.scale(1,m.squash);
+  const fog=ctx.createRadialGradient(-r*.16,-r*.12,r*.05,0,0,r);
+  fog.addColorStop(0,'rgba('+m.color+','+(a*.30)+')');
+  fog.addColorStop(.42,'rgba('+m.color+','+(a*.16)+')');
+  fog.addColorStop(1,'rgba('+m.color+',0)');
+  ctx.fillStyle=fog; ctx.beginPath(); ctx.arc(0,0,r,0,6.283); ctx.fill(); ctx.restore();
 }
 function floatText(x,y,txt,c,critFlag){
   const raw=String(txt);
@@ -2288,6 +2314,7 @@ function update(){
   // 粒子/墨/浮字
   for(let i=G.particles.length-1;i>=0;i--){const p=G.particles[i];p.x+=p.vx;p.y+=p.vy;p.vx*=0.92;p.vy*=0.92;p.life-=0.03;if(p.life<=0)G.particles.splice(i,1);}
   for(let i=G.splashes.length-1;i>=0;i--){const sp=G.splashes[i];sp.age++;if(sp.age>=sp.dur)G.splashes.splice(i,1);}
+  for(let i=G.mists.length-1;i>=0;i--){const m=G.mists[i];m.age++;if(m.age>=m.dur)G.mists.splice(i,1);}
   for(let i=G.inks.length-1;i>=0;i--){const p=G.inks[i];p.x+=p.vx;p.y+=p.vy;p.vx*=0.9;p.vy*=0.9;p.r*=1.02;p.a-=0.012;p.life-=0.01;if(p.a<=0)G.inks.splice(i,1);}
   for(let i=G.texts.length-1;i>=0;i--){const t=G.texts[i];t.age++;t.x+=t.dx||0;t.y+=t.vy||-0.7;
     if(t.damage)t.vy*=0.94;t.life-=t.damage?0.026:0.02;if(t.life<=0)G.texts.splice(i,1);}
@@ -2324,26 +2351,21 @@ function update(){
   if(G.t%5===0) updateHUD();
 }
 function killEnemy(idx){
-  const en=G.enemies[idx]; splash(en.x,en.y,en.c,1.8);
-  for(let k=0;k<6;k++)ink(en.x,en.y,(Math.random()-.5)*3,(Math.random()-.5)*3,8+Math.random()*10);
-  // 斬殺不再在宣紙上留墨漬 —— 墨漬單張要 9.5 秒才淡完、上限 70 張,
-  // 連斬時整張紙很快就髒掉,墨獸與劍痕都被蓋在一層灰底下看不清楚。
-  // 潑墨(splash)與飛墨(ink)是瞬時特效,那兩個留著。
+  const en=G.enemies[idx]; mistDissolve(en.x,en.y,1+en.tier*.22,'45,42,38');
+  // 斬殺只化霧消散：不留墨漬、不潑墨、不生成會被誤認為畫卷污染的飛墨。
   SND.kill(en.tier); shake(2+en.tier*2.6); if(en.tier===2){ hitstop(4); flash(0.10,'220,210,190'); }
   // 破墨心訣 / 墨海無涯:潰散時留下小片潑墨,低額波及傷害
   if(stat.splashOnKill){
     const R = 54 + (stat.explode||0)*0.35;
     const sd = stat.damage * 0.28 * (stat.splashDamage||1);
-    splash(en.x,en.y,en.c,1.3);
-    for(let k=0;k<6;k++) ink(en.x,en.y,(Math.random()-.5)*3.6,(Math.random()-.5)*3.6,9+Math.random()*12);
+    mistDissolve(en.x,en.y,1.18,'54,49,43');
     for(const e2 of G.enemies){
       if(e2!==en && Math.hypot(e2.x-en.x,e2.y-en.y)<R){ dmgTo(e2,sd); e2.hit=6; }   // 收屍交給敵人迴圈
     }
   }
-  // 蝕痕滿層的焦墨斑,死亡時再潑散一次
+  // 蝕痕滿層只讓消散霧色更深，不在紙面留下焦墨斑。
   if(en.eroV && en.st && en.st.erosion && en.st.erosion.stk>=4){
-    splash(en.x,en.y,'#1a1714',2.4);
-    for(let k=0;k<10;k++) ink(en.x,en.y,(Math.random()-.5)*4,(Math.random()-.5)*4,6+Math.random()*10);
+    mistDissolve(en.x,en.y,1.45,'28,25,22');
   }
   G.kills++; dpsAdd('k',1); G.player.hp=Math.min(G.player.max,G.player.hp+stat.regen);
   // 階級推進:每個滿階技能各自累計局內擊殺,達 300/500/1000 進小成/大成/圓滿
@@ -2773,18 +2795,116 @@ function makePaperTile(){
 let paperDone=false;
 function buildPaper(){
   if(paperDone) return;
-  const layers=[document.getElementById('depthpaper'),document.getElementById('paper')];
-  // 第一章直向畫卷：維持原圖比例，以 cover 適配不同手機長寬比。
-  for(const el of layers){
+  const depth=document.getElementById('depthpaper'), paper=document.getElementById('paper');
+  // 第一章四階段畫卷：所有圖共用同一構圖，以 opacity 交叉淡化。
+  for(const el of [depth,paper]){
     el.style.backgroundColor='#e9e0cc';
     el.style.backgroundImage=
       'radial-gradient(circle at 50% 45%, rgba(20,18,14,0), rgba(20,18,14,.035) 82%),'
-     +"url('assets/scenes/ch01-ink-valley-portrait.png')";
+     +"url('assets/scenes/pomo-valley-restored-v2.png')";
     el.style.backgroundSize='cover';
     el.style.backgroundPosition='center center';
     el.style.backgroundRepeat='no-repeat';
   }
+  document.getElementById('paperlight').style.backgroundImage="url('assets/scenes/pomo-valley-cleansing-v2.png')";
+  document.getElementById('papermid').style.backgroundImage="url('assets/scenes/pomo-valley-recovering-v2.png')";
+  document.getElementById('paperheavy').style.backgroundImage="url('assets/scenes/pomo-valley-corrupted-v2.png')";
+  updatePaperPhase();
   paperDone=true;
+}
+function updatePaperPhase(){
+  const heavy=document.getElementById('paperheavy'), mid=document.getElementById('papermid'), light=document.getElementById('paperlight');
+  if(!heavy||!mid||!light) return;
+  const w=Math.max(1,G.wave||1); let oh=0,om=0,ol=0;
+  if(w<=20){ const t=(w-1)/19; oh=1-t; om=t; }
+  else if(w<=40){ const t=(w-21)/19; om=1-t; ol=t; }
+  else if(w<=60){ const t=(w-41)/19; ol=1-t*.22; } // Boss 活著時仍保留至少 78% 輕污染
+  heavy.style.opacity=oh.toFixed(3); mid.style.opacity=om.toFixed(3); light.style.opacity=ol.toFixed(3);
+}
+
+// 第一章畫卷修復模擬：乾淨原畫放在 DOM 紙層，邪墨在 Canvas 最底層程序化覆蓋。
+// 第 1～60 波逐步退去，但第 60 波仍保留 18% 的污染核心；目前以進入第 61 波模擬 Boss 已死。
+let corruptionCv=null, corruptionKey='';
+function buildCorruption(){
+  const key=W+'x'+H+'@'+DPR; if(corruptionCv&&corruptionKey===key) return;
+  corruptionKey=key; corruptionCv=document.createElement('canvas');
+  corruptionCv.width=Math.max(1,Math.round(W*DPR)); corruptionCv.height=Math.max(1,Math.round(H*DPR));
+  const g=corruptionCv.getContext('2d'); g.setTransform(DPR,0,0,DPR,0,0);
+  let seed=0x1a2b3c4d;
+  const rnd=()=>{ seed=(seed*1664525+1013904223)>>>0; return seed/4294967296; };
+  const blot=(x,y,r,a)=>{
+    const ink='rgba(38,35,31,'+a+')';
+    // 濕墨底層：比主墨團更寬、更淡，像宣紙吸水後的暈邊。
+    g.save(); g.translate(x,y); g.rotate((rnd()-.5)*.7); g.scale(1.15,.72);
+    g.fillStyle='rgba(70,64,56,'+(a*.24)+')'; g.beginPath(); g.arc(0,0,r*1.12,0,6.283); g.fill(); g.restore();
+    // 放射墨刺先畫在核心底下；尖端長短、角度與根部寬度都由固定 seed 決定。
+    const spikes=6+((rnd()*7)|0); g.fillStyle=ink;
+    for(let i=0;i<spikes;i++){
+      const q=rnd()*6.283, len=r*(.88+rnd()*.48), root=r*(.60+rnd()*.22), half=r*(.035+rnd()*.065);
+      const cs=Math.cos(q), sn=Math.sin(q), px=-sn*half, py=cs*half;
+      g.beginPath(); g.moveTo(x+cs*root+px,y+sn*root+py);
+      g.lineTo(x+cs*len,y+sn*len); g.lineTo(x+cs*root-px,y+sn*root-py); g.closePath(); g.fill();
+    }
+    // 主體保留潑墨的硬折角，不再全部平滑成雲朵。
+    const n=17, pts=[];
+    for(let i=0;i<n;i++){ const q=i/n*6.283, rr=r*(.58+rnd()*.58);
+      pts.push({x:x+Math.cos(q)*rr,y:y+Math.sin(q)*rr*(.72+rnd()*.28)}); }
+    g.beginPath();
+    for(let i=0;i<n;i++){ const p=pts[i]; if(i) g.lineTo(p.x,p.y); else g.moveTo(p.x,p.y); }
+    g.closePath(); g.fillStyle=ink; g.fill();
+    // 衛星墨滴：少量大小不一的圓點，與主體保持一段空隙。
+    const drops=4+((rnd()*7)|0); for(let i=0;i<drops;i++){
+      const q=rnd()*6.283, d=r*(.90+rnd()*.82), rr=r*(.018+rnd()*.065);
+      g.beginPath(); g.arc(x+Math.cos(q)*d,y+Math.sin(q)*d,rr,0,6.283); g.fill(); }
+  };
+  const wash=(x,y,rx,ry,a,rot)=>{
+    g.save(); g.translate(x,y); g.rotate(rot||0); g.scale(1,ry/rx);
+    const wet=g.createRadialGradient(-rx*.16,-rx*.12,rx*.03,0,0,rx);
+    wet.addColorStop(0,'rgba(45,42,38,'+a+')'); wet.addColorStop(.45,'rgba(55,51,46,'+(a*.72)+')');
+    wet.addColorStop(.78,'rgba(72,67,60,'+(a*.28)+')'); wet.addColorStop(1,'rgba(72,67,60,0)');
+    g.fillStyle=wet; g.beginPath(); g.arc(0,0,rx,0,6.283); g.fill(); g.restore();
+  };
+  const dryBrush=(x,y,len,width,ang,a)=>{
+    g.save(); g.translate(x,y); g.rotate(ang); g.lineCap='butt';
+    const hairs=11;
+    for(let i=0;i<hairs;i++){
+      const off=(i/(hairs-1)-.5)*width, start=-len*(.08+rnd()*.10), end=len*(.62+rnd()*.38);
+      g.strokeStyle='rgba(42,39,35,'+(a*(.25+rnd()*.62))+')';
+      g.lineWidth=Math.max(.55,width*(.018+rnd()*.055));
+      g.beginPath(); g.moveTo(start,off+(rnd()-.5)*width*.08);
+      g.quadraticCurveTo(len*.32,off+(rnd()-.5)*width*.18,end,off*(.25+rnd()*.45)); g.stroke();
+    }
+    g.restore();
+  };
+  // 參考殘卷：主體是半透明水暈與邊緣乾刷，只有少數真正的濺墨核心。
+  wash(-W*.01,H*.38,W*.31,H*.15,.52,-.18); wash(W*.03,H*.57,W*.27,H*.20,.47,.22);
+  wash(W*.06,H*.78,W*.29,H*.18,.55,-.10); wash(W*.18,H*.94,W*.27,H*.12,.38,.08);
+  wash(W*1.01,H*.34,W*.28,H*.17,.45,.16); wash(W*.97,H*.56,W*.26,H*.19,.52,-.24);
+  wash(W*.94,H*.78,W*.29,H*.18,.54,.12); wash(W*.82,H*.95,W*.24,H*.12,.37,-.08);
+  dryBrush(-W*.05,H*.43,W*.46,W*.075,-.30,.42); dryBrush(-W*.03,H*.70,W*.39,W*.065,-.48,.38);
+  dryBrush(W*1.04,H*.49,W*.42,W*.070,3.46,.39); dryBrush(W*1.03,H*.73,W*.37,W*.060,3.72,.36);
+  blot(W*.035,H*.50,W*.068,.62); blot(W*.09,H*.73,W*.052,.56); blot(W*.16,H*.88,W*.038,.48);
+  blot(W*.965,H*.47,W*.064,.60); blot(W*.91,H*.67,W*.050,.54); blot(W*.85,H*.86,W*.037,.47);
+  // 細小墨點只沿污染岸線分布，不鋪滿中央。
+  g.fillStyle='rgba(35,32,29,.48)';
+  for(let i=0;i<58;i++){
+    const right=rnd()>.5, x=right?W*(.79+rnd()*.22):W*rnd()*.21, y=H*(.24+rnd()*.73), rr=.7+rnd()*3.1;
+    g.globalAlpha=.20+rnd()*.62; g.beginPath(); g.arc(x,y,rr,0,6.283); g.fill();
+  }
+  g.globalAlpha=1;
+}
+function drawCorruption(){
+  buildCorruption();
+  const repair=G.wave>60?1:Math.min(.82,Math.max(0,(G.wave-1)/59*.82));
+  const amount=1-repair; if(amount<=.001) return;
+  ctx.save(); ctx.globalAlpha=Math.min(1,.98*amount); ctx.drawImage(corruptionCv,0,0,W,H);
+  // Boss 污染核心在右側中段脈動；修復完成才會完全消失。
+  const pulse=.82+Math.sin(G.t*.045)*.12, bx=W*.91, by=H*.43, br=W*(.055+.035*amount)*pulse;
+  const core=ctx.createRadialGradient(bx,by,2,bx,by,br*2.2);
+  core.addColorStop(0,'rgba(16,14,12,'+(.92*amount)+')');
+  core.addColorStop(.42,'rgba(35,31,27,'+(.62*amount)+')'); core.addColorStop(1,'rgba(42,37,32,0)');
+  ctx.fillStyle=core; ctx.beginPath(); ctx.arc(bx,by,br*2.2,0,6.283); ctx.fill();
+  ctx.restore(); ctx.globalAlpha=1;
 }
 
 // 墨漬:預烘六種墨團小貼圖,之後每道墨漬只是一次小 drawImage,可保留漸淡
@@ -2996,6 +3116,8 @@ function draw(){
     drawStrokeCost(b.x, b.y, Math.min(curLen, budget));
   }
 
+  // 墨獸死亡霧團：短暫播放後完全清除，不參與畫卷污染。
+  if(DRAWLV>=3) for(const m of G.mists) drawMistDissolve(ctx,m);
   // 粒子
   if(DRAWLV>=4) for(const sp of G.splashes) drawSplash(ctx,sp);
   if(FX.part&&DRAWLV>=7) for(const p of G.particles){ ctx.globalAlpha=Math.max(0,p.life); ctx.fillStyle=p.c;
@@ -3147,6 +3269,7 @@ function setW(id,v){ if(hudCache['w'+id]!==v){ const e=document.getElementById(i
   const bar=e.parentElement; if(bar) bar.style.setProperty('--p',parseFloat(v)||0); } }
 function updateHUD(){
   const P=G.player;
+  updatePaperPhase();
   setW('hpfill',Math.max(0,P.hp/P.max*100).toFixed(1)+'%');
   setTxt('hptxt',Math.max(0,Math.round(P.hp))+' / '+P.max);
   const mpr=G.mana/stat.manaMax;
@@ -3592,7 +3715,7 @@ function playOpening(done){
 }
 function start(){
   dpsReset();
-  Object.assign(G,{running:true,paused:false,t:0,enemies:[],swords:[],particles:[],inks:[],texts:[],stains:[],splashes:[],commands:[],
+  Object.assign(G,{running:true,paused:false,t:0,enemies:[],swords:[],particles:[],inks:[],texts:[],stains:[],splashes:[],mists:[],commands:[],
     kills:0,wave:1,waveTimer:0,spawnAcc:0,xp:0,xpNeed:6,level:1,pendingLevels:0,mana:100,
     reserve:0,reserveT:0,reserveFlash:0,strokeAvg:0,strokeN:0,
     auto:false,autoUsed:false,autoTimer:0,
