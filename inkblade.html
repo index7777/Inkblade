@@ -300,8 +300,9 @@
   /* 點按潑墨回饋 */
   #inkfx { position:fixed; inset:0; pointer-events:none; z-index:200; overflow:hidden; }
   #inkfx .ink-splat { position:absolute; border-radius:50%; background:#15110c; will-change:transform,opacity; }
-  #bosstesttools { position:absolute; left:50%; bottom:18px; z-index:45; display:none;
-    transform:translateX(-50%); gap:7px; align-items:center; padding:7px 9px;
+  #bosstesttools { position:absolute; left:50%; bottom:12px; z-index:45; display:none;
+    transform:translateX(-50%); width:max-content; max-width:calc(100% - 20px); gap:7px; align-items:center;
+    justify-content:center; flex-wrap:wrap; padding:7px 9px;
     background:rgba(235,228,211,.86); border:1px solid rgba(48,42,34,.42);
     box-shadow:0 2px 10px rgba(28,23,17,.18); backdrop-filter:blur(3px); }
   #bosstesttools.show { display:flex; }
@@ -590,6 +591,7 @@
     <span id="bosstestreadout">命中 0</span>
     <button id="bosstestswordup" type="button">劍＋</button>
     <button id="bosstestsworddown" type="button">劍－</button>
+    <button id="bosstestpreset" type="button">六十境</button>
     <button id="bosstestup" type="button">升級</button>
     <button id="bosstestdown" type="button">降級</button>
     <button id="bosstestphase" type="button">階段</button>
@@ -1203,7 +1205,7 @@ function spawnEnemy(){
     c:base.c,tier,type:tier===0?'inkling':'blade',anim:Math.random()*1000,ember:0,emberT:0,chill:0,hit:0,broken:0,wob:Math.random()*7,st:{}});
 }
 
-const XUANMING_HP=18000;
+const XUANMING_HP=600000;
 // 正式第 60 波與首頁測試共用同一隻王；測試局只縮短第一次顯形等待。
 function spawnXuanmingBoss(testMode){
   const hp=XUANMING_HP;
@@ -1431,9 +1433,10 @@ function truncatePath(pts, maxLen){
 }
 // 劍身實際長度(與 drawJian/drawSwordSprite 的 BL 同一套算法),連珠的車廂間距要靠它
 function bladeLength(){ return 44 + stat.size*0.9; }
-// 連珠間距:一節車廂 = 劍身長 + 一點縫。原本用「劍寬×2.2+10」算,
+// 連珠間距:一節車廂 = 劍身長 + 明顯留白。原本用「劍寬×2.2+10」算,
 // 但劍寬永遠小於劍身長,所以任何劍寬下車廂都會疊在一起。
-function inlineGap(){ return bladeLength() + 10; }
+// 10px 的縫會被劍身邊緣與拖尾吃掉，六劍會讀成一根黑桿。
+function inlineGap(){ return bladeLength() + 28; }
 // 陣型:相對於「移動中的中心點」的偏移(along=沿行進方向,side=法線方向)
 function formationOffset(formation, i, n, spacing){
   if(n<=1) return {along:0, side:0};
@@ -2273,6 +2276,7 @@ function update(){
     if(G.deathT<=0) gameOver();
     return;
   }
+  if(G.bossTest&&G.bossPreset60&&G.enemies.some(en=>en.isBoss&&!en.showcaseGhost)) G.bossFightFrames++;
   // 劍意回復
   if(G.mana<stat.manaMax){ G.mana=Math.min(stat.manaMax,G.mana+stat.manaRegen); }
   // 自動御劍:定時朝最近之敵直射(收益打折、不計紀錄)
@@ -2720,7 +2724,8 @@ function killEnemy(idx){
   if(en.isBoss){
     G.bossShots.length=0;
     G.wave=61; G.waveTimer=0; G.chapterComplete=true;
-    G.banner={txt:'玄冥墨蛟 · 墨散卷復',life:1};
+    if(G.bossTest&&G.bossPreset60) G.bossKillSecs=(G.bossFightFrames||0)/60;
+    G.banner={txt:G.bossKillSecs!=null?'基準擊破 · '+G.bossKillSecs.toFixed(1)+'秒':'玄冥墨蛟 · 墨散卷復',life:1};
     SND.stopMusic(1.2);
     updateHUD();
   }
@@ -3475,10 +3480,12 @@ function draw(){
     // 歸念 / 歸藏無痕:折返後的劍痕轉為淡飛白(易辨識回程);殘鋒較細
     if(s.returned && stat.returnDry) rgb='196,186,168';
     if(FX.trail){
-      // 只留靠近劍身的短墨氣；多劍連珠不再疊成大片白色三角形。
-      const shortTrail=s.trail.length>7?s.trail.slice(-7):s.trail;
-      ctx.save(); ctx.globalAlpha=s.echo?.35:.58;
-      inkTrail(ctx,shortTrail,Math.max(1.5,stat.size*.42)*(s.echo?.7:1),rgb,false);
+      // 貫鋒的多把劍在同一軸上，拖尾必須更短、更淡，才不會把劍間留白塗成黑牆。
+      const inline=s.cmd&&s.cmd.formation==='inline';
+      const keep=inline?2:7;
+      const shortTrail=s.trail.length>keep?s.trail.slice(-keep):s.trail;
+      ctx.save(); ctx.globalAlpha=s.echo?.35:(inline ? .18 : .58);
+      inkTrail(ctx,shortTrail,Math.max(1.1,stat.size*(inline ? .18 : .42))*(s.echo?.7:1),rgb,false);
       ctx.restore();
     }
     // 劍身(統一水墨母版)
@@ -3672,9 +3679,10 @@ function updateHUD(){
   if(G.bossTest){
     const boss=G.enemies.find(en=>en.isBoss&&!en.showcaseGhost), out=document.getElementById('bosstestreadout');
     const dist=boss&&G.player?Math.round(Math.hypot(boss.x-G.player.x,boss.y-G.player.y)):0;
-    if(out) out.textContent='劍 '+Math.max(1,stat.count|0)+'　命中 '+(boss?(boss.testHits||0):0)+
+    if(out) out.textContent='每令 '+Math.max(1,stat.count|0)+'　在場 '+G.swords.length+'　命中 '+(boss?(boss.testHits||0):0)+
       '\nHP '+(boss?Math.max(0,Math.round(boss.hp)):0)+'　距 '+dist+'　位 '+(boss?boss.bossSide:'-')+'　墨核 '+G.bossShots.length+
-      '\n'+(boss?(BOSS_STATE_CN[boss.bossState]||boss.bossState):'已擊破')+'　下擊 '+bossTestAttackCountdown(boss).toFixed(1)+'秒';
+      '\n'+(boss?(BOSS_STATE_CN[boss.bossState]||boss.bossState):'已擊破')+'　下擊 '+bossTestAttackCountdown(boss).toFixed(1)+'秒'
+      +(G.bossPreset60?'\n六十境基準　'+((G.bossFightFrames||0)/60).toFixed(1)+'秒':'');
   }
   { const boss=G.enemies.find(en=>en.isBoss&&!en.showcaseGhost), ui=document.getElementById('bossui');
     ui.classList.toggle('show',!!boss);
@@ -4124,7 +4132,8 @@ function start(mode){
   const fastRestart=mode==='boss-fast';
   dpsReset();
   Object.assign(G,{running:true,paused:false,t:0,enemies:[],bossShots:[],swords:[],particles:[],inks:[],texts:[],stains:[],splashes:[],mists:[],commands:[],
-    kills:0,wave:bossTest?60:1,waveTimer:0,spawnAcc:0,bossTest,bossShowcase:false,bossEntered:bossTest,chapterComplete:false,hpLocked:false,xp:0,xpNeed:6,level:1,pendingLevels:0,mana:100,
+    kills:0,wave:bossTest?60:1,waveTimer:0,spawnAcc:0,bossTest,bossShowcase:false,bossEntered:bossTest,chapterComplete:false,
+    bossPreset60:false,bossFightFrames:0,bossKillSecs:null,hpLocked:false,xp:0,xpNeed:6,level:1,pendingLevels:0,mana:100,
     reserve:0,reserveT:0,reserveFlash:0,strokeAvg:0,strokeN:0,
     auto:false,autoUsed:false,autoTimer:0,
     shake:0,hitstop:0,flash:0,flashC:'255,255,255',banner:null,
@@ -4169,6 +4178,32 @@ function renderBossTestTools(){
   lock.classList.toggle('on',!!G.hpLocked);
   lock.setAttribute('aria-pressed',G.hpLocked?'true':'false');
   lock.textContent=G.hpLocked?'鎖血中':'鎖血';
+  const preset=document.getElementById('bosstestpreset');
+  if(preset) preset.classList.toggle('on',!!G.bossPreset60);
+}
+function bossTestWave60Preset(){
+  if(!G.bossTest||!G.player) return;
+  // 無轉世加成的可重現第 60 境單體流派：59 次正式悟道，不直接竄改戰鬥數值。
+  // 基準只選一條增劍路線。貫鋒滿階為 6 劍；再把開匣點滿會變 11 劍，
+  // 自動御劍時多道連珠重疊成黑牆，既非代表性流派也無法目視檢查劍身。
+  const plan={form_chain:5,momentum_swift:5,momentum_return:5,intent_erosion:5,intent_sever:5,
+    cultivate_edge:5,cultivate_breath:5,cultivate_temper:5,cultivate_focus:5,cultivate_breadth:5,
+    momentum_pierce:5,momentum_break:4};
+  runState=INK_CONFIG.runtime.createRunState({},1);
+  for(const id in plan) for(let i=0;i<plan[id];i++) INK_CONFIG.runtime.applyInsight(runState,id);
+  G.level=60; G.xp=0; G.xpNeed=6;
+  for(let lv=1;lv<60;lv++) G.xpNeed=Math.round(G.xpNeed*1.16+4);
+  G.pendingLevels=0; G.bossPreset60=true; G.bossFightFrames=0; G.bossKillSecs=null;
+  syncStat(); G.player.max=stat.hpMax; G.player.hp=G.player.max; G.mana=stat.manaMax;
+  // 基準戰必須能量到玩家承壓；鎖血仍保留為獨立測試按鈕，不隨預設啟用。
+  G.hpLocked=false; G.auto=false; G.autoUsed=false; G.autoTimer=0;
+  G.commands.length=0; G.swords.length=0; G.bossShots.length=0; dpsReset();
+  const boss=G.enemies.find(en=>en.isBoss&&!en.showcaseGhost);
+  if(boss){ boss.hp=boss.max; boss.phaseSeen=1; boss.bossState='manifest'; boss.bossT=0;
+    boss.bossSide=3; boss.bossAngle=Math.PI; boss.attackSeq=0; boss.attackKind='triple'; boss.alpha=.08;
+    placeBoss(boss,boss.bossAngle,bossOrbitRadius(boss.bossSide)); }
+  document.getElementById('overlay').classList.remove('show');
+  renderAutoBtn(); renderBossTestTools(); updateHUD();
 }
 function bossTestLevel(delta){
   if(!G.bossTest||!G.player) return;
@@ -4555,6 +4590,7 @@ document.getElementById('startbtn').onclick=start;
 document.getElementById('bosstestbtn').onclick=()=>start('boss');
 document.getElementById('bosstestswordup').onclick=()=>bossTestSwordCount(1);
 document.getElementById('bosstestsworddown').onclick=()=>bossTestSwordCount(-1);
+document.getElementById('bosstestpreset').onclick=bossTestWave60Preset;
 document.getElementById('bosstestup').onclick=()=>bossTestLevel(1);
 document.getElementById('bosstestdown').onclick=()=>bossTestLevel(-1);
 document.getElementById('bosstestphase').onclick=bossTestNextPhase;
