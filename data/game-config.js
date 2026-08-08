@@ -428,12 +428,24 @@
   }
 
   // 動態稀有度衰減權重計算
+  // 階數加權:已投資越深的悟道,越容易再次出現 —— 讓「專精」是玩家滾出來的,不靠額外 UI。
+  //
+  // 注意:這**不是**為了讓滿階變得可能。實測全新存檔的卡池只有 17 張(7 張需傳承解鎖,
+  // 其中 6 張是 maxRank 1 的真意),再加上同稀有度每 3 張 ×0.75 的權重衰減,
+  // 有效卡池比「24 張等機率」小得多 —— 就算完全不加權,第 40 境也已有約 2.7 張滿階。
+  // 這個係數的實際效果只有 +0.1~0.2 張(1.0→1.45 是 2.7→2.9),
+  // 真正的價值在手感:你正在堆的那張會更常出現在三選一裡,專精的過程比較不卡。
+  // 想關掉就設 1.0。
+  const RANK_FOCUS = 1.25;
   function getDynamicRarityWeight(state, item) {
     let base = rarity.weight[item.rarity];
     const sameRarityCount = INSIGHTS.filter(i => i.rarity === item.rarity && Number(state.ranks[i.id] || 0) > 0).length;
     // 每3個同稀有度悟道,權重 ×0.75衰減
     const decayTimes = Math.floor(sameRarityCount / 3);
     base *= Math.pow(0.75, decayTimes);
+    // 階數越高,出現率越高(真意 maxRank 1,不適用)
+    const rank = Number(state.ranks[item.id] || 0);
+    if (rank > 0 && item.category !== CATEGORY.TRUTH) base *= Math.pow(RANK_FOCUS, rank);
     // 已解鎖傳承對應真意,truth權重提升至12
     if (item.category === CATEGORY.TRUTH && state.permanentUnlocks.some(u => item.requires.includes(u))) {
       base = 12;
