@@ -2309,7 +2309,9 @@ function update(){
 function killEnemy(idx){
   const en=G.enemies[idx]; splash(en.x,en.y,en.c,1.8);
   for(let k=0;k<6;k++)ink(en.x,en.y,(Math.random()-.5)*3,(Math.random()-.5)*3,8+Math.random()*10);
-  stain(en.x,en.y,en.r*1.25,en.c==='#4a3b3b'?'60,48,44':en.c==='#3b2f4a'?'56,44,72':'44,60,58');
+  // 斬殺不再在宣紙上留墨漬 —— 墨漬單張要 9.5 秒才淡完、上限 70 張,
+  // 連斬時整張紙很快就髒掉,墨獸與劍痕都被蓋在一層灰底下看不清楚。
+  // 潑墨(splash)與飛墨(ink)是瞬時特效,那兩個留著。
   SND.kill(en.tier); shake(2+en.tier*2.6); if(en.tier===2){ hitstop(4); flash(0.10,'220,210,190'); }
   // 破墨心訣 / 墨海無涯:潰散時留下小片潑墨,低額波及傷害
   if(stat.splashOnKill){
