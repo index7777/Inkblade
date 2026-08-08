@@ -289,8 +289,17 @@
     padding:12px 6px; font-size:clamp(14px,3.4vw,17px); letter-spacing:clamp(1px,0.8vw,4px); }
   .btn.ghost { background:rgba(244,238,224,.12); color:#e6dcc4; border-color:rgba(230,220,196,.5); }
 
+  /* 靜觀分頁 */
+  .tabbar { display:flex; gap:6px; margin:2px 0 14px; }
+  .tab { flex:1 1 0; text-align:center; cursor:pointer; font-size:14px; letter-spacing:3px;
+    padding:9px 0; min-height:40px; display:flex; align-items:center; justify-content:center;
+    color:#c9bfa6; border:1px solid rgba(214,199,166,.34); border-radius:8px;
+    background:rgba(246,240,226,.07); transition:background .15s,color .15s,border-color .15s; }
+  .tab.on { color:#2e2820; background:linear-gradient(180deg,#f6f0e0,#e0d4b8); border-color:#b8a888; }
+  .pane { display:none; }
+  .pane.on { display:block; }
   /* 暫停畫面的設定(宣紙卷軸質感,拉桿為墨條) */
-  #settings { width:100%; margin:0 auto 18px; padding:14px 16px 12px;
+  #settings, #settings2 { width:100%; margin:0 auto 18px; padding:14px 16px 12px;
     background:rgba(246,240,226,.93); border:1px solid #b8a888; border-radius:10px;
     box-shadow:0 10px 30px rgba(0,0,0,.45); }
   .sethead { font-size:13px; letter-spacing:6px; color:#7a5a2b; text-align:center;
@@ -499,45 +508,62 @@
     <div id="pausepanel">
       <div class="title" style="font-size:38px;">靜 觀</div>
       <div class="stitle" style="margin:8px 0 14px;">劍勢暫歇，凝神再戰</div>
-      <div id="settings">
-      <div class="sethead">行 劍 設 定</div>
-      <div class="setbtn" id="sndbtn">♪ 音律：開</div>
-      <div class="setbtn" id="herobtn" style="min-height:38px;margin-bottom:12px;display:flex;align-items:center;justify-content:center;">墨形：劍客</div>
-      <div class="sethead" style="margin-top:14px;">震 動</div>
-      <div class="segrow" id="shakerow">
-        <div class="seg" data-shake="n">無</div><div class="seg" data-shake="s">小</div><div class="seg" data-shake="m">中</div><div class="seg" data-shake="l">大</div>
+      <!-- 靜觀分頁:音律 / 畫面 / 本局。原本一頁到底要捲很久才找得到設定。 -->
+      <div class="tabbar" id="pausetabs">
+        <div class="tab on" data-pane="audio">音 律</div>
+        <div class="tab" data-pane="video">畫 面</div>
+        <div class="tab" data-pane="run">本 局</div>
       </div>
-      <div class="sethead" style="margin-top:14px;">畫 質</div>
-      <div class="segrow" id="qualrow">
-        <div class="seg" data-qual="low">低</div><div class="seg" data-qual="med">中</div><div class="seg" data-qual="high">高</div>
+
+      <div class="pane on" data-pane="audio">
+        <div id="settings">
+        <div class="setbtn" id="sndbtn">♪ 音律：開</div>
+        <div id="audioControls">
+        <div class="setrow"><label for="volMaster">總音量</label>
+          <input type="range" id="volMaster" min="0" max="100" step="1"><span id="volMasterV">85</span></div>
+        <div class="setrow"><label for="volMusic">音 樂</label>
+          <input type="range" id="volMusic" min="0" max="100" step="1"><span id="volMusicV">62</span></div>
+        <div class="setrow"><label for="volSfx">音 效</label>
+          <input type="range" id="volSfx" min="0" max="100" step="1"><span id="volSfxV">75</span></div>
+        </div>
+        </div>
       </div>
-      <div class="sethead" style="margin-top:14px;">幀 數</div>
-      <div class="segrow" id="fpsrow">
-        <div class="seg" data-fps="30">30</div><div class="seg" data-fps="60">60</div><div class="seg" data-fps="120">120</div><div class="seg" data-fps="0">不限</div>
+
+      <div class="pane" data-pane="video">
+        <div id="settings2">
+        <div class="sethead">墨 形</div>
+        <div class="setbtn" id="herobtn" style="min-height:38px;margin-bottom:12px;display:flex;align-items:center;justify-content:center;">墨形：劍客</div>
+        <div class="sethead" style="margin-top:14px;">震 動</div>
+        <div class="segrow" id="shakerow">
+          <div class="seg" data-shake="n">無</div><div class="seg" data-shake="s">小</div><div class="seg" data-shake="m">中</div><div class="seg" data-shake="l">大</div>
+        </div>
+        <div class="sethead" style="margin-top:14px;">畫 質</div>
+        <div class="segrow" id="qualrow">
+          <div class="seg" data-qual="low">低</div><div class="seg" data-qual="med">中</div><div class="seg" data-qual="high">高</div>
+        </div>
+        <div class="sethead" style="margin-top:14px;">幀 數</div>
+        <div class="segrow" id="fpsrow">
+          <div class="seg" data-fps="30">30</div><div class="seg" data-fps="60">60</div><div class="seg" data-fps="120">120</div><div class="seg" data-fps="0">不限</div>
+        </div>
+        <div class="sethead" style="margin-top:14px;">劍 訣 註 解</div>
+        <div class="segrow" id="cardtextrow">
+          <div class="seg" data-cardtext="text">文字</div><div class="seg" data-cardtext="effect">效果</div>
+        </div>
+        </div>
       </div>
-      <div class="sethead" style="margin-top:14px;">劍 訣 註 解</div>
-      <div class="segrow" id="cardtextrow">
-        <div class="seg" data-cardtext="text">文字</div><div class="seg" data-cardtext="effect">效果</div>
+
+      <div class="pane" data-pane="run">
+        <div id="tierbox">
+        <div class="sethead">劍 訣 精 進</div>
+        <div id="tierlist"></div>
+        </div>
+        <div id="respec">
+        <div class="sethead">重 塑 劍 意</div>
+        <div id="respecinfo"></div>
+        <div class="setbtn" id="respecbtn">重 塑</div>
+        </div>
       </div>
-      <div id="audioControls">
-      <div class="sethead">音 律</div>
-      <div class="setrow"><label for="volMaster">總音量</label>
-        <input type="range" id="volMaster" min="0" max="100" step="1"><span id="volMasterV">85</span></div>
-      <div class="setrow"><label for="volMusic">音 樂</label>
-        <input type="range" id="volMusic" min="0" max="100" step="1"><span id="volMusicV">62</span></div>
-      <div class="setrow"><label for="volSfx">音 效</label>
-        <input type="range" id="volSfx" min="0" max="100" step="1"><span id="volSfxV">75</span></div>
-      </div>
-      </div>
-      <div id="tierbox">
-      <div class="sethead">劍 訣 精 進</div>
-      <div id="tierlist"></div>
-      </div>
-      <div id="respec">
-      <div class="sethead">重 塑 劍 意</div>
-      <div id="respecinfo"></div>
-      <div class="setbtn" id="respecbtn">重 塑</div>
-      </div>
+
       <div class="btnrow">
         <div class="btn" id="resumebtn">繼 續</div>
         <div class="btn ghost" id="pausequitbtn">重入畫卷</div>
@@ -1620,6 +1646,12 @@ function drawCards(isReroll=false){
       const rkBefore=runState.ranks[a.id]||0;
       INK_CONFIG.runtime.applyInsight(runState, a.id);  // 真意/劍式互斥回滾由 runtime 處理
       syncStat();
+      // 「補滿劍意」(op max stats.mana)之前是空的 —— 遊戲用的是 G.mana,
+      // 而那個 op 改的是 runState.stats.mana,從來沒有人讀回來。這裡補上實際生效。
+      if(a.effects.some(e=>e.op==='max' && e.path==='stats.mana')){
+        G.mana=stat.manaMax;
+        floatText(G.player.x, G.player.y-38, '劍意盈滿', '#4aa0b8');
+      }
       // 剛滿階:告訴玩家計數器開始跑了,否則「滿階後再 300 斬」完全沒有回饋
       if(a.maxRank>1 && rkBefore+1>=a.maxRank && a.tiers && a.tiers.length){
         G.banner={txt:a.name+' 滿階 · 小成 '+a.tiers[0].kills+' 斬', life:1};
@@ -3649,7 +3681,7 @@ function renderTierList(){
     const pct = Math.max(0, Math.min(100, (v.kills-prev)/(v.nextAt-prev)*100));
     return '<div class="trow"><div class="tname">'+v.rune+' '+v.name+' '+cur+'</div>'
       + '<div class="tbar"><i style="width:'+pct.toFixed(1)+'%"></i></div>'
-      + '<div class="tsub">'+v.kills+' / '+v.nextAt+' 斬 · 距 '+v.nextName+' 尚需 '+v.remaining+' 頭</div></div>';
+      + '<div class="tsub">'+v.kills+' / '+v.nextAt+' 斬 · 下一層 '+v.nextName+'</div></div>';
   }).join('');
 }
 function renderShakeBtns(){
@@ -3673,12 +3705,25 @@ segClick('#cardtextrow .seg', el=>{ meta.cardText=el.dataset.cardtext;
   if(levelChoiceOpen() && !levelChoiceLocked) drawCards(true); });
 renderShakeBtns();
 applyQuality();
+// 靜觀分頁切換
+document.querySelectorAll('#pausetabs .tab').forEach(t=>{
+  t.onclick=()=>{
+    const k=t.dataset.pane;
+    document.querySelectorAll('#pausetabs .tab').forEach(x=>x.classList.toggle('on', x===t));
+    document.querySelectorAll('#pausepanel .pane').forEach(x=>x.classList.toggle('on', x.dataset.pane===k));
+    const pan=document.getElementById('pausepanel'); if(pan) pan.scrollTop=0;
+    if(k==='run') renderTierList();
+    if(!meta.mute) SND.uiMove&&SND.uiMove();
+  };
+});
 // 靜觀面板:拖曳捲動。捲軸已隱藏,滑鼠沒有把手可抓,所以讓空白處也能拖。
 // 落在滑桿/按鈕/可點元素上的拖曳不接管,避免把調音量變成捲頁面。
 function enableDragScroll(id){
   const pan=document.getElementById(id);
   if(!pan) return;
-  const SKIP='input,button,.setbtn,.seg,.btn,label,.mbuy';
+  // 這些元素上的按壓不接管 —— 一旦 setPointerCapture,click 就不會派發到原目標了
+  // (分頁 .tab 少寫一個就整組點不動,踩過一次)
+  const SKIP='input,button,.setbtn,.seg,.btn,label,.mbuy,.tab,.card,.claim';
   let on=false, y0=0, top0=0, moved=0;
   pan.addEventListener('pointerdown', e=>{
     if(e.target.closest && e.target.closest(SKIP)) return;
