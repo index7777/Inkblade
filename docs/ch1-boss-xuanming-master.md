@@ -69,11 +69,15 @@
 | `BOSS_XUANMING_idle_01.png` | 凝聚完成／盤旋待機母版 | ready |
 | `BOSS_XUANMING_manifest_01..04.png` | 墨霧凝聚成形 | needs_art |
 | `BOSS_XUANMING_lunge_01..06.png` | 鎖定、蓄力、前探、凝核、吐核、收身 | ready |
+| `BOSS_XUANMING_top_idle/lunge_*.png` | 上方現形，龍頭朝下的專用視角 | ready |
+| `BOSS_XUANMING_bottom_idle/lunge_*.png` | 下方現形，龍頭朝上的專用視角 | ready |
 | `BOSS_XUANMING_turn_01..04.png` | 外圈轉向並暴露紅核 | needs_art |
 | `BOSS_XUANMING_hurt_01..03.png` | 弱點受擊、紅核閃亮 | needs_art |
 | `BOSS_XUANMING_dissolve_01..06.png` | 尾至頭逐段碎墨，搭配定向霧絲換位／死亡 | ready |
 
 動畫可先以單張母版配合位移、旋轉、遮罩式霧化驗證玩法；正式製作時再替換逐幀圖。遮罩只作用於 Boss 本身，不在背景上挖 HUD 安全區。
+
+正式 P1 不旋轉 Boss 點陣圖：右側使用側面原圖、左側使用同組水平鏡像，上下使用各自的方向幀。方位切換由消散墨霧沿外環移動後重新凝形，本體不沿外環滑行。
 
 ## 6. 驗收條件
 
