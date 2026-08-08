@@ -80,8 +80,8 @@
   /* 吊牌不鋪白底,直接透出宣紙。雙框改用「內 border + 外 box-shadow 環」畫,
      因為 inset 陰影會塗滿內部,拿掉底色的話那圈紙色又會蓋回來。
      可讀性靠文字的紙色描邊維持(同左上狀態列的做法),不靠色塊。 */
-  #scorewrap { position:absolute; top:calc(var(--scroll-top-safe) + env(safe-area-inset-top) + 15.4cqw); right:3.05cqw;
-    min-width:16.6cqw; text-align:center; padding:1.5cqw 1.6cqw 1.4cqw; border-radius:3px;
+  #scorewrap { position:absolute; top:calc(var(--scroll-top-safe) + env(safe-area-inset-top) + 12.5cqw); right:3.05cqw;
+    min-width:16.6cqw; text-align:center; padding:1.0cqw 1.6cqw .6cqw; border-radius:3px;
     background:none; border:1px solid rgba(52,42,32,.62);
     box-shadow:0 0 0 3px rgba(0,0,0,0), 0 0 0 4px rgba(52,42,32,.30);
     text-shadow:0 1px 2px rgba(246,240,226,.98), 0 0 8px rgba(246,240,226,.9),
@@ -90,7 +90,7 @@
   #scorewrap::before { content:''; position:absolute; left:50%; top:100%; transform:translateX(-50%);
     width:9px; height:9px; margin-top:-1px; border-radius:50%; background:rgba(60,48,34,.62); }
   #scorewrap::after { content:''; position:absolute; left:50%; top:100%; transform:translateX(-50%);
-    margin-top:7px; width:7px; height:26px; border-radius:0 0 4px 4px;
+    margin-top:5px; width:6px; height:15px; border-radius:0 0 4px 4px;
     background:linear-gradient(180deg,rgba(60,48,34,.58),rgba(60,48,34,.10)); }
   /* #hud 整層是 pointer-events:none(要讓玩家能在 HUD 上面畫劍令),
      所以吊牌必須自己把事件收回來,否則點下去完全沒反應。
@@ -98,8 +98,8 @@
   #scorewrap { cursor:pointer; pointer-events:auto; }
   /* 可展開的三角 —— 要當成按鈕做:字夠大、上下留 padding 撐出可點面積,
      左右用負 margin 讓整條吊牌寬度都是熱區 */
-  #scorewrap .caret { display:block; margin:5px -10px -7px; padding:6px 0 7px;
-    font-size:20px; line-height:1; color:#7a2b2b; transition:transform .18s;
+  #scorewrap .caret { display:block; margin:.2cqw -1.6cqw -.5cqw; padding:.45cqw 0 .45cqw;
+    font-size:clamp(13px,2.2cqw,21px); line-height:1; color:#7a2b2b; transition:transform .18s;
     text-shadow:0 1px 2px rgba(246,240,226,.98), 0 0 6px rgba(246,240,226,.9); }
   #scorewrap.open .caret { transform:rotate(180deg); }
   /* 戰況遙測面板:預設收合 */
@@ -110,10 +110,10 @@
     font-size:11px; letter-spacing:1px; color:#3f3529; margin-bottom:3px; white-space:nowrap; }
   #dpsbox .drow b { font-size:13px; font-weight:700; color:#1c1712; letter-spacing:.5px; }
   #dpsbox .dfoot { margin-top:4px; font-size:9.5px; letter-spacing:1px; color:#5a4e3c; text-align:center; }
-  #scorewrap .divider { height:1px; margin:1.1cqw .3cqw; background:rgba(52,42,32,.45); }
+  #scorewrap .divider { height:1px; margin:.6cqw .3cqw; background:rgba(52,42,32,.45); }
   #scorewrap .sub { color:#3f3529; }
   #scorewrap .big { color:#1c1712; }
-  #ctrls { position:absolute; top:calc(var(--scroll-top-safe) + env(safe-area-inset-top) + 2.9cqw); right:3.5cqw;
+  #ctrls { position:absolute; top:calc(var(--scroll-top-safe) + env(safe-area-inset-top) + 1.4cqw); right:3.5cqw;
     display:flex; align-items:center; gap:2.7cqw; }
   .ctl { pointer-events:auto; cursor:pointer; font-size:clamp(12px,1.5vw,14px);
     letter-spacing:2px; color:#2b2620; white-space:nowrap;
@@ -141,7 +141,7 @@
   #pausebtn .pause-label { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); }
   .ctl:hover { color:#7a2b2b; }
   /* 毛筆刷痕:兩端收鋒、腰身略粗,軌道與填色共用同一個遮罩 */
-  .bar { position:relative; height:1.58cqw; min-height:7px; margin-top:.66cqw; border-radius:0; overflow:hidden;
+  .bar { position:relative; height:1.58cqw; min-height:7px; margin-top:1.2cqw; border-radius:0; overflow:hidden;
     background:rgba(66,52,38,.22);
     -webkit-mask:var(--brush) no-repeat 0 0/100% 100%;
             mask:var(--brush) no-repeat 0 0/100% 100%; }
@@ -154,6 +154,8 @@
   #xpfill { background:linear-gradient(90deg,#5b5346,#8d8271); }
   #mpfill.low { background:linear-gradient(90deg,#8a5a2b,#c08a2e); }
   .label { font-size:clamp(11px,2.4cqw,24px); letter-spacing:.18em; color:#241f1a; font-weight:600; line-height:1.25; }
+  /* 行距用比例制 —— 左右兩組要切齊在同一條下緣,行距是唯一可調的餘裕 */
+  .label.gap { margin-top:4.5cqw; }
   .label .sub { font-weight:400; }
   .big { font-size:clamp(20px,4.5cqw,46px); font-weight:700; letter-spacing:.08em; line-height:1; color:#241f1a; }
   .sub { font-size:clamp(10px,2.35cqw,23px); color:#4f4436; letter-spacing:.12em; }
@@ -485,9 +487,9 @@
     <div class="panel" id="barwrap">
       <div class="label">神識 <span id="hptxt" class="sub"></span></div>
       <div class="bar"><i id="hpfill"></i></div>
-      <div class="label" style="margin-top:8px;">劍意 <span id="mptxt" class="sub"></span></div>
+      <div class="label gap">劍意 <span id="mptxt" class="sub"></span></div>
       <div class="bar"><i id="mpfill"></i></div>
-      <div class="label" style="margin-top:8px;">道行 · <span id="lvtxt">一</span> 重</div>
+      <div class="label gap">道行 · <span id="lvtxt">一</span> 重</div>
       <div class="barrow"><div class="bar"><i id="xpfill"></i></div></div>
     </div>
     <div id="ctrls">
