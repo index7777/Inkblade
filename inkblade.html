@@ -587,6 +587,8 @@
     <button id="bosstestsworddown" type="button">劍－</button>
     <button id="bosstestup" type="button">升級</button>
     <button id="bosstestdown" type="button">降級</button>
+    <button id="bosstestphase" type="button">階段</button>
+    <button id="bosstestfour" type="button">四向</button>
     <button id="bosstestlock" type="button" aria-pressed="false">鎖血</button>
     <button id="bosstestretry" type="button">重打一次</button>
   </div>
@@ -1057,11 +1059,18 @@ const ENESPR = { inkling:{frames:[],ok:false}, blade:{frames:[],ok:false},
     dis.src='assets/boss/BOSS_XUANMING_dissolve_'+String(i).padStart(2,'0')+'.png';
   }
   for(const dir of ['top','bottom']){
+    const bounds=dir==='top'
+      ? [[158,90,258,330],[122,101,249,338],[121,99,285,315],[112,85,231,343],[141,85,232,325],[103,89,249,339],[141,94,231,316]]
+      : [[107,72,297,400],[82,72,347,400],[89,72,334,400],[92,72,327,400],[74,72,364,400],[98,72,315,400],[82,72,347,400]];
     const idle=new Image(); idle.onload=()=>{ ENESPR.boss[dir].idle=idle; };
-    idle.src='assets/boss/BOSS_XUANMING_'+dir+'_idle_01.png';
+    idle._inkBounds=bounds[0];
+    idle.src=dir==='bottom'?'assets/boss/BOSS_XUANMING_bottom_idle_v2.png'
+                           :'assets/boss/BOSS_XUANMING_top_idle_01.png';
     for(let i=1;i<=6;i++){ const img=new Image();
       img.onload=()=>{ ENESPR.boss[dir].attack[i-1]=img; };
-      img.src='assets/boss/BOSS_XUANMING_'+dir+'_lunge_'+String(i).padStart(2,'0')+'.png';
+      img._inkBounds=bounds[i];
+      img.src=dir==='bottom'?'assets/boss/BOSS_XUANMING_bottom_lunge_v2_'+String(i).padStart(2,'0')+'.png'
+                            :'assets/boss/BOSS_XUANMING_top_lunge_'+String(i).padStart(2,'0')+'.png';
     }
   }
 })();
@@ -1185,23 +1194,38 @@ function spawnEnemy(){
 }
 
 // 首頁 BOSS 測試專用：直接生成第 60 波玄冥墨蛟，不混入一般墨靈。
-// 目前先驗證母版比例、透明邊緣、受擊與死亡；完整三階段攻擊依母版文件逐步接入。
 function spawnBossTest(){
-  const hp=3600;
+  const hp=18000;
   G.enemies.push({
     x:W*0.5,y:H*0.19,r:72,hp,max:hp,sp:0,c:'#211f1d',tier:2,type:'boss',isBoss:true,
-    bossState:'telegraph',bossT:0,bossSide:3,bossAngle:Math.PI,bossHit:false,alpha:0.08,
+    // 測試局略過第一段長前搖，進場約一秒就能看到第一次攻擊；正式第 60 波不受影響。
+    bossState:'manifest',bossT:28,bossSide:3,bossAngle:Math.PI,bossHit:false,alpha:0.72,
+    attackSeq:0,attackKind:'triple',
     anim:0,ember:0,emberT:0,chill:0,hit:0,broken:0,wob:Math.random()*7,st:{}
   });
 }
 
 const BOSS_STATE_CN={telegraph:'墨氣湧動',manifest:'墨形凝聚',orbit:'伏環蓄勢',lunge:'近環吐核',dissolve:'墨散如煙'};
-function bossOrbitRadius(side){
-  const outer=Math.max(188,Math.min(W,H)*.43);
-  // 上方同時有固定 Boss UI 與中央玩家，只能用遠景小比例置於兩者之間。
-  return side===0?100:outer;
+function bossTestAttackCountdown(en){
+  if(!en) return 0;
+  const left={
+    telegraph:Math.max(0,34-en.bossT)+28+54+40,
+    manifest:Math.max(0,28-en.bossT)+54+40,
+    orbit:Math.max(0,54-en.bossT)+40,
+    lunge:Math.max(0,40-en.bossT),
+    dissolve:Math.max(0,46-en.bossT)+34+28+54+40
+  }[en.bossState]||0;
+  return Math.max(0,left/60);
 }
-function bossSafeRadius(en){ return en.r*1.45+G.player.r*2+18; }
+function bossPhase(en){ const r=en?en.hp/en.max:1; return r>.7?1:r>.4?2:3; }
+function bossOrbitRadius(side){
+  // 四向以「龍身可見中心」落在同一環上；上下素材的視覺位移在此反算回邏輯座標。
+  const visualR=Math.max(168,Math.min(260,W*.39,Math.min(W,H)*.42));
+  if(side===0) return visualR+bossVisualLift(0); // lift=-24，所以邏輯半徑少 24
+  if(side===2) return visualR-bossVisualLift(2); // lift=-42，所以邏輯半徑多 42
+  return visualR;
+}
+function bossVisualLift(side){ return side===0?-24:side===2?-42:0; }
 function placeBoss(en,ang,r){
   const P=G.player; en.x=P.x+Math.cos(ang)*r; en.y=P.y+Math.sin(ang)*r;
 }
@@ -1209,28 +1233,35 @@ function nextBossManifest(en){
   en.bossSide=(en.bossSide+1)%4;
   en.bossAngle=[-Math.PI/2,0,Math.PI/2,Math.PI][en.bossSide];
   en.bossState='telegraph'; en.bossT=0; en.bossHit=false; en.alpha=0.06;
+  en.attackSeq=(en.attackSeq||0)+1;
+  const ratio=en.hp/en.max;
+  en.attackKind=ratio>.7?'triple':ratio>.4?'ring':((en.attackSeq&1)?'ring':'triple');
   placeBoss(en,en.bossAngle,bossOrbitRadius(en.bossSide));
 }
 function updateBossP1(en){
   en.bossT++;
   const R=bossOrbitRadius(en.bossSide), state=en.bossState;
+  // 測試模式需要密集重現招式；正式關卡仍保留完整讀招時間。
+  const telegraphFrames=G.bossTest?34:72;
+  const manifestFrames=G.bossTest?28:42;
+  const orbitFrames=G.bossTest?54:100;
   if(state==='telegraph'){
     placeBoss(en,en.bossAngle,R); en.alpha=0.05;
-    if(en.bossT>=72){ en.bossState='manifest'; en.bossT=0; }
+    if(en.bossT>=telegraphFrames){ en.bossState='manifest'; en.bossT=0; }
   } else if(state==='manifest'){
-    placeBoss(en,en.bossAngle,R); en.alpha=Math.min(1,en.bossT/38);
-    if(en.bossT>=42){ en.bossState='orbit'; en.bossT=0; en.alpha=1; }
+    placeBoss(en,en.bossAngle,R); en.alpha=Math.min(1,en.bossT/Math.max(1,manifestFrames-4));
+    if(en.bossT>=manifestFrames){ en.bossState='orbit'; en.bossT=0; en.alpha=1; }
   } else if(state==='orbit'){
     // 本體有重量：蓄勢期間完全守住現形錨點，換位只交給消散墨霧表達。
     placeBoss(en,en.bossAngle,R); en.alpha=1;
-    if(en.bossT>=100){ placeBoss(en,en.bossAngle,R); en.bossState='lunge'; en.bossT=0; en.bossHit=false; }
+    if(en.bossT>=orbitFrames){ placeBoss(en,en.bossAngle,R); en.bossState='lunge'; en.bossT=0; en.bossHit=false; }
   } else if(state==='lunge'){
     const t=Math.min(1,en.bossT/58);
     // 本體錨點不移動；前探、吐核與收身全部由方向攻擊幀表達。
     placeBoss(en,en.bossAngle,R); en.alpha=1;
     if(!en.bossHit&&t>=.68){
       en.bossHit=true;
-      spawnBossInkCore(en);
+      spawnBossAttack(en);
     }
     if(en.bossT>=58){ en.bossState='dissolve'; en.bossT=0; }
   } else if(state==='dissolve'){
@@ -1249,8 +1280,8 @@ function updateBossP1(en){
 }
 function bossDissolveMist(en){
   const f=en.face||0,progress=Math.min(1,en.bossT/46);
-  // 由尾端逐步往頭部推進，霧絲沿切線逸散，不留下地面墨痕。
-  for(let k=0;k<3;k++){
+  // 前半段只讓舊位置散開；避免煙霧同時鋪滿兩端，看起來像一條瞬移連線。
+  for(let k=0;k<(progress<.68?3:1);k++){
     const local=-en.r*.85+en.r*1.55*Math.min(1,progress+Math.random()*.22);
     const side=(Math.random()-.5)*en.r*.75;
     const x=en.x+Math.cos(f)*local-Math.sin(f)*side;
@@ -1260,32 +1291,53 @@ function bossDissolveMist(en){
       r:18+Math.random()*24,age:0,dur:32+((Math.random()*18)|0),color:'38,35,32',
       squash:.32+Math.random()*.3,rot:f+(Math.random()-.5)*.8});
   }
-  // 換位本身不搬動龍圖：一束墨霧沿外環前往下一個方位，下一輪再由霧中凝形。
+  // 換位本身不搬動龍圖：舊處消散，下一輪在目標位置由霧中凝形。
   const sides=[-Math.PI/2,0,Math.PI/2,Math.PI],next=sides[(en.bossSide+1)%4];
-  let da=next-en.bossAngle;while(da>Math.PI)da-=Math.PI*2;while(da<-Math.PI)da+=Math.PI*2;
-  const p=Math.min(1,en.bossT/46),a=en.bossAngle+da*p,R=bossOrbitRadius(en.bossSide);
-  const mx=G.player.x+Math.cos(a)*R,my=G.player.y+Math.sin(a)*R;
-  G.mists.push({x:mx,y:my,vx:-Math.sin(a)*.46,vy:Math.cos(a)*.46-.18,
-    r:20+Math.random()*15,age:0,dur:25+((Math.random()*10)|0),color:'40,37,33',
-    squash:.22+Math.random()*.16,rot:a+Math.PI/2});
+  const R=bossOrbitRadius((en.bossSide+1)%4);
+  // 後半段才在下一個「實際繪圖中心」凝聚；上下方向素材有視覺位移，必須一起算入。
+  if(progress>=.38){
+    const mx=G.player.x+Math.cos(next)*R;
+    const my=G.player.y+Math.sin(next)*R+bossVisualLift((en.bossSide+1)%4);
+    const gather=Math.min(1,(progress-.38)/.62);
+    G.mists.push({x:mx+(Math.random()-.5)*(1-gather)*42,y:my+(Math.random()-.5)*(1-gather)*34,
+      vx:(mx-en.x)*.0015*(1-gather)-Math.sin(next)*.18,
+      vy:(my-en.y)*.0015*(1-gather)+Math.cos(next)*.18-.08,
+      r:18+Math.random()*14,age:0,dur:22+((Math.random()*9)|0),color:'40,37,33',
+      squash:.28+Math.random()*.14,rot:next+Math.PI/2});
+  }
 }
-function spawnBossInkCore(en){
-  const P=G.player;
-  // 四個方向使用各自的正面／側面幀，龍口錨點也按素材方位固定，不靠旋轉猜位置。
-  const mouth=[{x:0,y:.52},{x:-.52,y:-.08},{x:0,y:-.52},{x:.52,y:-.08}][en.bossSide]||{x:0,y:0};
-  const visualLift=en.bossSide===0?-24:0;
-  const ox=en.x+mouth.x*en.r,oy=en.y+mouth.y*en.r+visualLift;
-  const dx=P.x-ox,dy=P.y-oy,d=Math.hypot(dx,dy)||1;
-  // 約 1.5 秒由安全環抵達玩家，保留看懂軌跡並出劍攔截的反應窗。
-  G.bossShots.push({x:ox,y:oy,px:ox,py:oy,vx:dx/d*1.15,vy:dy/d*1.15,
-    r:15,hp:2,max:2,age:0,seed:Math.random()*100});
+function spawnBossAttack(en){
+  if(en.attackKind==='ring'){ spawnBossRing(en); return; }
+  const P=G.player,mouth=[{x:0,y:.52},{x:-.52,y:-.08},{x:0,y:-.52},{x:.52,y:-.08}][en.bossSide];
+  const ox=en.x+mouth.x*en.r,oy=en.y+mouth.y*en.r+bossVisualLift(en.bossSide);
+  const dx=P.x-ox,dy=P.y-oy,d=Math.hypot(dx,dy)||1,nx=-dy/d,ny=dx/d;
+  // 中央重核 + 兩翼快核；三條軌道都能用飛劍逐一斬掉。
+  for(const lane of [-34,0,34]){
+    const x=ox+nx*lane,y=oy+ny*lane,tx=P.x+nx*lane*.22,ty=P.y+ny*lane*.22;
+    const vx=tx-x,vy=ty-y,L=Math.hypot(vx,vy)||1,heavy=lane===0;
+    G.bossShots.push({x,y,px:x,py:y,vx:vx/L*(heavy?1.12:1.38),vy:vy/L*(heavy?1.12:1.38),
+      r:heavy?15:11,hp:heavy?2:1,max:heavy?2:1,dmg:heavy?18:11,age:0,seed:Math.random()*100});
+  }
+}
+function spawnBossRing(en){
+  const P=G.player,N=(en.hp/en.max<=.4)?14:11,R=Math.max(170,Math.min(W,H)*.4);
+  // 留兩枚寬的缺口，其他墨滴由四周向中心合攏；飛劍可直接削掉墨浪。
+  const gap=en.bossSide/N*Math.PI*2;
+  for(let i=0;i<N;i++){
+    const a=i/N*Math.PI*2;
+    let da=a-gap; while(da>Math.PI)da-=Math.PI*2; while(da<-Math.PI)da+=Math.PI*2;
+    if(Math.abs(da)<Math.PI/N*1.3) continue;
+    const x=P.x+Math.cos(a)*R,y=P.y+Math.sin(a)*R,spd=(en.hp/en.max<=.4)?1.18:1.02;
+    G.bossShots.push({x,y,px:x,py:y,vx:-Math.cos(a)*spd,vy:-Math.sin(a)*spd,
+      r:10,hp:1,max:1,dmg:9,age:0,seed:Math.random()*100});
+  }
 }
 function updateBossShots(){
   const P=G.player;
   for(let i=G.bossShots.length-1;i>=0;i--){
     const q=G.bossShots[i]; q.age++; q.px=q.x; q.py=q.y; q.x+=q.vx; q.y+=q.vy;
     if(Math.hypot(q.x-P.x,q.y-P.y)<q.r+P.r){
-      if(!G.hpLocked) P.hp=Math.max(0,P.hp-18); else P.hp=P.max;
+      if(!G.hpLocked) P.hp=Math.max(0,P.hp-(q.dmg||18)); else P.hp=P.max;
       P.pulse=1; G.hurtT=20; SND.hurt(); shake(8); flash(.18,'176,64,48');
       inkCoreDissolve(q,Math.atan2(q.vy,q.vx)); G.bossShots.splice(i,1); updateHUD();
       if(P.hp<=0){ beginDeath(); return; }
@@ -2247,7 +2299,7 @@ function update(){
     if(en.broken>0) en.broken--;                    // 破甲計時(貫鋒式·大成)
     // 波及傷害(潑墨/破墨)可能已把血打光,統一在此收屍
     if(en.hp<=0){ killEnemy(i); continue; }
-    if(en.isBoss){ updateBossP1(en); continue; }
+    if(en.isBoss){ if(!G.bossShowcase) updateBossP1(en); continue; }
     const dx=P.x-en.x, dy=P.y-en.y, d=Math.hypot(dx,dy)||1;
     let sp=en.sp; if(en.chill>0){ en.chill--; sp*=0.45; } // 寒霜冰緩(舊元素系統,現休眠)
     // ===== 劍意狀態:蝕(持續潰散)/ 鎮(行止遲滯 + 微幅損血)=====
@@ -2458,6 +2510,7 @@ function update(){
     // 命中
     for(let j=G.enemies.length-1;j>=0;j--){
       const en=G.enemies[j];
+      if(en.showcaseGhost) continue;
       if(en.isBoss&&en.bossState!=='orbit'&&en.bossState!=='lunge') continue;
       if(s.hitPass.get(en)===(s.passId||0)) continue;
       // 掃掠判定:用「這一幀走過的線段」對圓,而不是只測落點。
@@ -3185,33 +3238,6 @@ function buildBlots(){
   }
 }
 
-function drawBossTelegraphs(){
-  const P=G.player;
-  for(const en of G.enemies){
-    if(!en.isBoss||(en.bossState!=='telegraph'&&en.bossState!=='lunge')) continue;
-    const a=en.bossAngle,R=bossOrbitRadius(en.bossSide), safe=bossSafeRadius(en);
-    ctx.save(); ctx.lineCap='round';
-    if(en.bossState==='telegraph'){
-      const pulse=.34+Math.sin(G.t*.16)*.12;
-      ctx.strokeStyle='rgba(45,40,35,'+pulse.toFixed(3)+')'; ctx.lineWidth=2;
-      ctx.setLineDash([10,9]); ctx.beginPath();
-      ctx.moveTo(P.x+Math.cos(a)*R,P.y+Math.sin(a)*R);
-      ctx.quadraticCurveTo(P.x+Math.cos(a+.42)*R*.78,P.y+Math.sin(a+.42)*R*.78,
-        P.x+Math.cos(a)*safe,P.y+Math.sin(a)*safe); ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.fillStyle='rgba(45,40,35,.18)'; ctx.beginPath();
-      ctx.arc(P.x+Math.cos(a)*safe,P.y+Math.sin(a)*safe,18+Math.sin(G.t*.14)*3,0,6.283); ctx.fill();
-    } else {
-      // 本體不再滑行；只預告龍口到玩家的可攔截墨核路徑。
-      const mouth=[{x:0,y:.52},{x:-.52,y:-.08},{x:0,y:-.52},{x:.52,y:-.08}][en.bossSide];
-      const sx=en.x+mouth.x*en.r,sy=en.y+mouth.y*en.r+(en.bossSide===0?-24:0);
-      ctx.setLineDash([4,8]); ctx.strokeStyle='rgba(118,43,36,.34)'; ctx.lineWidth=2;
-      ctx.beginPath(); ctx.moveTo(sx,sy); ctx.lineTo(P.x,P.y); ctx.stroke(); ctx.setLineDash([]);
-    }
-    ctx.restore();
-  }
-}
-
 function drawBossShots(){
   for(const q of G.bossShots){
     ctx.save(); ctx.translate(q.x,q.y); ctx.rotate(G.t*.025+q.seed);
@@ -3309,7 +3335,6 @@ function draw(){
   ctx.restore();
   }
 
-  drawBossTelegraphs();
   drawBossShots();
   // 敵人(墨團妖魔)
   if(DRAWLV>=4) for(const en of G.enemies){
@@ -3324,11 +3349,24 @@ function draw(){
       const bossDis=en.isBoss&&(en.bossSide===1||en.bossSide===3)&&en.bossState==='dissolve'&&grp.dissolve&&grp.dissolve.filter(Boolean).length===6
         ? grp.dissolve.filter(Boolean) : null;
       const fr=bossAtk||bossDis||(bossIdle?[bossIdle]:grp.frames.filter(Boolean)), n=fr.length,
-            scale=en.isBoss?(en.visualScale||1):1, hh=en.r*2.8*scale,
+            scale=en.isBoss?(en.visualScale||1):1,
+            hh=en.isBoss&&(en.bossSide===1||en.bossSide===3)
+              ?Math.min(en.r*2.1*scale,W*.25):en.r*2.1*scale,
             base=(en.hit>0?0.9:1)*(en.alpha==null?1:en.alpha);
-      const visualLift=en.isBoss&&en.bossSide===0?-24:0;
-      const put=(img,al)=>{ const iw=img.naturalWidth||1, ih=img.naturalHeight||1, ww=hh*(iw/ih);
-        ctx.globalAlpha=al; ctx.drawImage(img, en.x-ww/2, en.y-hh*0.58+visualLift, ww, hh); };
+      const visualLift=en.isBoss?bossVisualLift(en.bossSide):0;
+      const put=(img,al)=>{
+        const iw=img.naturalWidth||1, ih=img.naturalHeight||1, b=img._inkBounds;
+        ctx.globalAlpha=al;
+        if(en.isBoss&&b&&(en.bossSide===0||en.bossSide===2)){
+          // 正面幀依透明墨形的實際邊界繪製；每幀統一有效高度，不再受畫布留白影響。
+          const bodyH=en.r*1.85*scale, bodyW=bodyH*(b[2]/b[3]);
+          const cy=Math.max(16+bodyH/2,Math.min(H-18-bodyH/2,en.y+visualLift));
+          ctx.drawImage(img,b[0],b[1],b[2],b[3],en.x-bodyW/2,cy-bodyH/2,bodyW,bodyH);
+        } else {
+          const ww=hh*(iw/ih), y=Math.max(12,Math.min(H-hh-18,en.y-hh*.58+visualLift));
+          ctx.drawImage(img,en.x-ww/2,y,ww,hh);
+        }
+      };
       ctx.save();
       if(en.isBoss){
         // Boss 浮於畫卷空間，不畫平台式橢圓陰影；左右共用側面素材，左側水平鏡像。
@@ -3378,7 +3416,7 @@ function draw(){
     // 位置與敵人本體不同步,不能沿用上面那個 translate。
     if(stSup) drawSuppression(en, stSup);
     // 敵方血條：深墨底槽、朱紅血量與一像素框線，對齊示意圖的細長比例。
-    if(en.hp<en.max){
+    if(!en.isBoss&&en.hp<en.max){
       const w=Math.max(30,Math.min(62,en.r*2.45)), h=4, x=en.x-w/2, y=en.y-en.r-12;
       ctx.fillStyle='rgba(20,17,14,.88)'; ctx.fillRect(x-1,y-1,w+2,h+2);
       ctx.fillStyle='rgba(76,66,55,.72)'; ctx.fillRect(x,y,w,h);
@@ -3604,16 +3642,18 @@ function updateHUD(){
   setTxt('killtxt',String(G.kills));
   setTxt('wavetxt','第 '+num2cn(G.wave)+' 境');
   if(G.bossTest){
-    const boss=G.enemies.find(en=>en.isBoss), out=document.getElementById('bosstestreadout');
+    const boss=G.enemies.find(en=>en.isBoss&&!en.showcaseGhost), out=document.getElementById('bosstestreadout');
     const dist=boss&&G.player?Math.round(Math.hypot(boss.x-G.player.x,boss.y-G.player.y)):0;
     if(out) out.textContent='劍 '+Math.max(1,stat.count|0)+'　命中 '+(boss?(boss.testHits||0):0)+
-      '\nHP '+(boss?Math.max(0,Math.round(boss.hp)):0)+'　距 '+dist+'　位 '+(boss?boss.bossSide:'-')+'　墨核 '+G.bossShots.length;
+      '\nHP '+(boss?Math.max(0,Math.round(boss.hp)):0)+'　距 '+dist+'　位 '+(boss?boss.bossSide:'-')+'　墨核 '+G.bossShots.length+
+      '\n'+(boss?(BOSS_STATE_CN[boss.bossState]||boss.bossState):'已擊破')+'　下擊 '+bossTestAttackCountdown(boss).toFixed(1)+'秒';
   }
-  { const boss=G.enemies.find(en=>en.isBoss), ui=document.getElementById('bossui');
+  { const boss=G.enemies.find(en=>en.isBoss&&!en.showcaseGhost), ui=document.getElementById('bossui');
     ui.classList.toggle('show',!!boss);
     if(boss){
       document.getElementById('bossfill').style.width=Math.max(0,boss.hp/boss.max*100).toFixed(2)+'%';
-      document.getElementById('bossphase').textContent='P1 · '+(BOSS_STATE_CN[boss.bossState]||'四象試鋒');
+      const pn=bossPhase(boss),skill=boss.attackKind==='ring'?'環形墨浪':'三路墨核';
+      document.getElementById('bossphase').textContent='P'+pn+' · '+skill+' · '+(BOSS_STATE_CN[boss.bossState]||'蓄勢');
     }
   }
   if(DPS.open) renderDps();
@@ -4054,7 +4094,7 @@ function start(mode){
   const fastRestart=mode==='boss-fast';
   dpsReset();
   Object.assign(G,{running:true,paused:false,t:0,enemies:[],bossShots:[],swords:[],particles:[],inks:[],texts:[],stains:[],splashes:[],mists:[],commands:[],
-    kills:0,wave:bossTest?60:1,waveTimer:0,spawnAcc:0,bossTest,hpLocked:false,xp:0,xpNeed:6,level:1,pendingLevels:0,mana:100,
+    kills:0,wave:bossTest?60:1,waveTimer:0,spawnAcc:0,bossTest,bossShowcase:false,hpLocked:false,xp:0,xpNeed:6,level:1,pendingLevels:0,mana:100,
     reserve:0,reserveT:0,reserveFlash:0,strokeAvg:0,strokeN:0,
     auto:false,autoUsed:false,autoTimer:0,
     shake:0,hitstop:0,flash:0,flashC:'255,255,255',banner:null,
@@ -4130,6 +4170,32 @@ function bossTestSwordCount(delta){
   syncStat();
   G.banner={txt:'測試飛劍 · '+stat.count,life:1};
   updateHUD();
+}
+function bossTestNextPhase(){
+  if(!G.bossTest) return;
+  const en=G.enemies.find(x=>x.isBoss); if(!en) return;
+  const p=bossPhase(en),ratio=p===1?.69:p===2?.39:.99;
+  en.hp=Math.max(1,en.max*ratio); en.attackKind=p===1?'ring':'triple';
+  en.attackSeq=(en.attackSeq||0)+1;
+  G.banner={txt:'BOSS 測試 · P'+bossPhase(en),life:1}; updateHUD();
+}
+function bossTestFourDirections(){
+  if(!G.bossTest) return;
+  const real=G.enemies.find(en=>en.isBoss&&!en.showcaseGhost); if(!real) return;
+  G.enemies=G.enemies.filter(en=>!en.showcaseGhost);
+  G.bossShowcase=((G.bossShowcase||0)+1)%3;
+  const btn=document.getElementById('bosstestfour');
+  if(btn){ btn.classList.toggle('on',!!G.bossShowcase);
+    btn.textContent=G.bossShowcase===1?'四向·待機':G.bossShowcase===2?'四向·攻擊':'四向'; }
+  if(!G.bossShowcase){ nextBossManifest(real); return; }
+  G.bossShots.length=0; real.bossState=G.bossShowcase===2?'lunge':'orbit'; real.bossT=G.bossShowcase===2?32:0; real.alpha=1;
+  for(let side=0;side<4;side++){
+    const en=side===0?real:Object.assign({},real,{showcaseGhost:true,st:{}});
+    en.bossSide=side; en.bossAngle=[-Math.PI/2,0,Math.PI/2,Math.PI][side];
+    placeBoss(en,en.bossAngle,bossOrbitRadius(side)); en.face=Math.atan2(G.player.y-en.y,G.player.x-en.x);
+    if(side>0) G.enemies.push(en);
+  }
+  G.banner={txt:'四向比例檢視',life:1}; updateHUD();
 }
 // ---------- 暫停 / 繼續 ----------
 let pausedByUser=false;
@@ -4461,6 +4527,8 @@ document.getElementById('bosstestswordup').onclick=()=>bossTestSwordCount(1);
 document.getElementById('bosstestsworddown').onclick=()=>bossTestSwordCount(-1);
 document.getElementById('bosstestup').onclick=()=>bossTestLevel(1);
 document.getElementById('bosstestdown').onclick=()=>bossTestLevel(-1);
+document.getElementById('bosstestphase').onclick=bossTestNextPhase;
+document.getElementById('bosstestfour').onclick=bossTestFourDirections;
 document.getElementById('bosstestlock').onclick=toggleBossTestHpLock;
 document.getElementById('bosstestretry').onclick=()=>start('boss-fast');
 document.getElementById('againbtn').onclick=start;
