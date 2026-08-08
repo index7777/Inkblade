@@ -196,7 +196,15 @@
   #shop { position:absolute; inset:0; display:none; align-items:center; justify-content:center; z-index:42;
     background:rgba(20,18,14,.72); backdrop-filter:blur(3px); }
   #shop.show { display:flex; }
+  /* 商城與轉世閣同為淺色面板:.btn.ghost 是給深色底用的(淺字),放這裡等於看不見。
+     一併覆寫成深字淺底,並比照隱藏捲軸、底部鈕等寬。 */
+  #shopbox .btn.ghost { background:rgba(255,255,255,.45); color:#2e2820; border-color:#b8a888; }
+  #shopbox .btnrow { display:flex; gap:10px; flex-wrap:nowrap; padding:0; }
+  #shopbox .btnrow .btn { flex:1 1 0; min-width:0; white-space:nowrap;
+    padding:12px 6px; font-size:clamp(13px,2.4vw,16px); letter-spacing:clamp(1px,0.8vw,3px); }
+  #shopbox::-webkit-scrollbar { width:0; height:0; display:none; }
   #shopbox { width:min(680px,94vw); max-height:88dvh; overflow:auto; background:linear-gradient(180deg,#f6f0e0,#e6dcc4);
+    scrollbar-width:none; -ms-overflow-style:none; touch-action:pan-y; overscroll-behavior:contain;
     border:1px solid #b8a888; border-radius:12px; padding:clamp(16px,3vw,24px) clamp(14px,3vw,26px);
     box-shadow:0 18px 50px rgba(0,0,0,.6); }
   #shopbox h2 { font-size:clamp(20px,3.6vw,26px); letter-spacing:clamp(4px,1.4vw,8px); color:#2e2820; text-align:center; }
@@ -1327,9 +1335,227 @@ function applyIntent(en){
     const rank = cfg.rank || 1;
     const maxS = cfg.maxStacks || 6;
     const cur  = en.st[key] || (en.st[key]={stk:0,t:0,acc:0});
+    const before = cur.stk;
     cur.stk = Math.min(maxS, cur.stk + (cfg.stacks||1) * rank);
     cur.t   = Math.round((cfg.duration||3) * 60 * (stat.statusScale||1));
+    if(key==='suppression'){
+      const V = ensureSupV(en);
+      V.press = 14;                              // 觸發:腳下重按一橫,再碎成兩側斷墨
+      V.maxS  = maxS;
+      if(before < maxS && cur.stk >= maxS) V.sink = 18;   // 滿層:瞬間「沉」一下
+    }
   }
+}
+// ══ 鎮痕的視覺狀態 ══════════════════════════════════════════════
+// 語意是「鎮、沉、滯」——敵人周圍的墨被壓住,不是把敵人圈起來。
+// 所以:永不成完整圓、不旋轉、不發光;只做「向內收束 → 停住 → 淡掉 → 再生一筆」。
+function supHash(n){ const x=Math.sin(n*127.1+311.7)*43758.5453; return x-Math.floor(x); }
+function ensureSupV(en){
+  if(!en.supV) en.supV={ seed:Math.floor(Math.random()*9999), t:0, cyc:0,
+                         lx:en.x, ly:en.y, press:0, sink:0, maxS:4 };
+  return en.supV;
+}
+// 依 seed 生出 2~4 段弧(起始角、弧長),總覆蓋約 35~55% 圓周
+function supArcs(seed, stk){
+  const n = 2 + Math.floor(supHash(seed)*3);            // 2~4 段
+  const total = (0.35 + supHash(seed+7)*0.20) * 6.283;  // 35~55%
+  const out=[];
+  let used=0;
+  for(let i=0;i<n;i++){
+    const share = (0.7 + supHash(seed+i*13)*0.6);
+    const len = total/n*share;
+    const gap = (6.283-total)/n;
+    const a0 = used + gap*(0.35+supHash(seed+i*31)*0.5);
+    out.push({a0, len, w:1.6+supHash(seed+i*17)*1.0});
+    used = a0 + len + gap*0.5;
+  }
+  return out;
+}
+// 一筆乾筆弧:不用 ctx.arc(完美圓弧沒有筆意),逐點取樣並加抖動與飛白缺口
+function drawDryArc(cx,cy,r,a0,len,w,alpha,seed){
+  const N=Math.max(6, Math.round(len*14));
+  ctx.lineCap='round'; ctx.lineWidth=w;
+  let drawing=false;
+  for(let i=0;i<=N;i++){
+    const t=i/N, a=a0+len*t;
+    // 飛白:沿弧隨機斷開,兩端本來就比較虛
+    const edge=Math.min(t,1-t)*2;
+    const solid = supHash(seed+i*3.7) < (0.55+edge*0.45);
+    const jr = r + (supHash(seed+i*5.1)-0.5)*1.9;       // 半徑抖動
+    const x=cx+Math.cos(a)*jr, y=cy+Math.sin(a)*jr*0.30; // 壓扁貼地(接近正俯視的地面環)
+    if(solid){
+      if(!drawing){ ctx.beginPath(); ctx.moveTo(x,y); drawing=true; }
+      else ctx.lineTo(x,y);
+    } else if(drawing){
+      ctx.strokeStyle='rgba(78,84,82,'+(alpha*(0.55+edge*0.45)).toFixed(3)+')';
+      ctx.stroke(); drawing=false;
+    }
+  }
+  if(drawing){ ctx.strokeStyle='rgba(78,84,82,'+alpha.toFixed(3)+')'; ctx.stroke(); }
+}
+function drawSuppression(en, st){
+  const V=ensureSupV(en);
+  const stk=Math.max(1, st.stk|0), maxS=V.maxS||4;
+  const full = stk>=maxS;
+  // 收束循環:1.5 秒一輪。向內收 3~5px → 停住 → 淡掉 → 再生一筆(不旋轉)
+  const T=V.t/90, ease=T<0.55 ? (1-Math.pow(1-T/0.55,3)) : 1;
+  const draw=3+supHash(V.seed)*2;
+  const sink=V.sink>0 ? (V.sink/18)*3 : 0;
+  const r=en.r*1.02+5 - ease*draw - sink;               // 半徑貼著身形,弧痕落在腳下的紙面
+  const fade=T<0.72 ? 1 : Math.max(0, 1-(T-0.72)/0.28);
+  const base=(0.34+stk*0.07)*fade;                      // 落在紙上就要夠沉,不然看不見
+  const cx=V.lx, cy=V.ly+en.r*0.95;                     // 正下方的地面(比照玩家腳下的劍環)
+  // 二層以上:腳下淡墨暈;三層以上更沉
+  if(stk>=2 && FX.glow){
+    const gr=ctx.createRadialGradient(cx,cy,1,cx,cy,en.r*1.5);
+    const a=(stk>=3?0.20:0.11)*fade + (V.sink>0?0.10:0);
+    gr.addColorStop(0,'rgba(58,64,62,'+a.toFixed(3)+')'); gr.addColorStop(1,'rgba(58,64,62,0)');
+    ctx.save(); ctx.translate(cx,cy); ctx.scale(1,0.32); ctx.translate(-cx,-cy);
+    ctx.fillStyle=gr; ctx.beginPath(); ctx.arc(cx,cy,en.r*1.5,0,6.28); ctx.fill(); ctx.restore();
+  }
+  // 觸發:腳下重按一橫 → 碎成兩側斷墨
+  if(V.press>0){
+    const k=1-V.press/14, halfW=en.r*(0.9+k*0.5), split=k*en.r*0.5;
+    ctx.strokeStyle='rgba(66,72,70,'+(0.55*(1-k)+0.12).toFixed(3)+')';
+    ctx.lineWidth=2.6-k*1.2; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(cx-halfW, cy+split*0.35); ctx.lineTo(cx-split, cy); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx+split, cy); ctx.lineTo(cx+halfW, cy+split*0.35); ctx.stroke();
+  }
+  // 斷弧本體(地面上的壓痕)
+  for(const seg of supArcs(V.seed+V.cyc*97, stk))
+    drawDryArc(cx, cy, r, seg.a0, seg.len, seg.w, base, V.seed+V.cyc*97+seg.a0*100);
+  // 鎮劍:2~5 把劍壓在腳下的地面,**劍尖朝內**、隨循環緩慢內收。
+  // 與玩家腳下那圈劍尖朝外的劍環正好成對:玩家是散發,鎮痕是壓制。
+  {
+    const n=Math.min(5, 1+stk);
+    const press=r*(0.30+ease*0.16) + sink*0.6;          // 內收量:收束時劍再往內壓一點
+    for(let i=0;i<n;i++){
+      // 不等距:每把劍的角度帶固定偏移,避免看起來像規則的圓陣
+      const a=(i/n)*6.283 + supHash(V.seed+i*53)*1.1;
+      const px=cx+Math.cos(a)*(r-press), py=cy+Math.sin(a)*(r-press)*0.30;
+      const dir=Math.atan2(-Math.sin(a)*0.30, -Math.cos(a));   // 劍尖朝圓心
+      const L=en.r*(0.62+supHash(V.seed+i*29)*0.28);
+      const al=(base*1.5+(V.sink>0?0.18:0));
+      ctx.save(); ctx.translate(px,py); ctx.rotate(dir);
+      if(SWDSPR.ok){
+        const w=L/SWDSPR.blade, hh=w/SWDSPR.aspect;
+        ctx.globalAlpha=Math.min(0.85, al);
+        ctx.drawImage(SWDSPR.idle[(i*3+V.cyc)%SWDSPR.idle.length], -w*SWDSPR.grip, -hh/2, w, hh);
+        ctx.globalAlpha=1;
+      } else {                                           // 沒有貼圖時的回退:一筆帶錐度的墨劃
+        ctx.strokeStyle='rgba(58,64,62,'+Math.min(0.8,al).toFixed(3)+')';
+        ctx.lineCap='round'; ctx.lineWidth=2.0;
+        ctx.beginPath(); ctx.moveTo(-L*0.5,0); ctx.lineTo(L*0.5,0); ctx.stroke();
+      }
+      ctx.restore();
+    }
+  }
+  // 三層以上:少量向下垂的枯筆絲
+  if(stk>=3){
+    ctx.lineWidth=0.9; ctx.strokeStyle='rgba(78,84,82,'+(base*0.7).toFixed(3)+')';
+    for(let i=0;i<3;i++){
+      const a=supHash(V.seed+i*23)*6.283, L=4+supHash(V.seed+i*41)*7;
+      const x=cx+Math.cos(a)*r, y=cy+Math.sin(a)*r*0.30;
+      ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x+(supHash(V.seed+i*11)-0.5)*2, y+L); ctx.stroke();
+    }
+  }
+  // 滿層:短促的壓墨震紋
+  if(V.sink>0){
+    const k=V.sink/18;
+    ctx.strokeStyle='rgba(58,64,62,'+(0.34*k).toFixed(3)+')'; ctx.lineWidth=1.1;
+    for(let i=0;i<2;i++){
+      const rr=en.r*(1.1+i*0.35)+ (1-k)*7;
+      ctx.beginPath(); ctx.ellipse(cx,cy,rr,rr*0.26,0,0,6.283); ctx.stroke();
+    }
+  }
+}
+// ══ 蝕痕的視覺狀態 ══════════════════════════════════════════════
+// 語意是「墨正在侵蝕敵人」——由內向外腐蝕,不是外面套一個圈。
+// 與鎮痕(由外向內壓)剛好相反,兩者的視覺語言不該混。
+// 禁止:完整圓環、虛線、規則旋轉。
+function ensureEroV(en){
+  if(!en.eroV) en.eroV={ seed:Math.floor(Math.random()*9999), t:0, flash:0, suck:0, stk:0, cracks:null };
+  return en.eroV;
+}
+// 墨裂:從命中點朝外爬的折線,像濕墨沿紙纖維滲開(不是直線,也不是圓弧)
+function buildCracks(seed, stk, r){
+  const n = Math.min(5, 1 + stk);                       // 1~5 條
+  const out=[];
+  for(let i=0;i<n;i++){
+    const a0 = supHash(seed+i*29)*6.283;
+    const pts=[{x:0,y:0}];
+    let a=a0, rad=r*0.12;
+    const segs = 4 + Math.floor(supHash(seed+i*7)*3);
+    for(let k=0;k<segs;k++){
+      a += (supHash(seed+i*13+k*3.1)-0.5)*1.25;         // 每節轉折
+      rad += r*(0.14+supHash(seed+i*5+k)*0.12);
+      pts.push({x:Math.cos(a)*rad, y:Math.sin(a)*rad});
+    }
+    // 二層以上開始分叉
+    const branch=[];
+    if(stk>=2 && pts.length>3){
+      const bi=2+Math.floor(supHash(seed+i*17)*(pts.length-3));
+      let ba=a0+(supHash(seed+i*23)-0.5)*2.0, br=Math.hypot(pts[bi].x,pts[bi].y);
+      const bp=[pts[bi]];
+      for(let k=0;k<3;k++){
+        ba += (supHash(seed+i*31+k)-0.5)*1.4; br += r*0.13;
+        bp.push({x:Math.cos(ba)*br, y:Math.sin(ba)*br});
+      }
+      branch.push(bp);
+    }
+    out.push({pts, branch, w:0.9+supHash(seed+i*11)*0.9});
+  }
+  return out;
+}
+function drawErosion(en, st){
+  const V=ensureEroV(en);
+  const stk=Math.max(1, st.stk|0);
+  if(!V.cracks || V.stk!==stk){ V.cracks=buildCracks(V.seed, stk, en.r); V.stk=stk; }
+  // 滲 → 收 → 滲:0.4~0.7 秒向外長一點,tick 時瞬間變濃,再慢慢退回
+  const grow = 0.72 + 0.28*Math.min(1, V.t/38);
+  const suck = V.suck>0 ? 1-(V.suck/10)*0.10 : 1;        // 三層以上的「吸墨」收縮
+  const k = grow*suck;
+  const hot = V.flash>0 ? V.flash/12 : 0;
+  const base = Math.min(0.72, 0.25 + (stk-1)*0.11) + hot*0.30;
+  ctx.save(); ctx.translate(en.x, en.y);
+  // 滿層:核心周圍一塊不規則焦墨斑
+  if(stk>=4){
+    ctx.fillStyle='rgba(24,21,18,'+(0.26+hot*0.22).toFixed(3)+')';
+    ctx.beginPath();
+    const NC=11;
+    for(let i=0;i<NC;i++){ const a=i/NC*6.283;
+      const rr=en.r*(0.42+supHash(V.seed+i*19)*0.46)*k;
+      const x=Math.cos(a)*rr, y=Math.sin(a)*rr;
+      i?ctx.lineTo(x,y):ctx.moveTo(x,y); }
+    ctx.closePath(); ctx.fill();
+  }
+  // 墨斑(二層起):裂痕途中的局部積墨
+  if(stk>=2){
+    for(let i=0;i<Math.min(4,stk);i++){
+      const c=V.cracks[i%V.cracks.length]; const p=c.pts[Math.min(c.pts.length-1,2)];
+      const rr=en.r*(0.16+supHash(V.seed+i*37)*0.14)*k;
+      ctx.fillStyle='rgba(28,24,20,'+((stk>=3?0.30:0.19)+hot*0.20).toFixed(3)+')';
+      ctx.beginPath(); ctx.arc(p.x*k,p.y*k,rr,0,6.283); ctx.fill();
+    }
+  }
+  // 裂痕本體:錐度收尾,末端更虛
+  ctx.lineCap='round'; ctx.lineJoin='round';
+  for(const c of V.cracks){
+    const seq=[c.pts].concat(c.branch);
+    for(let b=0;b<seq.length;b++){
+      const pts=seq[b];
+      for(let i=1;i<pts.length;i++){
+        const t=i/(pts.length-1);
+        ctx.strokeStyle='rgba(22,19,16,'+(base*(1-t*0.55)*(b?0.7:1)).toFixed(3)+')';
+        ctx.lineWidth=c.w*(1-t*0.6)*(b?0.7:1);
+        ctx.beginPath();
+        ctx.moveTo(pts[i-1].x*k, pts[i-1].y*k);
+        ctx.lineTo(pts[i].x*k,   pts[i].y*k);
+        ctx.stroke();
+      }
+    }
+  }
+  ctx.restore();
 }
 // 留白(飛白斷鋒):暴擊時沿劍身方向刮出一道白痕
 function whiteCut(x,y,ang){
@@ -1529,6 +1755,11 @@ function update(){
           e.acc += cfg.damagePerSecond * e.stk / 60;
           if(e.acc>=1){
             const hurt=Math.floor(e.acc); e.acc-=hurt; en.hp-=hurt;
+            if(key==='erosion'){                       // 蝕:每次結算裂痕短暫加深並滲出墨滴
+              const EV=ensureEroV(en); EV.flash=12; if(e.stk>=3) EV.suck=10;
+              const a=Math.random()*6.283, rr=en.r*0.7;
+              ink(en.x+Math.cos(a)*rr, en.y+Math.sin(a)*rr, Math.cos(a)*0.5, Math.sin(a)*0.5+0.4, 3+Math.random()*4);
+            }
             if(G.t%20===0) floatText(en.x,en.y-en.r, key==='erosion'?'蝕':'鎮',
                                      key==='erosion'?'#7a6a58':'#5a6a80');
             if(en.hp<=0){ dead=true; break; }
@@ -1538,6 +1769,23 @@ function update(){
       }
       if(dead){ killEnemy(i); continue; }
       if(slow>0) sp *= (1 - Math.min(0.7, slow));
+      // 鎮痕視覺:收束循環與拖滯(放在 update 才會跟著靜觀一起凍結)
+      const sup=en.st.suppression;
+      if(sup && sup.t>0){
+        const V=ensureSupV(en);
+        V.lx += (en.x-V.lx)*0.16; V.ly += (en.y-V.ly)*0.16;   // 弧痕慢半拍跟上
+        if(V.press>0) V.press--;
+        if(V.sink>0)  V.sink--;
+        if(++V.t>=90){ V.t=0; V.cyc++; }                       // 1.5 秒一輪,重生一筆
+      } else if(en.supV) en.supV=null;
+      // 蝕痕視覺:滲→收→滲(同樣放在 update,靜觀時凍結)
+      const ero=en.st.erosion;
+      if(ero && ero.t>0){
+        const EV=ensureEroV(en);
+        if(EV.flash>0) EV.flash--;
+        if(EV.suck>0)  EV.suck--;
+        if(++EV.t>=42){ EV.t=0; EV.cracks=null; }   // 重新長一批裂痕,不旋轉
+      } else if(en.eroV) en.eroV=null;
     }
     en.x+=dx/d*sp; en.y+=dy/d*sp;
     en.wob+=0.1;
@@ -1774,6 +2022,11 @@ function killEnemy(idx){
     for(const e2 of G.enemies){
       if(e2!==en && Math.hypot(e2.x-en.x,e2.y-en.y)<R){ e2.hp-=sd; e2.hit=6; }   // 收屍交給敵人迴圈
     }
+  }
+  // 蝕痕滿層的焦墨斑,死亡時再潑散一次
+  if(en.eroV && en.st && en.st.erosion && en.st.erosion.stk>=4){
+    splash(en.x,en.y,'#1a1714',2.4);
+    for(let k=0;k<10;k++) ink(en.x,en.y,(Math.random()-.5)*4,(Math.random()-.5)*4,6+Math.random()*10);
   }
   G.kills++; G.player.hp=Math.min(G.player.max,G.player.hp+stat.regen);
   // 階級推進:每個滿階技能各自累計局內擊殺,達 300/500/1000 進小成/大成/圓滿
@@ -2358,14 +2611,12 @@ function draw(){
     if(en.ember>0 || en.chill>0 || stEro || stSup){ ctx.save(); ctx.translate(en.x,en.y);
       if(en.ember>0){ ctx.strokeStyle='rgba(200,102,46,.8)'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(0,0,en.r+3,0,6.28); ctx.stroke(); }
       if(en.chill>0){ ctx.strokeStyle='rgba(120,180,220,.85)'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(0,0,en.r+3,0,6.28); ctx.stroke(); }
-      // 蝕:斷續的枯墨環,層數越多缺口越少
-      if(stEro){ const g=Math.max(0.08,0.5-stEro.stk*0.07);
-        ctx.strokeStyle='rgba(58,48,40,.75)'; ctx.lineWidth=2.2; ctx.setLineDash([6,6*g*6]);
-        ctx.beginPath(); ctx.arc(0,0,en.r+4,G.t*0.02,G.t*0.02+6.28); ctx.stroke(); ctx.setLineDash([]); }
-      // 鎮:內縮的留白細環
-      if(stSup){ ctx.strokeStyle='rgba(232,224,206,'+(0.35+stSup.stk*0.1)+')'; ctx.lineWidth=1.4;
-        ctx.beginPath(); ctx.arc(0,0,en.r+1.5,0,6.28); ctx.stroke(); }
       ctx.restore(); }
+    // 蝕:附著在墨身上的活墨裂痕(由內向外腐蝕,不是外圈)
+    if(stEro) drawErosion(en, stEro);
+    // 鎮:沉墨壓痕(不成圓、不旋轉、不發光)。用世界座標畫,因為弧痕有拖滯,
+    // 位置與敵人本體不同步,不能沿用上面那個 translate。
+    if(stSup) drawSuppression(en, stSup);
     // 敵方血條：深墨底槽、朱紅血量與一像素框線，對齊示意圖的細長比例。
     if(en.hp<en.max){
       const w=Math.max(30,Math.min(62,en.r*2.45)), h=4, x=en.x-w/2, y=en.y-en.r-12;
@@ -3369,6 +3620,7 @@ function enableDragScroll(id){
 }
 enableDragScroll('pausepanel');
 enableDragScroll('metabox');
+enableDragScroll('shopbox');
 document.getElementById('pausequitbtn').onclick=()=>{ togglePause(false); gameOver(); };
 document.getElementById('splashshopbtn').onclick=openShop;
 document.getElementById('metashopbtn').onclick=openShop;
