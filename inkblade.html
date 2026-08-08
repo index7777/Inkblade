@@ -141,28 +141,20 @@
   #pausebtn .pause-label { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); }
   .ctl:hover { color:#7a2b2b; }
   /* 毛筆刷痕:兩端收鋒、腰身略粗,軌道與填色共用同一個遮罩 */
-  .bar { --p:0; --ink:#302b27; position:relative; height:1.58cqw; min-height:7px; margin-top:1.2cqw;
+  .bar { --p:0; --ink:#302b27;
+    --hud-brush:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 18' preserveAspectRatio='none'%3E%3Cpath d='M2 9C2 5 6 3 12 4C35 2 62 4 89 3C119 2 149 3 177 4C187 4 195 5 203 7C196 8 190 9 181 10C164 12 145 12 123 13C88 14 54 13 16 15C9 15 4 13 2 9Z' fill='black'/%3E%3Cpath d='M145 4C164 3 180 2 202 3L231 2L205 5L179 7L151 7ZM157 6L187 5L224 6L238 7L209 8L176 8ZM151 9L178 8L218 9L232 10L203 11L166 11ZM139 12L169 10L204 12L229 14L199 14L167 13ZM154 14L183 13L217 16L229 17L194 16L166 15Z' fill='black' opacity='.9'/%3E%3Cpath d='M177 4L217 1L224 1L199 5ZM183 8L229 8L238 9L207 10ZM172 12L213 14L238 17L213 16Z' fill='black' opacity='.55'/%3E%3C/svg%3E");
+    position:relative; height:1.72cqw; min-height:8px; margin-top:1.05cqw;
     border-radius:0; overflow:visible; background:none; isolation:isolate; }
   /* 淡墨底痕保留整筆輪廓；有色墨跡自己再套一次毛刷遮罩，收筆就會跟著進度走。 */
   .bar::before { content:''; position:absolute; inset:0; z-index:-1; background:rgba(66,52,38,.18);
-    -webkit-mask:var(--brush) no-repeat 0 0/100% 100%;
-            mask:var(--brush) no-repeat 0 0/100% 100%; }
+    -webkit-mask:var(--hud-brush) no-repeat 0 0/100% 100%;
+            mask:var(--hud-brush) no-repeat 0 0/100% 100%; }
   .bar > i { position:relative; display:block; height:100%; width:0%; min-width:0;
     background:var(--ink); transform-origin:left center;
     transition:width .32s cubic-bezier(.2,.72,.24,1), filter .2s;
-    -webkit-mask:var(--brush) no-repeat 0 0/100% 100%;
-            mask:var(--brush) no-repeat 0 0/100% 100%; }
+    -webkit-mask:var(--hud-brush) no-repeat 0 0/100% 100%;
+            mask:var(--hud-brush) no-repeat 0 0/100% 100%; }
   /* 收筆處的半乾筆絲：跟著目前百分比移動，讓中途進度也不會是直切口。 */
-  .bar::after { content:''; position:absolute; z-index:2; pointer-events:none;
-    left:clamp(5px,calc(var(--p) * 1%),100%); top:-12%; width:clamp(15px,18%,46px); height:124%;
-    opacity:clamp(0,calc(var(--p) / 8),.72); transform:translateX(-27%);
-    background:
-      linear-gradient(177deg,transparent 23%,var(--ink) 25% 29%,transparent 31%) 0 0/100% 31% no-repeat,
-      linear-gradient(183deg,transparent 42%,var(--ink) 44% 48%,transparent 50%) 7% 29%/91% 29% no-repeat,
-      linear-gradient(178deg,transparent 60%,var(--ink) 62% 66%,transparent 68%) 2% 58%/83% 28% no-repeat;
-    -webkit-mask:linear-gradient(90deg,transparent,rgba(0,0,0,.7) 14%,#000 30%,rgba(0,0,0,.45) 67%,transparent 100%);
-            mask:linear-gradient(90deg,transparent,rgba(0,0,0,.7) 14%,#000 30%,rgba(0,0,0,.45) 67%,transparent 100%);
-    transition:left .32s cubic-bezier(.2,.72,.24,1),opacity .2s; }
   /* 道行:細一階,左端一顆墨珠隨進度走 */
   .barrow { position:relative; }
   .barrow .bar { height:1.2cqw; min-height:5px; }
@@ -174,7 +166,7 @@
   #xpfill { background:linear-gradient(90deg,#3e4138,#626456 62%,#4e5045); }
   .bar:has(#mpfill.low) { --ink:#8a5a2b; }
   #mpfill.low { background:linear-gradient(90deg,#67441f,#9b682f 58%,#7c5126); }
-  @media (prefers-reduced-motion:reduce){ .bar>i,.bar::after{transition:none;} }
+  @media (prefers-reduced-motion:reduce){ .bar>i{transition:none;} }
   .label { font-size:clamp(11px,2.4cqw,24px); letter-spacing:.18em; color:#241f1a; font-weight:600; line-height:1.25; }
   /* 行距用比例制 —— 左右兩組要切齊在同一條下緣,行距是唯一可調的餘裕 */
   .label.gap { margin-top:4.5cqw; }
