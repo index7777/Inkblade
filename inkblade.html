@@ -986,7 +986,7 @@ const SHOP_SPEND=[
 // ---------- 玩家(中央靈石) ----------
 function Player(){
   // 神識上限改由 config 決定(轉世閣「識海初開」可加)。start() 已先跑 syncStat,故 stat.hpMax 必有值。
-  const hp = (stat && stat.hpMax) || 100;
+  const hp = (stat && stat.hpMax) || 100;   // 已含道行成長(syncStat 算好)
   this.x=W/2; this.y=H/2; this.r=26; this.hp=hp; this.max=hp; this.pulse=0;
 }
 
@@ -1303,7 +1303,11 @@ function syncStat(){
   stat.homing=m.homingStrength; stat.homingCanCrit=(m.homingCanCrit!==false);
   stat.explode=m.splashRadius; stat.splashDamage=m.splashDamage;
   stat.ret=m.returnEnabled?1:0; stat.returnHits=m.returnHits;
-  stat.hpMax=s.hpMax; stat.cap=s.swordCap; stat.manaMax=s.manaMax; stat.manaRegen=s.manaRegen; stat.regen=s.manaOnKill;
+  // 道行成長:每重額外加成(config.growth)。加在 syncStat 的最後,不寫回 runState —— 
+  // 寫回去的話每次 syncStat 都會再疊一次。
+  const GW=INK_CONFIG.growth||{hpPerLevel:0,manaPerLevel:0}, lvUp=Math.max(0,(G.level||1)-1);
+  stat.hpMax=s.hpMax + lvUp*GW.hpPerLevel;
+  stat.cap=s.swordCap; stat.manaMax=s.manaMax + lvUp*GW.manaPerLevel; stat.manaRegen=s.manaRegen; stat.regen=s.manaOnKill;
   stat.formation = (runState.formation && runState.formation!=='single') ? runState.formation : 'fan';
   // 遊戲專屬、config 未涵蓋的欄位
   stat.element='none'; stat.ember=0; stat.ice=0;
@@ -1632,10 +1636,18 @@ function gainXP(n){
   G.xp+=n;
   let gained=0;
   while(G.xp>=G.xpNeed){
-    G.xp-=G.xpNeed; G.level++; G.xpNeed=Math.round(G.xpNeed*1.35+3);
+    G.xp-=G.xpNeed; G.level++; G.xpNeed=Math.round(G.xpNeed*1.16+4);
+    // 原本 ×1.35 是指數,實測第 40 境只到道行 13 重(= 只選過 13 張卡),
+    // 完全跟不上敵人 8.4 倍的總血量成長,滿階的悟道也幾乎抽不到。
     G.pendingLevels++; gained++;
   }
   if(gained){
+    // 上限提高的同時補回等量 —— 升級要有立即的回饋,不能只是數字變大
+    const GW=INK_CONFIG.growth||{hpPerLevel:0,manaPerLevel:0};
+    syncStat();
+    if(G.player){ G.player.max=stat.hpMax; G.player.hp=Math.min(stat.hpMax, G.player.hp+gained*GW.hpPerLevel); }
+    G.mana=Math.min(stat.manaMax, G.mana+gained*GW.manaPerLevel);
+    updateHUD();
     SND.level(); flash(0.20,'246,240,214');
     for(let k=0;k<14;k++){ const a=Math.random()*6.283;
       ink(G.player.x,G.player.y,Math.cos(a)*3.4,Math.sin(a)*3.4,10+Math.random()*12); }
