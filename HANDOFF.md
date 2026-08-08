@@ -1,63 +1,166 @@
 # 墨劍訣 · HANDOFF（交接說明）
 
-> 產生日期:2026-08-07
-> 用途:記錄本階段改了什麼、目前狀態、已知問題與下一步。細節逐筆見 `docs/CHANGELOG.md`。
+> 更新日期：2026-08-08（涵蓋 CHANGELOG #54 ~ #70）
+> 前一版交接停在 #24 附近，內容已全面過時，本檔為重寫。
+> 逐筆變更見 `docs/CHANGELOG.md`；每一則都附「怎麼推回去（還原依據）」。
 
-## 目前進度(阻塞點已解除)
-主檔已改用 `INK_CONFIG.runtime`:
-- **Slice 1**(CHANGELOG #9):升級選卡 / 陣型 → `rollInsights` + `applyInsight` + `syncStat()` 橋接。
-- **Slice 2**(CHANGELOG #22):劍意狀態(蝕/鎮 DoT + 緩速)、心法與真意 flags(首劍必暴、暴擊留白、暴擊殘鋒、斬殺潑墨、折返飛白/加傷)全部接上實際玩法;折返改為回程可重新命中(上限 `returnHits`);順手修好「波及傷害打死的墨獸不會消失」。
-- 同時修掉 config 的 `resolveValue` bug——取「歸藏無痕」後 `getCombatSnapshot` 會直接丟例外。
-- **Slice 3**(CHANGELOG #23):轉世閣改走 `getRebirthView`/`purchaseRebirth`(前置條件終於生效,分築基/心法/傳承三區);新增洗點「重塑劍意」(暫停畫面、二次確認、每波一次、首次免費後 30/80/150/250、洗墨丹抵免);舊存檔自動遷移(心法/傳承由 unlock 布林 → ranks 階數);清掉 legacy 死碼(applyAffix/affixWeight/META_UP/META_UNLOCK/AFFIXES)。
+---
 
-- **#24**:抽劍畫線耗魔常數(`manaCostBase`/`manaCostPerPixel`)收進 config,`OP_SCHEMA` 允許 add/mul,`getCombatSnapshot().mana` 一併輸出 `maxStrokeLength`。
+## 0. 三十秒版本
 
-**runtime 遷移完成。** 玩法數值與規則現在全部由 `data/game-config.js` 決定,主檔只負責表現與輸入。
-**剩餘**:`mind_return_thought` 等心法目前只有視覺效果(設計上如此);開場過場收尾(捲桿與桌面畫軸顏色統一、`--ox/--oy/--zoom` 對位)需在瀏覽器實測微調。
+單檔 HTML5 canvas 遊戲，水墨風格劍術 roguelite。玩家固定在畫面中央，**用手指／滑鼠在畫布上畫一道軌跡（劍令）**，飛劍沿軌跡出鞘斬妖。
 
-## 這階段改了哪些東西
+- **玩法數值全部在 `data/game-config.js`**，主檔 `inkblade.html` 只負責表現與輸入。改平衡不要動主檔。
+- 目前最新 commit：`2275112`。工作區乾淨，但**尚未 push**，換機器前先跑 SYNC.bat。
 
-### A. 特效(inkblade.html,玩法不變)
-- 新增 `inkTrail()`:劍氣拖尾改為多層毛筆筆劃(填充緞帶+毛邊+濃芯+飛白),沿用元素配色與 FX 開關。(CHANGELOG #1)
-- 新增 `splash()`/`drawSplash()` + `G.splashes`:命中/斬殺/裂空的圓形粒子爆裂改為不規則潑墨。(#2)
+---
 
-### B. 關卡背景(inkblade.html + 新圖)
-- `buildPaper()` 由程序化宣紙改為場景圖 `assets/scenes/level01-bg.png`(cover)。程序化 tile 函式保留。(#3)
+## 1. 檔案結構
 
-### C. 資料驅動:設定檔抽離(inkblade.html)
-- 詞條/轉世/稀有度改讀 `window.INK_CONFIG`;新增通用 `applyAffix()`;`start()`/`metaBonusText()`/`drawCards()` 改為依設定檔通用產生。(#4)
-- 主檔 `<script>` 前新增 `<script src="data/game-config.js"></script>`。
-- `affixWeight` 改判斷 `effect.homing`(不依賴會變的 id);新增 `STAT_LABEL` 顯示 fallback。(#5)
+```
+inkblade.html          主檔（~230KB，單一 IIFE，表現層 + 輸入）
+data/game-config.js    玩法引擎：悟道／轉世／runtime／成本模型／生命力模型
+data/sound-system.js   音效與 BGM（分波段換曲）
+assets/                scenes / enemies / boss / hero-f / sword / ui / audio
+docs/CHANGELOG.md      逐筆變更（含還原依據）← 最重要的文件
+docs/SPEC-劍令.md      劍令系統規格（含「改之前／改之後／怎麼推回去」）
+docs/技能文案規範.md    術語鎖定、字數上限、效果模式版面限制
+docs/DESIGN-combat-v2.md 戰鬥設計與待釐清事項
+SYNC.bat               → GitHub index7777/Inkblade
+```
 
-### D. 設定檔引擎(data/game-config.js)
-- 整檔換為使用者 v2.1.0(INSIGHTS/REBIRTH DSL、runtime、legacy 相容層)。自我 validateConfig 通過。(#6)
-- 併入洗點/存檔遷移/戰鬥快照:`calcResetCost`、`undoInsight`、`resetAllInsights`、`migratePermanentSave`、`getCombatSnapshot`;加 `BASE_RUN_STATE.resetInsightTimes`;`createRunState` 存 `permanentSnapshot`。(#7)
-- **修了兩個會數值爆炸的 bug**(偏離使用者原貼碼,已驗證):
-  1. `applyInsight` 對真意重複套用兩次 → 改為套一次。
-  2. `resetAllInsights` 改為「從永久快照重建」,避免 mul 反向順序誤差與真意/劍式殘留;實測洗點精準回到開局值。
+---
 
-### E. 美術資產
-- `assets/references/ch1-enemies-ref.png`(墨靈+墨刃兵設定表)、`assets/references/moshou-ref.png`(墨獸,本章 Boss)。
-- `docs/ch1-asset-library.md`:逐動作提詞+檔名+用途+資產清單(墨靈/墨刃兵/墨獸)。
-- `docs/art-spec.md`:美術規範(水墨語言、紅色只用於靈魂核/元素、FX 對應 config.fx、禁止清單)。
+## 2. 核心系統現況
 
-### F. 文件
-- `docs/ink-engine-方向與開發計畫.md`、`docs/ink-engine-spec-review.md`、`docs/respec-plan.md`、`docs/CHANGELOG.md`(全程逐筆)、`music-prompts.md`、獨立 PoC `ink-engine.html`。
+### 2.1 劍令（SwordCommand）
 
-## 目前可運作 / 已驗證
-- `data/game-config.js`:node 載入、validateConfig、createRunState、rollInsights、applyInsight(真意/劍式互斥)、purchaseRebirth、resetAllInsights(精準歸零)、calcResetCost、migratePermanentSave、getCombatSnapshot 全部通過。
-- 特效(拖尾/潑墨)、背景圖:已接入主檔,語法通過。
+一次觸摸 = 一道劍令。`G.commands[]` 擁有路徑與進度，飛劍只是執行者（`sw.cmd` / `sw.slot` 反向參照）。
 
-## 已知問題
-2. `undoInsight` 單條撤銷對含 mul 的悟道有順序誤差;精準歸零請用 `resetAllInsights`。(docs/respec-plan.md)
-3. v2.1.0 有 10 個傳承/心法解鎖:`inherit_*` 已用 requires 綁對應真意;`mind_*`(首劍必暴/折返飛白/潰散潑墨/聽墨)為 flag,需在主檔遷移時於對應玩法位置接線。
-4. 洗點的費用扣除/免費次數/戰鬥禁止/洗墨丹/UI 為遊戲層,尚未接主檔。
+**收筆計價（預付制）**
+```
+成本 = 起手(costBase 6) + 長度 × 每寸成本
+每寸成本 = manaCostPerPixel(0.13) × (劍寬/18)^0.8 × 劍數^0.6 × costMultiplier
+```
+指數 <1 是刻意的：純線性會讓四劍直接四倍貴。
 
-## 下一步(建議順序)
-1. **主檔 runtime 遷移**(大工程,分段):stat.* → runState.stats.*;升級選卡 → rollInsights+applyInsight;轉世閣 → getRebirthView+purchaseRebirth;戰鬥數值 → getCombatSnapshot;洗點 → resetAllInsights + 遊戲層費用/次數/戰鬥禁止(參考使用者 handleResetAllBuild 範例)。
-2. 接 `mind_*` 心法 flag 的實際玩法效果。
-3. **已進行**:sprite 載入器已接(assets/enemies、assets/boss;採 tier0=墨靈、tier1/2=墨刃兵)。待你產出真透明 PNG 丟進就自動顯示。
-4. 直式目標畫布:1080×1920(9:16)——runtime 遷移/版面時套用。
+**長度買的是「命」，不是射程**（#67）
+```
+劍命 = (穿透 + 1) + min(12, floor(長度 / 120))
+```
+每畫滿 120 寸，這道劍令的**每把劍**多一條命（多穿透一隻墨獸）。低消 6 劍意的劍砍一隻就化墨散去。數值在 `CONFIG.lifeModel`。
 
-## 同步提醒
-config 與主檔為多機同步(SYNC.bat → GitHub index7777/Inkblade)。換機器前先在本機 push,另一台再 pull,避免衝突。
+**預付制的三條鐵律**（使用者定調，不要違反）
+1. 收筆付的錢已經決定這道令出幾把劍，**死掉不補**。補劍 = 白拿。
+2. 劍**沒有飛行壽命**，不會自己老死；只有穿透耗盡才死。
+3. 劍令只有飛出戰場（且折返用盡）才結束。
+
+**飛行與折返**
+- 筆跡走完 → 續飛（沿最後方向直飛），不是消散。
+- 碰到戰場邊界（畫面內縮 16px）且 `returnsLeft>0` → 掉頭（**邊緣折返**）。
+- 命中**不**觸發折返；劍完整穿過墨獸繼續走。
+- 折返那一幀整列前後對調 = 瞬移，靠 `sw.snap` 標記跳過掃掠判定。
+
+**命中判定是掃掠（線段對圓）**（#68）
+`segCircleDist(s.px, s.py, s.x, s.y, en.x, en.y)`。只測落點會在高速或轉角時整段略過墨獸 —— 畫面上劍穿過去卻沒傷害。
+
+**陣型**（`formationOffset(formation, i, n, spacing)` 回傳相對「移動中心點」的 `{along, side}`）
+| id | 名稱 | 排法 |
+|---|---|---|
+| `fan` | 散鋒 | 扇面（引擎預設值，沒拿劍式時多劍走這個） |
+| `parallel` | 齊鋒 | 法線方向一字排開 |
+| `inline` | 貫鋒／連珠 | **領頭在筆尖，其餘排在後面**（`along = -i*inlineGap()`） |
+| `merge` | 聚鋒 | 完全重疊（`{0,0}` + 共用 `c.seed` 對齊貼圖幀） |
+
+### 2.2 劍訣階級（小成／大成／圓滿）
+
+`maxRank` 全部是 5。**點滿之後**才開始累計該技能的局內斬妖數，門檻 `300 / 500 / 1000`（`TIER_KILLS`），**每個技能各自累計**。靜觀「本局」頁的「劍訣精進」顯示進度。
+
+### 2.3 劍匣存量（開匣·圓滿）
+
+每 8 息 +1，上限 = 當下劍數。**劍意連起手都付不出來時自動燒一把**，那道劍令 0 成本。免費那道的長度上限 = 滿劍意能畫的長度（護欄：不設會變無限資源）。畫面下緣置中顯示朝上的劍，超過三把改「劍 ×N」。
+
+### 2.4 戰況遙測（DPS）
+
+點右上斬妖吊牌展開，顯示秒傷 / 每秒劍意 / 每秒斬妖（10 秒滾動視窗）。
+**關鍵**：七處扣血全部走 `dmgTo(en, v)` 統一入口。新增傷害來源時**務必用它**，否則遙測會漏算 —— 會漏算的面板比沒有面板更糟。
+
+### 2.5 HUD（#69 / #70）
+
+- `#hud { container-type:inline-size }`，**所有尺寸用 `cqw`**（= HUD 容器寬度的百分比）。不要再寫死 px + media query，那是舊制度、換裝置就跑掉。
+- 比例依使用者提供的 941×1672 參考稿逐像素量定，全部落在 0.4 個百分點內。
+- 左上狀態列與右上（墨圈鈕 + 斬妖吊牌）**切齊在同一條下緣**（實測差 5px）。整條 HUD 收在畫面上緣 17% 以內，紙面淨空 94.4%。
+- 刻意保留的下限：`.inkbtn{min 44px}`（觸控）、`.bar{min-height:7px}`、字級 clamp 下限。小螢幕上這些會壓過純比例，**是刻意的，不是跑掉**。
+
+---
+
+## 3. 已否決 —— 不要再撿回來做
+
+這一節存在的理由：這些構想都合理到會被未來的自己重新提出來。
+
+| 構想 | 為什麼否決 |
+|---|---|
+| **長度也決定出幾把劍** | 一度拍板要做，使用者看到「長度買命」的實作後明確收回：「長度買命就是我要的效果」。劍數維持只由劍式／轉世決定。 |
+| **接力補劍（劍死 ≠ 令死）** | 與預付制衝突。使用者原話：「補上劍＝白拿」。 |
+| **飛行壽命 / `stats.swordLife`（滯空）** | 欄位已整個拔除。劍能撐多久由長度買命接手，不要有兩套講同一件事的數值。 |
+| **斬妖吊牌去框** | 使用者明確表示不做。 |
+| **劍意去藍（No blue）** | 使用者明確表示不做。藍是劍意的識別色。 |
+| **指尖即時計價移出中央** | 使用者明確表示不做。 |
+| **DPS 面板移進靜觀** | 使用者決定不移：它預設收合，不構成常駐干擾。 |
+
+---
+
+## 4. 待辦 / 待確認
+
+**BOSS 出場推開玩家** —— 使用者提供了完整規格，我分析後指出三個根本衝突（見對話記錄）：
+1. 玩家角色**根本沒有位置與物理**（`Player` 只有 `x=W/2, y=H/2`，全程沒有任何一行改過），規格中的 velocity / landing / 移動速度 50% 全部不存在。
+2. 牴觸使用者自己 BOSS 稿上的兩句話：「玩家始終固定在中央」「四周皆可攻守」。
+3. 連帶影響劍令成本（劍變長變貴）、邊緣折返（上下不對稱）、`resize()` 第 688 行會把玩家彈回中央（正好是規格最忌諱的 teleport）。
+
+我的建議：**過場可以推，戰鬥不要推** —— 推下去營造壓迫感，還控制權時緩緩浮回中央。尚未實作，也尚未取得決定。
+
+**其他**
+- 參考稿上方那條 **BOSS 血條 UI 尚未實作**。
+- zone2 音樂檔（`zone2_battle_*.mp3`）已在 repo 但尚未接線。
+- `mind_return_thought` 等少數心法目前只有視覺效果（設計上如此）。
+- 敵人階級（墨靈／墨刃兵／墨獸）視覺區別度偏低，紫色死亡潑墨略搶眼 —— 提過但未處理。
+- **平衡尚未在新機制下重跑**。長度買命、劍匣存量、周天養息 10 階（點滿每秒回 81 劍意，而一劍地板價只有 6）都會大幅改變出手頻率，舊的存活深度推演已失效。
+
+---
+
+## 5. 開發流程 —— 三個會浪費你半小時的坑
+
+**① `/mnt/user-data/uploads` 有快取**
+重新 stage 同一個路徑會拿到舊檔。每次都複製到**新路徑**再 stage：
+```
+cp inkblade.html _stage/ink_vN.html   # N 每次遞增
+```
+症狀：明明改好的程式，測試卻報早就修掉的錯（例如 `noteKill is not a function`）。
+
+**② git lock 檔刪不掉**
+掛載目錄不允許 unlink，`.git/index.lock` 與 `.git/objects/**/tmp_obj_*` 會殘留並擋住下一次 git 操作。每次 git 操作後：
+```
+mkdir -p _to_delete/gitjunk/objects
+mv .git/*.lock _to_delete/gitjunk/ 2>/dev/null
+for f in $(find .git/objects -name 'tmp_obj_*'); do mv "$f" _to_delete/gitjunk/objects/$(basename $f)_$RANDOM; done
+```
+`_to_delete/` 整個資料夾要由使用者手動刪除（AI 沒有刪除權限）。
+另外 commit 需要 `-c user.name=... -c user.email=...`，這個 repo 沒設身分。
+
+**③ 驗證一律用 headless，不要用推論**
+在主檔尾端 `loop();` 後注入除錯 hook 產生 `sim.html`，再用 Playwright 驅動真實遊戲迴圈：
+```js
+window.__dbg={ get G(){return G}, get stat(){return stat}, get runState(){return runState},
+  start, update, syncStat, spawnEnemy, launchCommand };
+```
+Playwright 在 `/home/claude/.npm-global/lib/node_modules`，`ln -s` 到工作目錄即可 import。
+
+**HUD 截圖是空白的不是 bug**：`#hud` 的 opacity 由開場動畫用 JS 每幀寫入，直接呼叫 `start()` 不會跑開場，所以會一直被寫回 0。用 `<style>#hud{opacity:1 !important}</style>` 覆蓋，並移除 `#wrap.op` 與隱藏 `#splash`。
+
+---
+
+## 6. 兩條反覆被印證的教訓
+
+**平衡數字一定要跑真的引擎。** 曾經連續三次用簡化紙上模型推演存活深度，三次都錯，最後被使用者用實際遊玩數據打臉（第 54 境／3235 斬）。要推平衡就驅動 `runtime.rollInsights` 與真實遊戲迴圈。
+
+**測「函式會不會執行」不等於測「使用者的操作會不會生效」。** 斬妖吊牌那次我驗證了 `onclick` 會正確執行，但使用者點下去沒反應 —— 因為 `#hud` 是 `pointer-events:none`，事件根本傳不到函式。測法本身跳過了他踩到的那一段。要用真的 `page.click()`。
