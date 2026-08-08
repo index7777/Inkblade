@@ -91,10 +91,14 @@
   #scorewrap::after { content:''; position:absolute; left:50%; top:100%; transform:translateX(-50%);
     margin-top:7px; width:7px; height:26px; border-radius:0 0 4px 4px;
     background:linear-gradient(180deg,rgba(60,48,34,.58),rgba(60,48,34,.10)); }
-  #scorewrap { cursor:pointer; }
-  /* 可展開的小三角 —— 告訴玩家這塊吊牌點得下去 */
-  #scorewrap .caret { margin:6px auto -2px; font-size:14px; line-height:1;
-    color:#7a2b2b; transition:transform .18s;
+  /* #hud 整層是 pointer-events:none(要讓玩家能在 HUD 上面畫劍令),
+     所以吊牌必須自己把事件收回來,否則點下去完全沒反應。
+     右上角那兩顆墨圈鈕也是靠 .ctl{pointer-events:auto} 才點得到。 */
+  #scorewrap { cursor:pointer; pointer-events:auto; }
+  /* 可展開的三角 —— 要當成按鈕做:字夠大、上下留 padding 撐出可點面積,
+     左右用負 margin 讓整條吊牌寬度都是熱區 */
+  #scorewrap .caret { display:block; margin:5px -10px -7px; padding:6px 0 7px;
+    font-size:20px; line-height:1; color:#7a2b2b; transition:transform .18s;
     text-shadow:0 1px 2px rgba(246,240,226,.98), 0 0 6px rgba(246,240,226,.9); }
   #scorewrap.open .caret { transform:rotate(180deg); }
   /* 戰況遙測面板:預設收合 */

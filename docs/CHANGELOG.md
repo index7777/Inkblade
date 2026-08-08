@@ -5,6 +5,27 @@
 
 ---
 
+## [2026-08-08] #66 修好斬妖吊牌點不動;展開三角放大成真的按鈕
+
+**兩個問題,第一個是我的疏漏**
+
+1. **點下去完全沒反應** —— `#hud` 整層是 `pointer-events:none`(要讓玩家能在 HUD 上面畫劍令),
+   所以掛在 `#scorewrap` 上的 `onclick` 根本收不到事件。右上角那兩顆墨圈鈕是靠 `.ctl{pointer-events:auto}`
+   才點得到的,我加吊牌時漏了同一件事。修法:`#scorewrap { pointer-events:auto; }`。
+   附帶確認:`down()` 綁在 canvas 上,吊牌吃掉事件後不會誤觸發畫劍令 —— 跟那兩顆鈕的行為一致。
+2. **三角太小** —— 14px、只有文字本身的高度,擠在吊牌流蘇旁邊。
+   改成當按鈕做:`font-size:20px`、上下 `padding:6px/7px`、左右 `margin:-10px` 讓整條吊牌寬度都是熱區。
+   實測熱區 **92×33 px**,超過 44px 觸控建議的一半以上、且整塊吊牌本身也可點。
+
+**驗證**:headless 用**真的 `page.click()`**(不是直接呼叫 onclick)測試 ——
+點一下 `.open` false→true、`#dpsbox` display:block、三角 transform 轉 180°;再點一下收合。
+`pointer-events` 實測為 `auto`。
+
+**怎麼推回去**:`#scorewrap` 移除 `pointer-events:auto`,`.caret` 改回
+`margin:6px auto -2px; font-size:14px;` 並移除 padding。
+
+---
+
 ## [2026-08-08] #65 畫線時指尖旁的即時計價
 
 **目的**:讓玩家在**收筆前**就知道這一筆要花多少,不必去記「每寸多少劍意」這種抽象數字 ——
