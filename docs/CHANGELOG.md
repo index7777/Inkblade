@@ -5,6 +5,19 @@
 
 ---
 
+## [2026-08-08] #39 轉世閣:隱藏捲軸、底部鈕等寬、修好看不見的兩顆鈕;禦劍→御劍
+**檔案**:`inkblade.html`
+
+1. **看不見的兩個字 —— 根因是配色錯位**:`.btn.ghost` 是為**深色**覆蓋層設計的(`color:#e6dcc4` 淺字 + 半透明白底),但轉世閣 `#metabox` 是**淺色**面板(`#f6f0e0→#e6dcc4`),等於白字寫在白紙上,「商城」「返回」兩顆完全讀不到。於面板內覆寫為深字淺底(`color:#2e2820`)。
+2. **底部三顆鈕等寬**:`#metabox .btnrow` 專屬版面 —— `flex:1 1 0; min-width:0; flex-wrap:nowrap`,字級與字距用較小的 clamp。實測三顆皆 166px,不再因字數(4/2/2)忽大忽小。
+3. **隱藏捲軸**:同靜觀做法 —— `scrollbar-width:none` + `::-webkit-scrollbar{display:none}` + `touch-action:pan-y` + `overscroll-behavior:contain`。
+4. **拖曳捲動抽成共用**:`dragScrollPause` IIFE 改為 `enableDragScroll(id)`,靜觀與轉世閣各套一次;SKIP 清單補上 `.mbuy`(轉世閣的購買鈕),避免點購買變成捲頁面。
+5. **轉世再戰 → 重入畫卷**:轉世閣與隕落結算兩處。兩處語意都是「開新的一局」,與靜觀的「重入畫卷」統一。
+6. **禦劍 → 御劍**:全檔 5 處(註解 4、結算文字 1)。確認無任何「防禦」語意的用字,可安全全域替換;替換後全檔已無「禦」字。
+
+**驗證(headless)**:`scrollbarWidth:none`、視覺捲軸寬 2px、`touchAction:pan-y`;三顆鈕寬度皆 166、色 `rgb(46,40,32)`(可讀);拖曳捲動 0→240 ✓;無 console / page error。
+**還原依據**:git checkout。
+
 ## [2026-08-08] #38 道行去拉桿把手、敵方狀態寫進效果註解、靜觀改為隱藏捲軸可拖曳
 **檔案**:`inkblade.html`、`data/game-config.js`
 

@@ -302,9 +302,19 @@
   #meta { position:absolute; inset:0; display:none; align-items:center; justify-content:center; z-index:40;
     background:rgba(20,18,14,.72); backdrop-filter:blur(3px); }
   #meta.show { display:flex; }
+  /* 捲軸隱藏,靠滾輪/觸控/拖曳捲動 —— 與靜觀面板同一套做法 */
   #metabox { width:min(680px,94vw); max-height:88dvh; overflow:auto; background:linear-gradient(180deg,#f6f0e0,#e6dcc4);
     border:1px solid #b8a888; border-radius:12px; padding:clamp(16px,3vw,24px) clamp(14px,3vw,26px);
-    box-shadow:0 18px 50px rgba(0,0,0,.6); }
+    box-shadow:0 18px 50px rgba(0,0,0,.6);
+    scrollbar-width:none; -ms-overflow-style:none; touch-action:pan-y; overscroll-behavior:contain; }
+  #metabox::-webkit-scrollbar { width:0; height:0; display:none; }
+  /* 底部三顆鈕:等寬平分、不換行、字級統一,不再忽大忽小 */
+  #metabox .btnrow { display:flex; gap:10px; flex-wrap:nowrap; padding:0; align-items:stretch; }
+  #metabox .btnrow .btn { flex:1 1 0; min-width:0; white-space:nowrap;
+    padding:12px 6px; font-size:clamp(13px,2.4vw,16px); letter-spacing:clamp(1px,0.8vw,3px); }
+  /* .btn.ghost 原本是給深色底用的(淺字),放在轉世閣這種淺色面板上等於看不見。
+     面板內覆寫成深字淺底。 */
+  #metabox .btn.ghost { background:rgba(255,255,255,.45); color:#2e2820; border-color:#b8a888; }
   #metabox h2 { font-size:clamp(20px,3.6vw,26px); letter-spacing:clamp(4px,1.4vw,8px); color:#2e2820; text-align:center; }
   #metasouls { text-align:center; color:#7a5a2b; letter-spacing:2px; margin:6px 0 18px; font-size:15px; }
   #metasouls b { font-size:22px; color:#c08a2e; }
@@ -435,7 +445,7 @@
     <div class="title" style="font-size:52px;">隕 落</div>
     <div class="stitle" id="finaltxt"></div>
     <div class="btnrow">
-      <div class="btn" id="againbtn">轉世再戰</div>
+      <div class="btn" id="againbtn">重入畫卷</div>
       <div class="btn ghost" id="metabtn">轉世閣</div>
     </div>
   </div>
@@ -498,7 +508,7 @@
     <div class="mhead" id="mhead3">傳承 · 開啟悟道池</div>
     <div id="metainherit"></div>
     <div class="btnrow" style="margin-top:20px;">
-      <div class="btn" id="metaplaybtn">轉世再戰</div>
+      <div class="btn" id="metaplaybtn">重入畫卷</div>
       <div class="btn ghost" id="metashopbtn">商城</div>
       <div class="btn ghost" id="metaclosebtn">返回</div>
     </div>
@@ -954,7 +964,7 @@ function Player(){
 function onScreen(en){ return en.x>=-en.r && en.x<=W+en.r && en.y>=-en.r && en.y<=H+en.r; }
 function spawnEnemy(){
   // 生成點貼著畫面邊緣(略微外推一個身位,入場即可見)——原本在畫面外 30px,
-  // 會出現「打得到但看不到」的怪,自動禦劍也會朝畫面外出劍。
+  // 會出現「打得到但看不到」的怪,自動御劍也會朝畫面外出劍。
   const edge=Math.floor(Math.random()*4); let x,y;
   const M=8;
   if(edge===0){x=Math.random()*W;y=M;}
@@ -1392,7 +1402,7 @@ function update(){
   }
   // 劍意回復
   if(G.mana<stat.manaMax){ G.mana=Math.min(stat.manaMax,G.mana+stat.manaRegen); }
-  // 自動禦劍:定時朝最近之敵直射(收益打折、不計紀錄)
+  // 自動御劍:定時朝最近之敵直射(收益打折、不計紀錄)
   if(G.auto){
     G.autoTimer++;
     if(G.autoTimer>=34){
@@ -2846,7 +2856,7 @@ function gameOver(){
   levelChoiceLocked=false;
   drawing=false; path=[]; curLen=0; maxed=false;
   document.getElementById('overlay').classList.remove('show');
-  // 墨魂結算(用過自動禦劍:收益減半且不計歷史最佳)
+  // 墨魂結算(用過自動御劍:收益減半且不計歷史最佳)
   let earned = G.kills + G.wave*5 + G.level*3;
   const autoed = G.autoUsed;
   if(autoed) earned = Math.floor(earned*0.5);
@@ -2869,7 +2879,7 @@ function gameOver(){
     '此世 · 斬妖 '+G.kills+' 頭 · 道行 '+num2cn(G.level)+' 重 · 抵第 '+num2cn(G.wave)+' 境'
     + (nb?'　<span style="color:#c08a2e">✦ 斬妖新猷</span>':'')
     + '<br>歷史最佳 · 斬妖 '+meta.best.kills+' · 道行 '+num2cn(meta.best.level)+' 重 · 第 '+num2cn(meta.best.wave)+' 境'
-    + '<br><br>此世凝魂 <b style="color:#c08a2e">+'+earned+'</b>'+(autoed?' <span style="color:#8a7a5a">(自動禦劍 · 減半不計紀錄)</span>':'')+' · 現有墨魂 <b style="color:#c08a2e">'+meta.souls+'</b>'
+    + '<br><br>此世凝魂 <b style="color:#c08a2e">+'+earned+'</b>'+(autoed?' <span style="color:#8a7a5a">(自動御劍 · 減半不計紀錄)</span>':'')+' · 現有墨魂 <b style="color:#c08a2e">'+meta.souls+'</b>'
     + (hint?'<br><span style="font-size:13px;color:#c9bfa6">'+hint+'</span>':'');
   document.getElementById('gameover').style.display='flex';
 }
@@ -2994,7 +3004,7 @@ function doRespec(){
 }
 function openMeta(){ renderMeta(); document.getElementById('meta').classList.add('show'); }
 function closeMeta(){ document.getElementById('meta').classList.remove('show'); }
-// 自動禦劍開關
+// 自動御劍開關
 function renderAutoBtn(){
   const b=document.getElementById('autobtn');
   b.innerHTML='<span class="vt"><b>御</b><b>劍</b></span>';
@@ -3173,10 +3183,10 @@ renderShakeBtns();
 applyQuality();
 // 靜觀面板:拖曳捲動。捲軸已隱藏,滑鼠沒有把手可抓,所以讓空白處也能拖。
 // 落在滑桿/按鈕/可點元素上的拖曳不接管,避免把調音量變成捲頁面。
-(function dragScrollPause(){
-  const pan=document.getElementById('pausepanel');
+function enableDragScroll(id){
+  const pan=document.getElementById(id);
   if(!pan) return;
-  const SKIP='input,button,.setbtn,.seg,.btn,label';
+  const SKIP='input,button,.setbtn,.seg,.btn,label,.mbuy';
   let on=false, y0=0, top0=0, moved=0;
   pan.addEventListener('pointerdown', e=>{
     if(e.target.closest && e.target.closest(SKIP)) return;
@@ -3194,7 +3204,9 @@ applyQuality();
     try{ pan.releasePointerCapture && pan.releasePointerCapture(e.pointerId); }catch(_){} };
   window.addEventListener('pointerup', end);
   window.addEventListener('pointercancel', end);
-})();
+}
+enableDragScroll('pausepanel');
+enableDragScroll('metabox');
 document.getElementById('pausequitbtn').onclick=()=>{ togglePause(false); gameOver(); };
 document.getElementById('splashshopbtn').onclick=openShop;
 document.getElementById('metashopbtn').onclick=openShop;
