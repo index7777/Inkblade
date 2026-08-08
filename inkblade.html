@@ -1104,6 +1104,8 @@ function inlineGap(){ return bladeLength() + 16; }
 function formationOffset(formation, i, n, spacing){
   if(n<=1) return {along:0, side:0};
   const mid=(n-1)/2, t=(i-mid)/Math.max(1,mid);
+  // 聚形:所有劍完全重疊成一把 —— 偏移恆為 0,靠共用 seed 讓貼圖幀也一致。
+  if(formation==='merge')    return {along:0, side:0};
   if(formation==='parallel') return {along:0, side:t*spacing};                     // 齊鋒:一字排開
   // 貫鋒:一節接一節,像車廂。以中心「對稱」排列而非全部拖在後面 ——
   // 這樣折返時整列只是前後對調,不會整條瞬移到另一側。
@@ -1115,12 +1117,16 @@ function formationHalfSpan(c){
   if(!c || c.slots<=1) return 0;
   if(c.formation==='inline') return (c.slots-1)/2 * inlineGap();
   if(c.formation==='fan')    return c.spacing*0.55;
+  if(c.formation==='merge')  return 0;              // 聚形疊成一點,不需要額外轉向距離
   return 0;
 }
 // 在劍令的某個槽位生出一把劍(接力也走這裡)
 function spawnCmdSword(c, slot, delay){
   const sw={ cmd:c, slot:slot, x:c.x, y:c.y, ang:c.ang, vx:0, vy:0,
-             trail:[], age:0, seed:Math.random()*8, delay:delay||0,
+             trail:[], age:0,
+             // 聚形要看起來是一把劍,連貼圖動畫幀都得對齊,所以整道劍令共用一個 seed
+             seed:(c.formation==='merge' && c.seed!=null) ? c.seed : Math.random()*8,
+             delay:delay||0,
              pierceLeft:Math.max(1,(stat.pierce|0)+1), hitSet:new Set(),
              returned:false, echo:false };
   c.swords[slot]=sw; G.swords.push(sw);
@@ -1197,6 +1203,7 @@ function launchCommand(path){
     x:cut[0].x, y:cut[0].y,
     ang:Math.atan2(cut[1].y-cut[0].y, cut[1].x-cut[0].x),
     formation:stat.formation,
+    seed:Math.random()*8,                           // 聚形共用:讓 N 把劍的動畫幀完全一致
     spacing:stat.size*2.2+10,
     swords:new Array(n).fill(null),
     slots:n,

@@ -5,6 +5,38 @@
 
 ---
 
+## [2026-08-08] #54 陣型「聚」上線(聚鋒式)
+
+**目的**:把「既有並行劍數」合成一把大劍 —— 視覺上完全重疊看著像一把,傷害是 N 把各自結算(等同 N 倍),死掉的劍消失、沒死的留下,劍令出鞘時 N 把一起出去。
+
+**使用者拍板的兩個選項**
+- 上限:**直接用現有並行劍數**,不另設匣上限(劍數成本已有 `劍數^0.6` 在收費)。
+- 疊數模型:**A 案 —— N 把獨立劍完全重疊**,每把各自判定命中,不是「一把劍 ×N 倍傷害」。
+
+**變更內容**
+1. `data/game-config.js`:新增劍式 `form_merge`「聚鋒式」(rune 聚 / maxRank 5 / CLARITY),
+   `effects = [add stats.swordCount +1, set formation 'merge']`;三階為 小成 hitPadding+5、大成 critChance+0.1、圓滿 pierce+2。
+   `FORMATION_CN` 補上 `merge:'聚形'`。
+2. `inkblade.html` · `formationOffset()`:新增 `if(formation==='merge') return {along:0, side:0};`(恆為原點 → 完全重疊)。
+3. `inkblade.html` · `formationHalfSpan()`:新增 `if(c.formation==='merge') return 0;`(疊成一點,折返不需額外轉向距離)。
+4. `inkblade.html` · 劍令物件新增 `seed:Math.random()*8`;`spawnCmdSword()` 在 merge 時改用 `c.seed`
+   —— 不共用 seed 的話,每把劍的待機貼圖幀不同,疊起來會閃爍成一團而不是一把劍。
+
+**實測(headless,固定靶,壓 rank 0~5)**
+```
+n=1 → 48   n=2 → 96   n=3 → 144   n=4 → 192   n=5 → 264   n=6 → 312
+同 6 劍:聚形 312 / 齊鋒 192 / 貫鋒 144
+```
+單體傷害線性隨劍數成長,截圖確認 6 把疊起來只看得到一把劍的輪廓。
+
+**怎麼推回去(還原依據)**
+- `formationOffset` 刪掉 merge 那一行 → 聚形會落回散鋒的 `return` 尾行(扇面),即改版前的行為。
+- `formationHalfSpan` 刪掉 merge 那一行 → 落回結尾 `return 0`,行為等價,可直接刪。
+- `spawnCmdSword` 的 seed 改回 `seed:Math.random()*8`,並刪掉劍令物件的 `seed:` 欄位。
+- `data/game-config.js` 移除 `form_merge` 整段與 `FORMATION_CN` 的 `merge:'聚形'`。
+
+---
+
 ## [2026-08-08] #53 折返改為「穿過去再掉頭」;連珠修好重疊並加大轉向距離
 **檔案**:`inkblade.html`、`docs/DESIGN-combat-v2.md`
 
