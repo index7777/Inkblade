@@ -140,14 +140,14 @@
 
   const INSIGHTS = Object.freeze([
     // ── 劍式:同時只能維持一種排列,但可重複領悟增加劍數。 ──────────────
-    insight({ id: 'form_scatter', category: CATEGORY.FORM, rarity: RARITY.CLARITY, name: '散鋒式', rune: '散', maxRank: 5, description: '劍鋒如展卷向兩側散開;增一劍,清掃群墨。', tradeoff: '分散後不易集中斬擊單一墨獸。', tiers: [tier(0, '命中後向兩側分出殘鋒。', [op('flag', 'flags.scatterEcho', true)], '劍令'), tier(1, '殘鋒亦能觸發墨痕。', [op('flag', 'flags.scatterEchoIntent', true)], '劍令'), tier(2, '殘鋒命中後不散,折返一次。', [op('flag', 'flags.scatterEchoReturn', true)], '劍令')], effects: [op('add', 'stats.swordCount', 1), op('set', 'formation', 'fan')], fx: { trail: fx.DRY_BRUSH, hit: fx.BREAK_INK } }),
-    insight({ id: 'form_together', category: CATEGORY.FORM, rarity: RARITY.CLARITY, name: '齊鋒式', rune: '齊', maxRank: 5, description: '數劍同起同落;增一劍,並列掃過同一片墨域。', tradeoff: '橫向覆蓋佳,轉向較為遲緩。', tiers: [tier(0, '飛劍間距收窄,自動集火。', [op('flag', 'flags.volleyTighten', true)], '劍令'), tier(1, '同時命中時,末劍造成齊斬。', [op('flag', 'flags.volleyStrike', true)], '劍令'), tier(2, '每四次齊斬自行引出一記重斬。', [op('flag', 'flags.volleyHeavy', true)], '劍令')], effects: [op('add', 'stats.swordCount', 1), op('set', 'formation', 'parallel')], fx: { trail: fx.BREAK_INK, hit: fx.WHITE_CUT } }),
-    insight({ id: 'form_chain', category: CATEGORY.FORM, rarity: RARITY.CLARITY, name: '貫鋒式', rune: '貫', maxRank: 5, description: '劍鋒首尾相承;增一劍,沿同一道劍令接連斬落。', tradeoff: '集火最強,覆蓋範圍最窄。', tiers: [tier(0, '每穿透一名墨獸,傷害提高半成。', [op('flag', 'flags.pierceRamp', true)], '劍令'), tier(1, '劍令末位墨獸受到破甲。', [op('flag', 'flags.pierceBreak', true)], '劍令'), tier(2, '劍令走完後回刺首名墨獸。', [op('flag', 'flags.pierceRecoil', true)], '劍令')], effects: [op('add', 'stats.swordCount', 1), op('set', 'formation', 'inline')], fx: { trail: fx.WHITE_CUT, hit: fx.BREAK_INK } }),
+    insight({ id: 'form_scatter', category: CATEGORY.FORM, rarity: RARITY.CLARITY, name: '散鋒式', rune: '散', maxRank: 5, description: '劍鋒如展卷向兩側散開;增一劍,清掃群墨。', tradeoff: '分散後不易集中斬擊單一墨獸。', tiers: [tier(0, '命中後向兩側分出殘鋒。', [op('flag', 'flags.scatterEcho', true)]), tier(1, '殘鋒亦能觸發墨痕。', [op('flag', 'flags.scatterEchoIntent', true)]), tier(2, '殘鋒命中後不散,折返一次。', [op('flag', 'flags.scatterEchoReturn', true)])], effects: [op('add', 'stats.swordCount', 1), op('set', 'formation', 'fan')], fx: { trail: fx.DRY_BRUSH, hit: fx.BREAK_INK } }),
+    insight({ id: 'form_together', category: CATEGORY.FORM, rarity: RARITY.CLARITY, name: '齊鋒式', rune: '齊', maxRank: 5, description: '數劍同起同落;增一劍,並列掃過同一片墨域。', tradeoff: '橫向覆蓋佳,轉向較為遲緩。', tiers: [tier(0, '飛劍間距收窄,自動集火。', [op('flag', 'flags.volleyTighten', true)]), tier(1, '同時命中時,末劍造成齊斬。', [op('flag', 'flags.volleyStrike', true)]), tier(2, '每四次齊斬自行引出一記重斬。', [op('flag', 'flags.volleyHeavy', true)])], effects: [op('add', 'stats.swordCount', 1), op('set', 'formation', 'parallel')], fx: { trail: fx.BREAK_INK, hit: fx.WHITE_CUT } }),
+    insight({ id: 'form_chain', category: CATEGORY.FORM, rarity: RARITY.CLARITY, name: '貫鋒式', rune: '貫', maxRank: 5, description: '劍鋒首尾相承;增一劍,沿同一道劍令接連斬落。', tradeoff: '集火最強,覆蓋範圍最窄。', tiers: [tier(0, '每穿透一名墨獸,傷害提高半成。', [op('flag', 'flags.pierceRamp', true)]), tier(1, '劍令末位墨獸受到破甲。', [op('flag', 'flags.pierceBreak', true)]), tier(2, '劍令走完後回刺首名墨獸。', [op('flag', 'flags.pierceRecoil', true)])], effects: [op('add', 'stats.swordCount', 1), op('set', 'formation', 'inline')], fx: { trail: fx.WHITE_CUT, hit: fx.BREAK_INK } }),
     // ── 劍勢:改變飛劍運動。 ───────────────────────────────────────
     insight({ id: 'momentum_swift', category: CATEGORY.MOMENTUM, rarity: RARITY.AWAKENING, name: '疾影', rune: '疾', maxRank: 6, description: '劍影先於墨痕而至,飛行更快、更遠。', tiers: [tier(0, '飛劍身後留下殘影。', [op('flag', 'flags.afterimage', true)]), tier(1, '殘影造成兩成半傷害。', [op('flag', 'flags.afterimageHits', true)]), tier(2, '殘影可獨立命中墨獸。', [op('flag', 'flags.afterimageSolid', true)])], effects: [op('add', 'stats.swordSpeed', 3), op('add', 'stats.swordLife', 0.22)], fx: { trail: fx.DRY_BRUSH } }),
     insight({ id: 'momentum_pierce', category: CATEGORY.MOMENTUM, rarity: RARITY.CLARITY, name: '透墨', rune: '透', maxRank: 5, description: '劍不止於一墨,可多穿透兩個墨身。', effects: [op('add', 'stats.pierce', 2)], fx: { trail: fx.WHITE_CUT, hit: fx.BREAK_INK } }),
-    insight({ id: 'momentum_guide', category: CATEGORY.MOMENTUM, rarity: RARITY.PENETRATION, name: '引鋒', rune: '引', maxRank: 5, description: '劍意感知墨氣,於飛行中自行修正鋒向。', tradeoff: '每次領悟令直擊傷害降低 12%,引鋒本身不能暴擊。', requires: ['inherit_guide'], tiers: [tier(0, '劍令末端的延伸更長。', [op('flag', 'flags.guideExtend', true)], '劍令'), tier(1, '擊殺後立即再向下一目標延伸。', [op('flag', 'flags.guideRetarget', true)], '劍令'), tier(2, '劍令絕不空走,必尋得墨獸。', [op('flag', 'flags.guideNeverMiss', true)], '劍令')], effects: [op('add', 'mechanics.homingStrength', 0.055), op('mul', 'stats.damage', 0.88), op('set', 'mechanics.homingCanCrit', false)], fx: { trail: fx.DRY_BRUSH } }),
-    insight({ id: 'momentum_return', category: CATEGORY.MOMENTUM, rarity: RARITY.PENETRATION, name: '歸鋒', rune: '歸', maxRank: 5, description: '劍去必歸,抵達劍令末端後折返再斬。', tiers: [tier(0, '回程速度提高三成。', [op('flag', 'flags.returnFaster', true)], '劍令'), tier(1, '回程末端自行探向最近墨獸。', [op('flag', 'flags.returnSeek', true)], '劍令'), tier(2, '回程命中後再倒走一次。', [op('flag', 'flags.returnBounce', true)], '劍令')], effects: [op('set', 'mechanics.returnEnabled', true), op('add', 'mechanics.returnHits', 1)], fx: { trail: fx.DRY_BRUSH, hit: fx.WHITE_CUT } }),
+    insight({ id: 'momentum_guide', category: CATEGORY.MOMENTUM, rarity: RARITY.PENETRATION, name: '引鋒', rune: '引', maxRank: 5, description: '劍意感知墨氣,於飛行中自行修正鋒向。', tradeoff: '每次領悟令直擊傷害降低 12%,引鋒本身不能暴擊。', requires: ['inherit_guide'], tiers: [tier(0, '劍令末端的延伸更長。', [op('flag', 'flags.guideExtend', true)]), tier(1, '擊殺後立即再向下一目標延伸。', [op('flag', 'flags.guideRetarget', true)]), tier(2, '劍令絕不空走,必尋得墨獸。', [op('flag', 'flags.guideNeverMiss', true)])], effects: [op('add', 'mechanics.homingStrength', 0.055), op('mul', 'stats.damage', 0.88), op('set', 'mechanics.homingCanCrit', false)], fx: { trail: fx.DRY_BRUSH } }),
+    insight({ id: 'momentum_return', category: CATEGORY.MOMENTUM, rarity: RARITY.PENETRATION, name: '歸鋒', rune: '歸', maxRank: 5, description: '劍去必歸,抵達劍令末端後折返再斬。', tiers: [tier(0, '回程速度提高三成。', [op('flag', 'flags.returnFaster', true)]), tier(1, '回程末端自行探向最近墨獸。', [op('flag', 'flags.returnSeek', true)]), tier(2, '回程命中後再倒走一次。', [op('flag', 'flags.returnBounce', true)])], effects: [op('set', 'mechanics.returnEnabled', true), op('add', 'mechanics.returnHits', 1)], fx: { trail: fx.DRY_BRUSH, hit: fx.WHITE_CUT } }),
     insight({ id: 'momentum_break', category: CATEGORY.MOMENTUM, rarity: RARITY.PENETRATION, name: '破墨', rune: '破', maxRank: 5, description: '劍鋒入墨時震散墨身,波及近旁墨獸。', tradeoff: '潑墨只在命中時出現,不改變飛劍本體。', tiers: [tier(0, '潑墨範圍內留下墨滴。', [op('flag', 'flags.inkDropOnSplash', true)]), tier(1, '墨滴可再次炸開。', [op('flag', 'flags.inkDropExplode', true)]), tier(2, '潑墨可連鎖引動。', [op('add', 'mechanics.splashChain', 1)])], effects: [op('add', 'mechanics.splashRadius', 38), op('mul', 'mechanics.splashDamage', 1.12)], fx: { hit: fx.SPLASH } }),
     // ── 劍意:命中後留在墨獸身上的狀態。 ──────────────────────────
     insight({ id: 'intent_erosion', category: CATEGORY.INTENT, rarity: RARITY.CLARITY, name: '蝕痕', rune: '蝕', maxRank: 5, description: '劍痕入墨身,每息蝕四點,續三息餘。', tiers: [tier(0, '蝕痕可被重新刷新。', [op('flag', 'flags.dotRefresh', true)]), tier(1, '蝕痕向鄰近墨獸擴散。', [op('flag', 'flags.dotSpread', true)]), tier(2, '墨獸潰散時爆出剩餘蝕傷。', [op('flag', 'flags.dotBurst', true)])], effects: [status('erosion', { stacks: 1, damagePerSecond: 4, duration: 3.2, maxStacks: 6 })], fx: { hit: fx.WHITE_CUT, status: fx.ERODING_INK } }),
@@ -553,6 +553,59 @@
     }).filter(Boolean);
   }
 
+  // ── 劍訣註解「效果」模式 ─────────────────────────────────────
+  // 產生器放在 config,讓 validateConfig 與畫面共用同一份實作 ——
+  // 否則版面驗證會跟實際顯示脫節(卡片只有 ~103px 可用寬,超出就被裁掉)。
+  const EFFECT_LABEL = Object.freeze({
+    'stats.hpMax':'神識上限','stats.damage':'傷害','stats.swordWidth':'劍寬','stats.swordSpeed':'劍速',
+    'stats.swordLife':'滯空','stats.pierce':'穿透','stats.critChance':'暴擊率','stats.critMultiplier':'暴擊倍',
+    'stats.manaMax':'劍意上限','stats.manaRegen':'劍意回復','stats.manaOnKill':'回劍意',
+    'stats.swordCap':'劍匣席','stats.swordCount':'飛劍數','stats.costMultiplier':'劍意消耗',
+    'stats.manaCostBase':'起手劍意','stats.manaCostPerPixel':'每寸劍意',
+    'mechanics.homingStrength':'追蹤','mechanics.returnHits':'折返','mechanics.splashRadius':'潑墨範圍',
+    'mechanics.splashDamage':'潑墨傷害','mechanics.statusDuration':'狀態時長','mechanics.trailOpacity':'墨痕濃度',
+    'mechanics.hitPadding':'命中範圍','mechanics.manaRefund':'劍意返還','mechanics.splashChain':'潑墨連鎖'
+  });
+  const EFFECT_PCT = new Set(['stats.critChance','mechanics.homingStrength','mechanics.manaRefund']);
+  const FORMATION_CN = Object.freeze({ fan:'扇形', parallel:'平行', inline:'連珠' });
+  // 版面預算:全形字算 1、半形字算 0.55。卡片一行最多 EFFECT_MAX_W,最多 EFFECT_MAX_LINES 行。
+  const EFFECT_MAX_W = 9.2;
+  const EFFECT_MAX_LINES = 4;
+  function textWidth(t){
+    let w=0;
+    for(const ch of String(t)) w += (ch.charCodeAt(0) < 0x2000) ? 0.55 : 1;
+    return w;
+  }
+  function fmtNum(v){ return String(Math.round(v*100)/100); }
+  function effectLines(item){
+    if (typeof item === 'string') item = insightById[item];
+    if (!item) return [];
+    const out=[];
+    for(const e of item.effects){
+      const L=EFFECT_LABEL[e.path];
+      if(e.op==='add' && L){
+        const v=Number(e.value)||0, neg=v<0, a=Math.abs(v);
+        out.push(L+' '+(neg?'−':'+')+(EFFECT_PCT.has(e.path)?Math.round(a*100)+'%':fmtNum(a)));
+      } else if(e.op==='mul' && L){
+        const d=Math.round((Number(e.value)-1)*100);
+        if(d!==0) out.push(L+' '+(d>0?'+':'−')+Math.abs(d)+'%');
+      } else if(e.op==='set' && e.path==='formation'){
+        out.push('陣型 · '+(FORMATION_CN[e.value]||e.value));
+      } else if(e.op==='set' && e.path==='stats.swordCount'){
+        out.push('飛劍數 = '+e.value);
+      } else if(e.op==='max' && e.path==='stats.mana'){
+        out.push('補滿劍意');
+      } else if(e.op==='status'){
+        // 敵方狀態:拆成短句,一行一件事 —— 併成一句會超出卡片寬度
+        const v=e.value||{};
+        if(v.slow) out.push('緩速 '+Math.round(v.slow*100)+'%');
+        if(v.damagePerSecond) out.push('每秒 −'+fmtNum(v.damagePerSecond));
+        if(v.duration) out.push('續 '+fmtNum(v.duration)+' 秒');
+      }
+    }
+    return out.slice(0, EFFECT_MAX_LINES);
+  }
+
   // 計算本次洗點消耗劍意(0=免費)。免費 1 次後遞增,封頂 250。
   function calcResetCost(resetTimes) {
     if (resetTimes < 1) return 0;
@@ -715,6 +768,17 @@
       // 見 docs/技能文案規範.md。超標一律由 AI 縮短文案,不得縮小字級。
       if (item.description && item.description.length > DESC_MAX)
         errors.push(`說明超出 ${DESC_MAX} 字(${item.description.length}):${item.name} 需縮短文案`);
+      // 效果模式的版面檢查:卡片寬度固定,超寬會被裁掉(見 docs/技能文案規範.md)
+      {
+        const lines=effectLines(item);
+        if (lines.length > EFFECT_MAX_LINES)
+          errors.push(`效果行數超出 ${EFFECT_MAX_LINES}(${lines.length}):${item.name}`);
+        for (const ln of lines) {
+          const w = textWidth(ln);
+          if (w > EFFECT_MAX_W)
+            errors.push(`效果單行過寬(${w.toFixed(2)}/${EFFECT_MAX_W}):${item.name} 「${ln}」`);
+        }
+      }
       // 真意必須攜帶truth操作
       if (item.category === CATEGORY.TRUTH && !item.effects.some(e => e.op === 'truth')) {
         errors.push(`真意缺少truth操作: ${item.id}`);
@@ -835,6 +899,8 @@
       getCombatSnapshot,
       noteKill,
       getTierView,
+      effectLines,
+      textWidth,
       validateConfig
     }),
     // 舊版完整相容介面

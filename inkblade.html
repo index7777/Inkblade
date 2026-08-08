@@ -163,8 +163,13 @@
   /* 功能說明:靠左對齊,佔滿剩餘空間 */
   /* 劍訣註解「效果」模式:一行一句、數值靠對齊,比散文好掃 */
   .card .cfx { display:flex; flex-direction:column; gap:4px; align-items:center; margin-top:2px; }
-  .card .cfx span { font-size:clamp(11px,1.7vw,14px); line-height:1.4; letter-spacing:1px;
-    color:#3a3227; font-weight:600; white-space:nowrap; }
+  .card .cfx span { font-size:clamp(11px,1.7vw,14px); line-height:1.35; letter-spacing:.5px;
+    color:#3a3227; font-weight:600; white-space:nowrap; max-width:100%;
+    overflow:hidden; text-overflow:ellipsis; }
+  /* 行數多就自動縮一階,避免撐破固定高度的卡片 */
+  .card .cfx.n3 span { font-size:clamp(10.5px,1.55vw,13px); }
+  .card .cfx.n4 { gap:2px; }
+  .card .cfx.n4 span { font-size:clamp(9.5px,1.4vw,12px); letter-spacing:0; }
   .card .cdesc { font-size:clamp(10px,1.45vw,13px); line-height:1.55; color:#4a4033; letter-spacing:.3px;
     text-align:left; align-self:stretch; flex:1 1 auto; overflow:hidden; }
   #rerollbtn { margin:12px auto 3px; min-height:38px; padding:7px 16px; display:inline-flex;
@@ -975,7 +980,7 @@ function spawnEnemy(){
   const base=[{hp:14,r:15,sp:0.9,c:'#4a3b3b'},{hp:34,r:20,sp:0.72,c:'#3b2f4a'},{hp:80,r:28,sp:0.55,c:'#2f3b3b'}][tier];
   const scale=1+(G.wave-1)*0.11;
   G.enemies.push({x,y,r:base.r,hp:base.hp*scale,max:base.hp*scale,sp:base.sp+G.wave*0.02,
-    c:base.c,tier,type:tier===0?'inkling':'blade',anim:Math.random()*1000,ember:0,emberT:0,chill:0,hit:0,wob:Math.random()*7,st:{}});
+    c:base.c,tier,type:tier===0?'inkling':'blade',anim:Math.random()*1000,ember:0,emberT:0,chill:0,hit:0,broken:0,wob:Math.random()*7,st:{}});
 }
 
 // ---------- 劍 ----------
@@ -1037,6 +1042,46 @@ function spawnCmdSword(c, slot, delay){
   c.swords[slot]=sw; G.swords.push(sw);
   return sw;
 }
+// 最近的墨獸(只看畫面內)
+function nearestEnemy(x,y,maxD){
+  let best=null,bd=(maxD||1e9)**2;
+  for(const en of G.enemies){ if(!onScreen(en)) continue;
+    const d=(en.x-x)**2+(en.y-y)**2; if(d<bd){bd=d;best=en;} }
+  return best;
+}
+// 劍令末端延伸:在筆跡尾巴接上一段通往目標的新節點。
+// 這是「引鋒」的實作方式 —— 延長的是劍令,不是讓劍自己找路(劍不思考)。
+function extendCommand(c, tx, ty){
+  const last=c.pts[c.pts.length-1];
+  const d=Math.hypot(tx-last.x, ty-last.y);
+  if(d<1) return false;
+  const steps=Math.max(2, Math.round(d/18));
+  for(let i=1;i<=steps;i++)
+    c.pts.push({ x:last.x+(tx-last.x)*i/steps, y:last.y+(ty-last.y)*i/steps });
+  c.len+=d;
+  if(c.step<0){ c.step=1; }            // 倒走中被延伸 → 轉回順走去追那一段
+  c.seg=Math.max(1, Math.min(c.seg, c.pts.length-1));
+  c.alive=true;
+  return true;
+}
+// 自動生成的短劍令(殘鋒、回刺)—— 系統裡不存在沒有劍令的劍
+function spawnAutoCommand(x0,y0,x1,y1,opts){
+  if(G.commands.length>=28) return null;
+  opts=opts||{};
+  const c={ id:++cmdSeq, pts:[{x:x0,y:y0},{x:x1,y:y1}], len:Math.hypot(x1-x0,y1-y0),
+    seg:1, step:1, x:x0, y:y0, ang:Math.atan2(y1-y0,x1-x0),
+    formation:'single', spacing:0, swords:[null], slots:1,
+    returnsLeft:opts.returns||0, alive:true, age:0,
+    // 這幾個欄位主劍令有、自動劍令也必須有 —— 命中處理是共用的,
+    // 少一個 hitOrder 就會在第一次命中丟例外,把後面的破甲/齊斬/歸鋒整串打斷。
+    hitOrder:[], volley:0, frameHit:null, extended:0, anyHit:false,
+    auto:true, dmgMul:opts.dmgMul||1, noIntent:!opts.intent };
+  G.commands.push(c);
+  const sw=spawnCmdSword(c,0,0);
+  sw.echo=true;
+  if(opts.skip) sw.hitSet.add(opts.skip);
+  return c;
+}
 function launchCommand(path){
   if(!path || path.length<2) return;
   const s0=path[0];
@@ -1071,7 +1116,8 @@ function launchCommand(path){
     swords:new Array(n).fill(null),
     slots:n,
     returnsLeft: stat.ret ? Math.max(1, stat.returnHits||1) : 0,
-    alive:true, age:0
+    alive:true, age:0,
+    hitOrder:[], volley:0, frameHit:null, extended:0, dmgMul:1, anyHit:false
   };
   G.commands.push(c);
   for(let i=0;i<n;i++) spawnCmdSword(c, i, c.formation==='inline' ? i*4 : 0);
@@ -1279,54 +1325,13 @@ function renderReroll(){
   b.disabled=levelRerolls<=0 || levelChoiceLocked;
   document.getElementById('rerollleft').textContent='剩餘次數：'+num2cn(levelRerolls);
 }
-// 劍訣註解「效果」模式:把宣告式 effects 翻成一行一句的直觀敘述。
-// 找不到對照的操作(旗標、狀態、真意標記)不列 —— 那些沒有數值,講不清楚就不講。
-const EFFECT_LABEL={
-  'stats.hpMax':'神識上限','stats.damage':'傷害','stats.swordWidth':'劍寬','stats.swordSpeed':'劍速',
-  'stats.swordLife':'滯空','stats.pierce':'穿透','stats.critChance':'暴擊率','stats.critMultiplier':'暴擊倍率',
-  'stats.manaMax':'劍意上限','stats.manaRegen':'劍意回復','stats.manaOnKill':'斬妖回劍意',
-  'stats.swordCap':'劍匣席次','stats.swordCount':'飛劍數','stats.costMultiplier':'劍意消耗',
-  'stats.manaCostBase':'起手劍意','stats.manaCostPerPixel':'每寸劍意',
-  'mechanics.homingStrength':'追蹤','mechanics.returnHits':'折返次數','mechanics.splashRadius':'潑墨範圍',
-  'mechanics.splashDamage':'潑墨傷害','mechanics.statusDuration':'狀態持續','mechanics.trailOpacity':'墨痕濃度',
-  'mechanics.hitPadding':'命中範圍','mechanics.manaRefund':'劍意返還','mechanics.splashChain':'潑墨連鎖'
-};
-const EFFECT_PCT=new Set(['stats.critChance','mechanics.homingStrength','mechanics.manaRefund']);
-const FORMATION_CN={fan:'扇形',parallel:'平行',inline:'連珠'};
-function fmtNum(v){ return (Math.round(v*100)/100).toString(); }
-function effectLines(item){
-  const out=[];
-  for(const e of item.effects){
-    const L=EFFECT_LABEL[e.path];
-    if(e.op==='add' && L){
-      const v=Number(e.value)||0, neg=v<0, a=Math.abs(v);
-      out.push(L+' '+(neg?'−':'+')+(EFFECT_PCT.has(e.path)?Math.round(a*100)+'%':fmtNum(a)));
-    } else if(e.op==='mul' && L){
-      const d=Math.round((Number(e.value)-1)*100);
-      if(d!==0) out.push(L+' '+(d>0?'+':'−')+Math.abs(d)+'%');
-    } else if(e.op==='set' && e.path==='formation'){
-      out.push('陣型 · '+(FORMATION_CN[e.value]||e.value));
-    } else if(e.op==='set' && e.path==='stats.swordCount'){
-      out.push('飛劍數 = '+e.value);
-    } else if(e.op==='max' && e.path==='stats.mana'){
-      out.push('立即補滿劍意');
-    } else if(e.op==='status'){
-      // 敵方狀態(蝕/鎮):把實際數值寫出來,否則玩家只看得到意境卻不知道緩速多少
-      const v=e.value||{};
-      if(v.slow) out.push('敵方緩速 '+Math.round(v.slow*100)+'%');
-      if(v.damagePerSecond) out.push('敵方每秒 −'+fmtNum(v.damagePerSecond)
-        +(v.duration?(',續 '+fmtNum(v.duration)+' 秒'):''));
-      else if(v.duration) out.push('持續 '+fmtNum(v.duration)+' 秒');
-      if(v.maxStacks) out.push('最多 '+v.maxStacks+' 層');
-    }
-  }
-  return out;
-}
+// 劍訣註解「效果」模式:產生器在 data/game-config.js(與 validateConfig 的版面檢查同源),
+// 主檔只負責排版。行數/行寬超標會在 config 載入時就被 validateConfig 擋下。
 function cardBody(item){
   if(meta.cardText!=='effect') return '<div class="cdesc">'+item.description+'</div>';
-  const lines=effectLines(item);
+  const lines=INK_CONFIG.runtime.effectLines(item.id);
   if(!lines.length) return '<div class="cdesc">'+item.description+'</div>';   // 純機制型:回退文字
-  return '<div class="cfx">'+lines.map(t=>'<span>'+t+'</span>').join('')+'</div>';
+  return '<div class="cfx n'+lines.length+'">'+lines.map(t=>'<span>'+t+'</span>').join('')+'</div>';
 }
 function drawCards(isReroll=false){
   if(!G.running) return;
@@ -1488,6 +1493,7 @@ function update(){
   // 敵人
   for(let i=G.enemies.length-1;i>=0;i--){
     const en=G.enemies[i];
+    if(en.broken>0) en.broken--;                    // 破甲計時(貫鋒式·大成)
     // 波及傷害(潑墨/破墨)可能已把血打光,統一在此收屍
     if(en.hp<=0){ killEnemy(i); continue; }
     const dx=P.x-en.x, dy=P.y-en.y, d=Math.hypot(dx,dy)||1;
@@ -1538,8 +1544,10 @@ function update(){
   for(let ci=G.commands.length-1;ci>=0;ci--){
     const c=G.commands[ci];
     c.age++;
-    // 1) 推進中心點
-    let budget=stat.speed;
+    const TF=stat.tierFlags||{};
+    c.frameHit=null;                                   // 齊斬:每幀重置同幀命中統計
+    // 1) 推進中心點(歸鋒·小成:回程加速三成)
+    let budget=stat.speed * ((c.step<0 && TF.returnFaster) ? 1.3 : 1);
     while(budget>0 && c.alive){
       const tgt=c.pts[c.seg];
       if(!tgt){ cmdReachedEnd(c); break; }
@@ -1577,6 +1585,21 @@ function update(){
   }
   // 劍令抵達端點:歸鋒則倒走一次,否則整道結束
   function cmdReachedEnd(c){
+    const TF=stat.tierFlags||{};
+    // 引鋒:劍令末端自動延伸(延伸的是劍令,不是劍自己找路)
+    if(!c.auto && c.step>0 && c.extended<6){
+      const R = TF.guideExtend ? 260 : 150;
+      const seek = TF.guideNeverMiss && !c.anyHit;      // 圓滿:整道沒打中就一定要找到
+      if(TF.guideExtend || seek){
+        const en=nearestEnemy(c.x,c.y, seek?1e9:R);
+        if(en && extendCommand(c,en.x,en.y)){ c.extended++; return; }
+      }
+    }
+    // 歸鋒·大成:回程走完時,末端再探一次最近的墨獸
+    if(!c.auto && c.step<0 && TF.returnSeek && c.extended<6){
+      const en=nearestEnemy(c.x,c.y,220);
+      if(en && extendCommand(c,en.x,en.y)){ c.extended++; return; }
+    }
     if(c.returnsLeft>0){
       c.returnsLeft--;
       c.step=-c.step;
@@ -1584,7 +1607,14 @@ function update(){
       for(const sw of c.swords) if(sw){ sw.hitSet.clear(); sw.returned=true;
         sw.pierceLeft=Math.max(1,(stat.pierce|0)+1); }
       if(stat.returnDry) whiteCut(c.x,c.y,c.ang);
-    } else c.alive=false;
+      return;
+    }
+    // 貫鋒式·圓滿:劍令走完後,回刺第一個被斬中的墨獸
+    if(!c.auto && TF.pierceRecoil && c.hitOrder.length){
+      const first=c.hitOrder.find(en=>G.enemies.includes(en));
+      if(first) spawnAutoCommand(c.x,c.y,first.x,first.y,{dmgMul:0.8,intent:true});
+    }
+    c.alive=false;
   }
 
   // 劍(命中判定與生命週期)
@@ -1597,14 +1627,56 @@ function update(){
       const en=G.enemies[j];
       if(s.hitSet.has(en)) continue;
       if(Math.hypot(en.x-s.x,en.y-s.y) < en.r+stat.size+(stat.hitPadding||0)){
+        const TF=stat.tierFlags||{}, C=s.cmd;
         let dmg=stat.damage;
         let isCrit = Math.random()<stat.crit;
         if(stat.firstStrike && !G.firstStrikeDone){ isCrit=true; G.firstStrikeDone=true; }
         if(isCrit) dmg*=(stat.critMul||2);
         if(s.returned) dmg*=(stat.returnDmgMul||1);      // 歸鋒:回程傷害加成
         if(s.echo) dmg*=0.5;                              // 殘鋒為半傷
+        if(C && C.dmgMul) dmg*=C.dmgMul;                  // 自動劍令(回刺)的倍率
+        if(en.broken>0) dmg*=1.35;                        // 破甲:受創加深
+        // 貫鋒式·小成:同一把劍每多穿透一名墨獸,傷害遞增半成
+        if(TF.pierceRamp){ dmg*=1+0.05*(s.hitSet.size); }
+        // 齊鋒式·大成:同一道劍令的多把劍在同一幀命中同一名墨獸 → 末劍齊斬
+        let volley=false;
+        if(TF.volleyStrike && C && !C.auto && C.slots>1){
+          if(!C.frameHit) C.frameHit=new Map();
+          const nHit=(C.frameHit.get(en)||0)+1; C.frameHit.set(en,nHit);
+          if(nHit>=2){ volley=true; dmg*=1.6; }
+        }
         en.hp-=dmg; en.hit=6; s.hitSet.add(en);
-        applyIntent(en);                                  // 墨痕:蝕 / 鎮
+        if(C){ C.anyHit=true; if(!C.hitOrder.includes(en)) C.hitOrder.push(en); }
+        // 散鋒式·大成:殘鋒也能觸發墨痕(否則自動劍令不上狀態)
+        if(!(C && C.noIntent) || TF.scatterEchoIntent) applyIntent(en);   // 墨痕:蝕 / 鎮
+        // 貫鋒式·大成:被這道劍令斬到的最後一名墨獸受破甲
+        if(TF.pierceBreak && C && !C.auto) en.broken=90;
+        // 齊鋒式·圓滿:每四次齊斬,自行引出一記重斬
+        if(volley && C){
+          C.volley=(C.volley||0)+1;
+          if(TF.volleyHeavy && C.volley%4===0){
+            splash(en.x,en.y,'#2b2620',3.2); shake(8); hitstop(4); SND.boom();
+            for(const e2 of G.enemies) if(Math.hypot(e2.x-en.x,e2.y-en.y)<110){ e2.hp-=stat.damage*1.2; e2.hit=6; }
+            floatText(en.x,en.y-en.r-26,'重斬','#8a2b2b');
+          } else floatText(en.x,en.y-en.r-26,'齊斬','#5a4e3c');
+        }
+        // 散鋒式·小成:命中後向兩側各分出一道殘鋒(帶自動生成的短劍令)
+        if(TF.scatterEcho && C && !C.auto && !s.echo){
+          const L=60+stat.size*1.6;
+          for(const sgn of [-1,1]){
+            const ea=s.ang+sgn*(0.7+Math.random()*0.35);
+            spawnAutoCommand(s.x,s.y, s.x+Math.cos(ea)*L, s.y+Math.sin(ea)*L,
+              { dmgMul:0.2, skip:en, intent:!!TF.scatterEchoIntent,
+                returns: TF.scatterEchoReturn?1:0 });
+          }
+        }
+        // 歸鋒·圓滿:回程命中後再倒走一次(每道劍令僅追加一次)
+        if(TF.returnBounce && C && s.returned && !C.bounced){ C.bounced=true; C.returnsLeft++; }
+        // 引鋒·大成:擊殺後立即再延伸一段去找下一個目標
+        if(TF.guideRetarget && C && !C.auto && en.hp<=0 && C.extended<6){
+          const nx=nearestEnemy(en.x,en.y,300);
+          if(nx && nx!==en && extendCommand(C,nx.x,nx.y)) C.extended++;
+        }
         if(stat.ember>0){ en.ember=Math.max(en.ember,stat.ember); }
         if(stat.ice>0){ en.chill=100; }
         floatText(en.x,en.y-en.r-10, '-'+Math.round(dmg)+(isCrit?'!':''), isCrit?'#f1d18a':'#fffaf0');
