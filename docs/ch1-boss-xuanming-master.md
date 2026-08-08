@@ -68,10 +68,10 @@
 |---|---|---|
 | `BOSS_XUANMING_idle_01.png` | 凝聚完成／盤旋待機母版 | ready |
 | `BOSS_XUANMING_manifest_01..04.png` | 墨霧凝聚成形 | needs_art |
-| `BOSS_XUANMING_lunge_01..06.png` | 沿弧線撲擊 | needs_art |
+| `BOSS_XUANMING_lunge_01..06.png` | 鎖定、蓄力、前探、凝核、吐核、收身 | ready |
 | `BOSS_XUANMING_turn_01..04.png` | 外圈轉向並暴露紅核 | needs_art |
 | `BOSS_XUANMING_hurt_01..03.png` | 弱點受擊、紅核閃亮 | needs_art |
-| `BOSS_XUANMING_dissolve_01..06.png` | 霧化換位／死亡消散 | needs_art |
+| `BOSS_XUANMING_dissolve_01..06.png` | 尾至頭逐段碎墨，搭配定向霧絲換位／死亡 | ready |
 
 動畫可先以單張母版配合位移、旋轉、遮罩式霧化驗證玩法；正式製作時再替換逐幀圖。遮罩只作用於 Boss 本身，不在背景上挖 HUD 安全區。
 

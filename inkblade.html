@@ -1030,7 +1030,7 @@ const SWDSPR={ idle:[], atk:[], ok:false, aspect:2.504, grip:0.22, blade:0.645, 
 })();
 // 敵人/Boss sprite 載入器:偵測到真透明 PNG 就用,否則回退程序化墨團(見敵人繪製)。
 // 檔名對應 docs/ch1-asset-library.md;放進對應資料夾即自動生效,無需改碼。
-const ENESPR = { inkling:{frames:[],ok:false}, blade:{frames:[],ok:false}, boss:{frames:[],ok:false} };
+const ENESPR = { inkling:{frames:[],ok:false}, blade:{frames:[],ok:false}, boss:{frames:[],attack:[],dissolve:[],ok:false} };
 (function(){
   const srcs={
     inkling:['assets/enemies/ENE_INKLING_move_01.png','assets/enemies/ENE_INKLING_move_02.png',
@@ -1048,6 +1048,12 @@ const ENESPR = { inkling:{frames:[],ok:false}, blade:{frames:[],ok:false}, boss:
     srcs[k].forEach((s,i)=>{ const img=new Image();
       img.onload=()=>{ grp.frames[i]=img; grp.ok=grp.frames.filter(Boolean).length>0; };
       img.onerror=()=>{}; img.src=s; });
+  }
+  for(let i=1;i<=6;i++){ const img=new Image();
+    img.onload=()=>{ ENESPR.boss.attack[i-1]=img; };
+    img.src='assets/boss/BOSS_XUANMING_lunge_'+String(i).padStart(2,'0')+'.png';
+    const dis=new Image(); dis.onload=()=>{ ENESPR.boss.dissolve[i-1]=dis; };
+    dis.src='assets/boss/BOSS_XUANMING_dissolve_'+String(i).padStart(2,'0')+'.png';
   }
 })();
 // 貼圖上的錨點(比例):手握位置、劍柄位置
@@ -1222,14 +1228,34 @@ function updateBossP1(en){
   en.depth=Math.max(0,Math.min(1,(en.y-(G.player.y-R))/(R*2)));
   en.visualScale=.82+en.depth*.22+(state==='lunge'?Math.max(0,1-pd/R)*.2:0);
   en.lean=Math.max(-.16,Math.min(.16,(en.x-(en.px==null?en.x:en.px))*.025));
+  en.face=Math.atan2(G.player.y-en.y,G.player.x-en.x)-Math.PI;
   en.px=en.x; en.py=en.y;
+  if(state==='dissolve'&&en.bossT%4===0) bossDissolveMist(en);
   if(en.hit>0) en.hit--;
 }
+function bossDissolveMist(en){
+  const f=en.face||0,progress=Math.min(1,en.bossT/46);
+  // 由尾端逐步往頭部推進，霧絲沿切線逸散，不留下地面墨痕。
+  for(let k=0;k<3;k++){
+    const local=-en.r*.85+en.r*1.55*Math.min(1,progress+Math.random()*.22);
+    const side=(Math.random()-.5)*en.r*.75;
+    const x=en.x+Math.cos(f)*local-Math.sin(f)*side;
+    const y=en.y+Math.sin(f)*local+Math.cos(f)*side;
+    G.mists.push({x,y,vx:-Math.sin(f)*(.35+Math.random()*.45)*(k%2?1:-1),
+      vy:Math.cos(f)*(.2+Math.random()*.35)*(k%2?1:-1)-.28,
+      r:18+Math.random()*24,age:0,dur:32+((Math.random()*18)|0),color:'38,35,32',
+      squash:.32+Math.random()*.3,rot:f+(Math.random()-.5)*.8});
+  }
+}
 function spawnBossInkCore(en){
-  const P=G.player,dx=P.x-en.x,dy=P.y-en.y,d=Math.hypot(dx,dy)||1;
+  const P=G.player,f=en.face||0;
+  // 母版頭部朝畫布左側；套用 face 後，以頭口前方作為真正的吐息錨點。
+  const lx=-en.r*.52,ly=-en.r*.08;
+  const ox=en.x+Math.cos(f)*lx-Math.sin(f)*ly,oy=en.y+Math.sin(f)*lx+Math.cos(f)*ly;
+  const dx=P.x-ox,dy=P.y-oy,d=Math.hypot(dx,dy)||1;
   // 約 1.5 秒由安全環抵達玩家，保留看懂軌跡並出劍攔截的反應窗。
-  G.bossShots.push({x:en.x,y:en.y,px:en.x,py:en.y,vx:dx/d*1.65,vy:dy/d*1.65,
-    r:15,hp:2,max:2,age:0});
+  G.bossShots.push({x:ox,y:oy,px:ox,py:oy,vx:dx/d*1.15,vy:dy/d*1.15,
+    r:15,hp:2,max:2,age:0,seed:Math.random()*100});
 }
 function updateBossShots(){
   const P=G.player;
@@ -1238,9 +1264,18 @@ function updateBossShots(){
     if(Math.hypot(q.x-P.x,q.y-P.y)<q.r+P.r){
       if(!G.hpLocked) P.hp=Math.max(0,P.hp-18); else P.hp=P.max;
       P.pulse=1; G.hurtT=20; SND.hurt(); shake(8); flash(.18,'176,64,48');
-      mistDissolve(q.x,q.y,1.1,'42,37,33'); G.bossShots.splice(i,1); updateHUD();
+      inkCoreDissolve(q,Math.atan2(q.vy,q.vx)); G.bossShots.splice(i,1); updateHUD();
       if(P.hp<=0){ beginDeath(); return; }
     } else if(q.age>360) G.bossShots.splice(i,1);
+  }
+}
+function inkCoreDissolve(q,ang){
+  for(let k=0;k<6;k++){
+    const side=(k-2.5)*3.5,a=ang+(k%2?1:-1)*(.12+.08*k);
+    G.mists.push({x:q.x-Math.sin(ang)*side,y:q.y+Math.cos(ang)*side,
+      vx:Math.cos(a)*(.25+.12*k),vy:Math.sin(a)*(.25+.12*k)-.08,
+      r:9+Math.random()*9,age:0,dur:18+((Math.random()*9)|0),color:'39,35,31',
+      squash:.16+Math.random()*.14,rot:a});
   }
 }
 
@@ -1525,12 +1560,19 @@ function mistDissolve(x,y,power,color){
 }
 function drawMistDissolve(ctx,m){
   const t=m.age/m.dur, ease=1-Math.pow(1-t,2), r=m.r*(.72+ease*.78), a=Math.pow(1-t,1.7);
-  ctx.save(); ctx.translate(m.x+m.vx*m.age,m.y+m.vy*m.age); ctx.scale(1,m.squash);
+  ctx.save(); ctx.translate(m.x+m.vx*m.age,m.y+m.vy*m.age); ctx.rotate(m.rot||0); ctx.scale(1,m.squash);
   const fog=ctx.createRadialGradient(-r*.16,-r*.12,r*.05,0,0,r);
   fog.addColorStop(0,'rgba('+m.color+','+(a*.30)+')');
   fog.addColorStop(.42,'rgba('+m.color+','+(a*.16)+')');
   fog.addColorStop(1,'rgba('+m.color+',0)');
-  ctx.fillStyle=fog; ctx.beginPath(); ctx.arc(0,0,r,0,6.283); ctx.fill(); ctx.restore();
+  ctx.fillStyle=fog; ctx.beginPath(); ctx.arc(0,0,r,0,6.283); ctx.fill();
+  // Boss 的定向霧片追加乾筆絲，讓消散是撕裂漂走而非橢圓遮罩淡出。
+  if(m.rot!=null){
+    ctx.strokeStyle='rgba('+m.color+','+(a*.22)+')';ctx.lineCap='round';
+    for(let k=0;k<3;k++){const yy=(k-1)*r*.24,reach=r*(.65+k*.17);ctx.lineWidth=Math.max(.7,r*(.055-k*.012));
+      ctx.beginPath();ctx.moveTo(-reach*.6,yy);ctx.bezierCurveTo(-reach*.15,yy-r*.12,reach*.35,yy+r*.14,reach,yy-r*.08);ctx.stroke();}
+  }
+  ctx.restore();
 }
 function floatText(x,y,txt,c,critFlag){
   const raw=String(txt);
@@ -2387,7 +2429,7 @@ function update(){
       if(segCircleDist(s.px,s.py,s.x,s.y,q.x,q.y)<q.r+stat.size+(stat.hitPadding||0)){
         s.shotPass.set(q,pass); q.hp--; splash(q.x,q.y,'#3c3630',1.15); SND.hit(); shake(1.8);
         floatText(q.x,q.y-22,'破墨','#efe4cc');
-        if(q.hp<=0){ mistDissolve(q.x,q.y,1.2,'42,37,33'); G.bossShots.splice(qj,1); }
+        if(q.hp<=0){ inkCoreDissolve(q,s.ang); G.bossShots.splice(qj,1); }
       }
     }
     // 命中
@@ -3150,16 +3192,26 @@ function drawBossTelegraphs(){
 
 function drawBossShots(){
   for(const q of G.bossShots){
-    ctx.save();
+    ctx.save(); ctx.translate(q.x,q.y); ctx.rotate(G.t*.025+q.seed);
     const tail=Math.min(42,8+q.age*.6),v=Math.hypot(q.vx,q.vy)||1,ux=q.vx/v,uy=q.vy/v;
-    const grd=ctx.createLinearGradient(q.x-ux*tail,q.y-uy*tail,q.x,q.y);
+    ctx.rotate(-(G.t*.025+q.seed));
+    const grd=ctx.createLinearGradient(-ux*tail,-uy*tail,0,0);
     grd.addColorStop(0,'rgba(45,40,35,0)'); grd.addColorStop(1,'rgba(38,33,29,.42)');
     ctx.strokeStyle=grd; ctx.lineWidth=q.r*1.25; ctx.lineCap='round'; ctx.beginPath();
-    ctx.moveTo(q.x-ux*tail,q.y-uy*tail); ctx.lineTo(q.x,q.y); ctx.stroke();
-    ctx.fillStyle='rgba(24,22,20,.88)'; ctx.beginPath(); ctx.arc(q.x,q.y,q.r,0,6.283); ctx.fill();
-    ctx.fillStyle='rgba(130,48,39,.54)'; ctx.beginPath(); ctx.arc(q.x-3,q.y-3,4.5,0,6.283); ctx.fill();
-    ctx.strokeStyle='rgba(235,223,197,.6)'; ctx.lineWidth=1.4;
-    for(let k=0;k<q.hp;k++){ ctx.beginPath(); ctx.arc(q.x+(k-.5)*9,q.y+q.r+7,2.3,0,6.283); ctx.stroke(); }
+    ctx.moveTo(-ux*tail,-uy*tail); ctx.lineTo(0,0); ctx.stroke();
+    ctx.rotate(G.t*.025+q.seed);
+    // 不規則活墨輪廓，避免看成 UI 圓點；耐久以內部朱紅裂紋數量表示。
+    ctx.fillStyle='rgba(24,22,20,.9)'; ctx.beginPath();
+    for(let k=0;k<14;k++){
+      const a=k/14*6.283,rr=q.r*(.75+.22*Math.sin(k*4.17+q.seed));
+      const x=Math.cos(a)*rr,y=Math.sin(a)*rr;k?ctx.lineTo(x,y):ctx.moveTo(x,y);
+    }
+    ctx.closePath();ctx.fill();
+    ctx.strokeStyle='rgba(133,47,39,.78)';ctx.lineWidth=1.6;ctx.lineCap='round';
+    for(let k=0;k<q.hp;k++){const a=-.7+k*1.35;ctx.beginPath();ctx.moveTo(-2,1);
+      ctx.lineTo(Math.cos(a)*q.r*.48,Math.sin(a)*q.r*.48);ctx.lineTo(Math.cos(a+.18)*q.r*.72,Math.sin(a+.18)*q.r*.72);ctx.stroke();}
+    ctx.strokeStyle='rgba(31,28,25,.46)';ctx.lineWidth=2;
+    for(let k=0;k<3;k++){const a=k*2.094+G.t*.018;ctx.beginPath();ctx.arc(0,0,q.r+4+k*2,a,a+1.05);ctx.stroke();}
     ctx.restore();
   }
 }
@@ -3242,7 +3294,11 @@ function draw(){
     const grp=ENESPR[en.type];
     if(grp && grp.ok){
       // 真透明 sprite:多幀時隨機起始+慢速交叉淡入(變體感+煙霧晨變);單幀直接畫
-      const fr=grp.frames.filter(Boolean), n=fr.length,
+      const bossAtk=en.isBoss&&en.bossState==='lunge'&&grp.attack&&grp.attack.filter(Boolean).length===6
+        ? grp.attack.filter(Boolean) : null;
+      const bossDis=en.isBoss&&en.bossState==='dissolve'&&grp.dissolve&&grp.dissolve.filter(Boolean).length===6
+        ? grp.dissolve.filter(Boolean) : null;
+      const fr=bossAtk||bossDis||grp.frames.filter(Boolean), n=fr.length,
             scale=en.isBoss?(en.visualScale||1):1, hh=en.r*2.8*scale,
             base=(en.hit>0?0.9:1)*(en.alpha==null?1:en.alpha);
       const put=(img,al)=>{ const iw=img.naturalWidth||1, ih=img.naturalHeight||1, ww=hh*(iw/ih);
@@ -3253,9 +3309,18 @@ function draw(){
         const sh=ctx.createRadialGradient(en.x,en.y+en.r*.68,2,en.x,en.y+en.r*.68,en.r*1.35*scale);
         sh.addColorStop(0,'rgba(29,26,23,.27)'); sh.addColorStop(1,'rgba(29,26,23,0)');
         ctx.fillStyle=sh; ctx.beginPath(); ctx.ellipse(en.x,en.y+en.r*.68,en.r*1.35*scale,en.r*.34*scale,0,0,6.283); ctx.fill();
-        ctx.translate(en.x,en.y); ctx.rotate(en.lean||0); ctx.translate(-en.x,-en.y-en.r*(scale-1)*.18);
+        ctx.translate(en.x,en.y); ctx.rotate((en.face||0)+(en.lean||0));
+        ctx.translate(-en.x,-en.y-en.r*(scale-1)*.18);
       }
-      if(n<=1){ put(fr[0], base); }
+      if(bossAtk){
+        const fi=Math.max(0,Math.min(5,Math.floor(en.bossT/58*6)));
+        put(fr[fi],base);
+      } else if(bossDis){
+        const fi=Math.max(0,Math.min(5,Math.floor(en.bossT/46*6)));
+        // 首八幀與待機母版交叉淡入，避免最後一張攻擊姿態瞬間跳成消散姿態。
+        if(en.bossT<8&&grp.frames[0]) put(grp.frames[0],base*(1-en.bossT/8));
+        put(fr[fi],base*Math.min(1,en.bossT/8));
+      } else if(n<=1){ put(fr[0], base); }
       else if(en.type==='inkling'){ // 煙霧妖:慢速晨變(交叉淡入)
         const t=G.t*0.006+en.anim, i0=Math.floor(t)%n, i1=(i0+1)%n, f=t-Math.floor(t);
         put(fr[i0], base*(1-f)); put(fr[i1], base*f);
