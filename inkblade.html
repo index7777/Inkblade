@@ -320,6 +320,9 @@
   #bossbar::before,#bossbar::after { content:""; position:absolute; z-index:2; top:-2px; bottom:-2px; width:1px; background:rgba(30,25,21,.82); }
   #bossbar::before { left:30%; } #bossbar::after { left:60%; }
   #bossphase { margin-top:5px; font:600 12px "Noto Serif TC",serif; letter-spacing:2px; color:#51463a; }
+  #bossui.phase #bossname { color:#6f2924; }
+  #bossui.phase #bossbar { animation:bossPhaseBeat .62s ease-in-out infinite alternate; }
+  @keyframes bossPhaseBeat { from{ box-shadow:0 0 0 rgba(111,41,36,0) } to{ box-shadow:0 0 12px rgba(111,41,36,.32) } }
   @keyframes inkOut { from{ transform:translate(-50%,-50%) scale(.25); opacity:.92 }
     to{ transform:translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1); opacity:0 } }
   @keyframes inkCore { from{ transform:translate(-50%,-50%) scale(.2); opacity:.85 }
@@ -1207,7 +1210,7 @@ function spawnXuanmingBoss(testMode){
   G.enemies.push({
     x:W*0.5,y:H*0.19,r:72,hp,max:hp,sp:0,c:'#211f1d',tier:2,type:'boss',isBoss:true,
     bossState:testMode?'manifest':'telegraph',bossT:testMode?28:0,bossSide:3,bossAngle:Math.PI,bossHit:false,alpha:testMode?0.72:0.05,
-    attackSeq:0,attackKind:'triple',
+    attackSeq:0,attackKind:'triple',phaseSeen:1,
     anim:0,ember:0,emberT:0,chill:0,hit:0,broken:0,wob:Math.random()*7,st:{}
   });
 }
@@ -1221,7 +1224,7 @@ function beginBossWave(){
   SND.wave(); SND.intensity(60); flash(0.18,'250,244,226'); updateHUD();
 }
 
-const BOSS_STATE_CN={telegraph:'墨氣湧動',manifest:'墨形凝聚',orbit:'伏環蓄勢',lunge:'近環吐核',dissolve:'墨散如煙'};
+const BOSS_STATE_CN={telegraph:'墨氣湧動',manifest:'墨形凝聚',orbit:'伏環蓄勢',lunge:'近環吐核',dissolve:'墨散如煙',phase:'墨相蛻變'};
 function bossTestAttackCountdown(en){
   if(!en) return 0;
   const left={
@@ -1229,7 +1232,8 @@ function bossTestAttackCountdown(en){
     manifest:Math.max(0,28-en.bossT)+54+40,
     orbit:Math.max(0,54-en.bossT)+40,
     lunge:Math.max(0,40-en.bossT),
-    dissolve:Math.max(0,46-en.bossT)+34+28+54+40
+    dissolve:Math.max(0,46-en.bossT)+34+28+54+40,
+    phase:Math.max(0,90-en.bossT)+34+28+54+40
   }[en.bossState]||0;
   return Math.max(0,left/60);
 }
@@ -1255,13 +1259,25 @@ function nextBossManifest(en){
   placeBoss(en,en.bossAngle,bossOrbitRadius(en.bossSide));
 }
 function updateBossP1(en){
+  const entering=bossPhase(en);
+  if(entering>(en.phaseSeen||1) && en.bossState!=='phase'){
+    en.phaseSeen=entering; en.bossState='phase'; en.bossT=0; en.bossHit=false;
+    G.bossShots.length=0;
+    shake(7); flash(.16,'238,226,204');
+  }
   en.bossT++;
   const R=bossOrbitRadius(en.bossSide), state=en.bossState;
   // 測試模式需要密集重現招式；正式關卡仍保留完整讀招時間。
   const telegraphFrames=G.bossTest?34:72;
   const manifestFrames=G.bossTest?28:42;
   const orbitFrames=G.bossTest?54:100;
-  if(state==='telegraph'){
+  if(state==='phase'){
+    // 階段蛻變不是攻擊預警：墨身在原位崩散、清場，下一方位再重新凝形。
+    placeBoss(en,en.bossAngle,R);
+    en.alpha=Math.max(0,1-en.bossT/32);
+    if(en.bossT%3===0) bossDissolveMist(en);
+    if(en.bossT>=90) nextBossManifest(en);
+  } else if(state==='telegraph'){
     placeBoss(en,en.bossAngle,R); en.alpha=0.05;
     if(en.bossT>=telegraphFrames){ en.bossState='manifest'; en.bossT=0; }
   } else if(state==='manifest'){
@@ -3662,10 +3678,12 @@ function updateHUD(){
   }
   { const boss=G.enemies.find(en=>en.isBoss&&!en.showcaseGhost), ui=document.getElementById('bossui');
     ui.classList.toggle('show',!!boss);
+    ui.classList.toggle('phase',!!boss&&boss.bossState==='phase');
     if(boss){
       document.getElementById('bossfill').style.width=Math.max(0,boss.hp/boss.max*100).toFixed(2)+'%';
       const pn=bossPhase(boss),skill=boss.attackKind==='ring'?'環形墨浪':'三路墨核';
-      document.getElementById('bossphase').textContent='第'+num2cn(pn)+'階 · '+skill;
+      const phaseName=pn===2?'墨環裂變':'墨海歸一';
+      document.getElementById('bossphase').textContent='第'+num2cn(pn)+'階 · '+(boss.bossState==='phase'?phaseName:skill);
     }
   }
   if(DPS.open) renderDps();
@@ -4189,7 +4207,7 @@ function bossTestNextPhase(){
   const p=bossPhase(en),ratio=p===1?.69:p===2?.39:.99;
   en.hp=Math.max(1,en.max*ratio); en.attackKind=p===1?'ring':'triple';
   en.attackSeq=(en.attackSeq||0)+1;
-  G.banner={txt:'BOSS 測試 · P'+bossPhase(en),life:1}; updateHUD();
+  updateHUD();
 }
 function bossTestFourDirections(){
   if(!G.bossTest) return;
