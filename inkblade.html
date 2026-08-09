@@ -68,7 +68,15 @@
   /* 直向 HUD：左上狀態、右上暫停、其下為戰況。中央全留給畫劍。 */
   #hud { position:absolute; top:0; left:var(--paper-inset); right:var(--paper-inset); pointer-events:none; color:#3a332a;
     padding:calc(var(--scroll-top-safe) + env(safe-area-inset-top)) 3.9cqw 0;
-    container-type:inline-size; }
+    container-type:inline-size;
+    /* 右上兩顆墨圈鈕與斬妖吊牌共用同一組寬度 —— 吊牌寬 = 兩顆鈕 + 中間空隙,
+       左右邊緣因此完全對齊。手機窄版時 --btn 會被 44px 觸控下限接手,
+       所以用 max() 而不是純 cqw,否則吊牌會比鈕組窄一截。 */
+    --btn: max(9.5cqw, 44px);
+    --btngap: 2.7cqw;
+    --grp: calc(var(--btn) * 2 + var(--btngap));
+    --hudright: 3.5cqw;
+    --btntop: calc(var(--scroll-top-safe) + env(safe-area-inset-top) + 1.4cqw); }
   /* 毛筆刷痕遮罩:程式生成的乾筆刷痕(鈍起筆 + 厚腰身 + 右端飛白分岔),
      由 tools 端以噪聲取樣輸出成 SVG path;軌道與填色共用同一個遮罩。 */
   #hud { --brush:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 14' preserveAspectRatio='none'%3E%3Cpath d='M2 7.19L4.18 1.98L6.36 0.41L8.53 0.41L10.71 0.41L12.89 0.42L15.07 0.42L17.24 0.43L19.42 0.43L21.6 0.44L23.78 0.44L25.96 0.44L28.13 0.44L30.31 0.43L32.49 0.42L34.67 0.41L36.84 0.4L39.02 0.38L41.2 0.36L43.38 0.35L45.56 0.33L47.73 0.32L49.91 0.3L52.09 0.29L54.27 0.28L56.44 0.28L58.62 0.27L60.8 0.27L62.98 0.27L65.16 0.28L67.33 0.28L69.51 0.28L71.69 0.29L73.87 0.29L76.04 0.29L78.22 0.29L80.4 0.28L82.58 0.27L84.76 0.26L86.93 0.24L89.11 0.22L91.29 0.2L93.47 0.18L95.64 0.15L97.82 0.13L100 0.1L102.18 0.08L104.36 0.06L106.53 0.05L108.71 0.04L110.89 0.04L113.07 0.05L115.24 0.06L117.42 0.07L119.6 0.09L121.78 0.12L123.96 0.15L126.13 0.18L128.31 0.22L130.49 0.25L132.67 0.29L134.84 0.32L137.02 0.35L139.2 0.37L141.38 0.39L143.56 0.41L145.73 0.42L147.91 0.42L150.09 0.42L152.27 0.42L154.44 0.41L156.62 0.4L158.8 0.39L160.98 0.38L163.16 0.37L165.33 0.36L167.51 0.35L169.69 0.34L171.87 0.33L174.04 0.33L176.22 0.55L178.4 0.84L180.58 1.16L182.76 1.5L184.93 1.86L187.11 2.26L189.29 2.7L191.47 3.21L193.64 3.83L195.82 4.65L198 6.89L198 7L195.82 9.23L193.64 10.04L191.47 10.65L189.29 11.15L187.11 11.59L184.93 11.98L182.76 12.34L180.58 12.67L178.4 12.98L176.22 13.27L174.04 13.49L171.87 13.48L169.69 13.47L167.51 13.46L165.33 13.45L163.16 13.44L160.98 13.42L158.8 13.41L156.62 13.4L154.44 13.38L152.27 13.38L150.09 13.37L147.91 13.37L145.73 13.38L143.56 13.39L141.38 13.4L139.2 13.43L137.02 13.45L134.84 13.48L132.67 13.52L130.49 13.55L128.31 13.59L126.13 13.63L123.96 13.66L121.78 13.7L119.6 13.73L117.42 13.75L115.24 13.77L113.07 13.78L110.89 13.79L108.71 13.79L106.53 13.79L104.36 13.78L102.18 13.76L100 13.75L97.82 13.73L95.64 13.7L93.47 13.68L91.29 13.66L89.11 13.64L86.93 13.62L84.76 13.61L82.58 13.6L80.4 13.59L78.22 13.59L76.04 13.59L73.87 13.59L71.69 13.59L69.51 13.6L67.33 13.61L65.16 13.62L62.98 13.62L60.8 13.63L58.62 13.63L56.44 13.64L54.27 13.64L52.09 13.63L49.91 13.63L47.73 13.62L45.56 13.62L43.38 13.61L41.2 13.6L39.02 13.6L36.84 13.59L34.67 13.59L32.49 13.59L30.31 13.59L28.13 13.6L25.96 13.61L23.78 13.62L21.6 13.63L19.42 13.65L17.24 13.66L15.07 13.68L12.89 13.7L10.71 13.71L8.53 13.73L6.36 13.74L4.18 12.17L2 6.98Z' fill='%23000'/%3E%3Cpath d='M178.97 3.58L180.63 3.3L182.3 3.08L183.96 3.08L185.62 3.02L187.29 3.02L188.95 3.21L190.61 3.25L192.27 3.12L193.94 3.21L195.6 3.43L197.26 3.57L198.92 3.94L198.92 3.94L197.26 3.88L195.6 3.87L193.94 3.75L192.27 3.74L190.61 3.95L188.95 3.98L187.29 3.85L185.62 3.9L183.96 4.02L182.3 4.07L180.63 4.34L178.97 4.66ZM168.47 5.03L170.71 5.2L172.95 5.28L175.18 5.14L177.42 5.17L179.65 5.37L181.89 5.49L184.12 5.69L186.36 6L188.59 6.01L190.83 5.81L193.07 5.75L195.3 5.79L195.3 5.79L193.07 6.08L190.83 6.27L188.59 6.58L186.36 6.66L184.12 6.42L181.89 6.29L179.65 6.23L177.42 6.09L175.18 6.12L172.95 6.32L170.71 6.29L168.47 6.17ZM168.89 7.18L170.83 7.32L172.78 7.48L174.72 7.8L176.66 7.88L178.61 7.67L180.55 7.56L182.49 7.49L184.44 7.35L186.38 7.42L188.32 7.65L190.27 7.67L192.21 7.75L192.21 7.75L190.27 8.09L188.32 8.24L186.38 8.14L184.44 8.19L182.49 8.43L180.55 8.58L178.61 8.78L176.66 9.07L174.72 9.06L172.78 8.81L170.83 8.71L168.89 8.64ZM161.72 9.84L164.66 9.69L167.61 9.63L170.56 9.47L173.51 9.45L176.46 9.66L179.41 9.69L182.36 9.58L185.31 9.66L188.25 9.77L191.2 9.85L194.15 10.19L197.1 10.7L197.1 10.7L194.15 10.6L191.2 10.43L188.25 10.48L185.31 10.48L182.36 10.5L179.41 10.69L176.46 10.74L173.51 10.61L170.56 10.7L167.61 10.92L164.66 11.05L161.72 11.26Z' fill='%23000'/%3E%3C/svg%3E");
@@ -82,8 +90,8 @@
   /* 吊牌不鋪白底,直接透出宣紙。雙框改用「內 border + 外 box-shadow 環」畫,
      因為 inset 陰影會塗滿內部,拿掉底色的話那圈紙色又會蓋回來。
      可讀性靠文字的紙色描邊維持(同左上狀態列的做法),不靠色塊。 */
-  #scorewrap { position:absolute; top:calc(var(--scroll-top-safe) + env(safe-area-inset-top) + 12.5cqw); right:3.05cqw;
-    min-width:16.6cqw; text-align:center; padding:1.0cqw 1.6cqw .6cqw; border-radius:3px;
+  #scorewrap { position:absolute; top:calc(var(--btntop) + var(--btn) + 20px); right:var(--hudright);
+    width:var(--grp); box-sizing:border-box; text-align:center; padding:1.0cqw 1.6cqw .6cqw; border-radius:3px;
     background:none; border:1px solid rgba(52,42,32,.62);
     box-shadow:0 0 0 3px rgba(0,0,0,0), 0 0 0 4px rgba(52,42,32,.30);
     text-shadow:0 1px 2px rgba(246,240,226,.98), 0 0 8px rgba(246,240,226,.9),
@@ -100,8 +108,8 @@
   #scorewrap { cursor:pointer; pointer-events:auto; }
   /* 可展開的三角 —— 要當成按鈕做:字夠大、上下留 padding 撐出可點面積,
      左右用負 margin 讓整條吊牌寬度都是熱區 */
-  #scorewrap .caret { display:block; margin:.2cqw -1.6cqw -.5cqw; padding:.45cqw 0 .45cqw;
-    font-size:clamp(13px,2.2cqw,21px); line-height:1; color:#7a2b2b; transition:transform .18s;
+  #scorewrap .caret { display:block; margin:.4cqw -1.6cqw -.4cqw; padding:.5cqw 0 .6cqw;
+    font-size:clamp(17px,3.4cqw,32px); line-height:1; color:#7a2b2b; transition:transform .18s;
     text-shadow:0 1px 2px rgba(246,240,226,.98), 0 0 6px rgba(246,240,226,.9); }
   #scorewrap.open .caret { transform:rotate(180deg); }
   /* 戰況遙測面板:預設收合 */
@@ -115,14 +123,14 @@
   #scorewrap .divider { height:1px; margin:.6cqw .3cqw; background:rgba(52,42,32,.45); }
   #scorewrap .sub { color:#3f3529; }
   #scorewrap .big { color:#1c1712; }
-  #ctrls { position:absolute; top:calc(var(--scroll-top-safe) + env(safe-area-inset-top) + 1.4cqw); right:3.5cqw;
-    display:flex; align-items:center; gap:2.7cqw; }
+  #ctrls { position:absolute; top:var(--btntop); right:var(--hudright);
+    display:flex; align-items:center; gap:var(--btngap); }
   .ctl { pointer-events:auto; cursor:pointer; font-size:clamp(12px,1.5vw,14px);
     letter-spacing:2px; color:#2b2620; white-space:nowrap;
     min-height:32px; display:flex; align-items:center; }
   /* 御劍 / 靜觀:共用手繪墨圈(SVG)當外框,內容為直式二字。
      不再用 CSS 圓角與 box-shadow 疊圈 —— 那個太規整,沒有筆味。 */
-  .inkbtn { position:relative; width:9.5cqw; height:9.5cqw; min-height:44px; min-width:44px; padding:0;
+  .inkbtn { position:relative; width:var(--btn); height:var(--btn); padding:0; flex:0 0 auto;
     display:flex; align-items:center; justify-content:center;
     background:none; border:none; border-radius:50%; box-shadow:none;
     transition:transform .12s; }
@@ -752,6 +760,7 @@ function resize(){
   cv.width=W*DPR; cv.height=H*DPR; ctx.setTransform(DPR,0,0,DPR,0,0);
   jianSprite=null;
   if(booted && G.player){ G.player.x=W/2; G.player.y=H/2; }   // 尺寸變動時靈石重新歸中
+  if(typeof alignHud==='function') requestAnimationFrame(alignHud);
 }
 window.addEventListener('resize',resize);
 window.addEventListener('orientationchange',()=>setTimeout(resize,150));
@@ -4640,7 +4649,7 @@ document.getElementById('metaclosebtn').onclick=closeMeta;
 document.getElementById('scorewrap').onclick=()=>{
   DPS.open=!DPS.open;
   document.getElementById('scorewrap').classList.toggle('open', DPS.open);
-  if(DPS.open) renderDps();
+  if(DPS.open) renderDps(); else requestAnimationFrame(alignHud);
   if(!meta.mute) SND.ui();
 };
 document.getElementById('pausebtn').onclick=()=>togglePause();
@@ -4687,6 +4696,21 @@ function renderTierList(){
       + '<div class="tsub">'+v.kills+' / '+v.nextAt+' 斬 · 下一層 '+v.nextName+'</div></div>';
   }).join('');
 }
+// 左上狀態列與右上吊牌切齊下緣。吊牌的高度含固定 20px 間距與字級 clamp 下限,
+// 那些不隨 cqw 縮放,所以純比例在窄螢幕一定會有落差(實測 941 寬差 28px、360 寬差 41px)。
+// 改成量完版面再把差額平均補到兩個行距上,任何寬度都會對齊。
+function alignHud(){
+  const b=document.getElementById('barwrap'), s=document.getElementById('scorewrap');
+  if(!b||!s||s.classList.contains('open')) return;
+  const gaps=b.querySelectorAll('.label.gap');
+  if(!gaps.length) return;
+  gaps.forEach(g=>{ g.style.marginTop=''; });                 // 先還原成 CSS 值再量,避免逐次累加
+  const base=parseFloat(getComputedStyle(gaps[0]).marginTop)||0;
+  const d=s.getBoundingClientRect().bottom - b.getBoundingClientRect().bottom;
+  if(Math.abs(d)<1) return;
+  const px=Math.max(0, base + d/gaps.length);
+  gaps.forEach(g=>{ g.style.marginTop=px+'px'; });
+}
 function renderShakeBtns(){
   document.querySelectorAll('#shakerow .seg').forEach(el=>
     el.classList.toggle('on', el.dataset.shake===meta.shake));
@@ -4715,6 +4739,10 @@ segClick('#cardtextrow .seg', el=>{ meta.cardText=el.dataset.cardtext;
   if(levelChoiceOpen() && !levelChoiceLocked) drawCards(true); });
 renderShakeBtns();
 applyQuality();
+// 字體載入後版面會再變一次,所以多對一次
+alignHud();
+if(document.fonts && document.fonts.ready) document.fonts.ready.then(()=>requestAnimationFrame(alignHud));
+setTimeout(alignHud, 600);
 // 靜觀分頁切換
 document.querySelectorAll('#pausetabs .tab').forEach(t=>{
   t.onclick=()=>{
