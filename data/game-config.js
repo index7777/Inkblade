@@ -111,6 +111,8 @@
   // 「畫得長」買到的不是射程(續飛本來就會把劍送到出畫面),而是**這把劍能斬幾隻才耗盡**。
   // 每畫滿 pixelsPerLife 寸,這道劍令的每把劍就多一條命(= 多穿透一隻墨獸)。
   // 這才是低消 6 劍意跟長劍令的實際差別:低消的劍砍一隻就化墨散去。
+  // 耐久只由長度決定;破甲(stats.pierce)改成加傷害,不再加耐久。
+  // 每次命中扣掉的耐久 = 這一擊的傷害相當於幾份基礎劍傷,所以打得越重撐得越短。
   const LIFE_MODEL = Object.freeze({ pixelsPerLife: 120, maxBonus: 12 });
   // 道行成長:每提升一重,神識與劍意上限的額外加成。
   // 存在的理由 —— 敵人的總血量到第 40 境是第 10 境的 8.4 倍,但玩家被咬一口的傷害是固定值,
@@ -580,7 +582,7 @@
   // 否則版面驗證會跟實際顯示脫節(卡片只有 ~103px 可用寬,超出就被裁掉)。
   const EFFECT_LABEL = Object.freeze({
     'stats.hpMax':'神識上限','stats.damage':'傷害','stats.swordWidth':'劍寬','stats.swordSpeed':'劍速',
-    'stats.pierce':'穿透','stats.critChance':'暴擊率','stats.critMultiplier':'暴擊倍',
+    'stats.pierce':'分裂','stats.critChance':'暴擊率','stats.critMultiplier':'暴擊倍',
     'stats.manaMax':'劍意上限','stats.manaRegen':'劍意回復','stats.manaOnKill':'回劍意',
     'stats.swordCap':'劍匣席','stats.swordCount':'飛劍數','stats.costMultiplier':'劍意消耗',
     'stats.manaCostBase':'起手劍意','stats.manaCostPerPixel':'每寸劍意',
