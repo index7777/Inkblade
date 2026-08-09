@@ -5,6 +5,54 @@
 
 ---
 
+## [2026-08-09] #81 卡片與階級表都改寫實際效果;**查出 22 個空的階級層**
+
+### A. 旗標型效果現在也會顯示
+原本 `effectLines()` 只認 add/mul/set/status —— **旗標型效果一行都印不出來**,
+所以像散鋒式、歸鋒、貫鋒式這種「全靠 flag」的卡,效果模式一片空白,只能退回文案。
+
+新增 `FLAG_LABEL`(白話說明,**數字直接抄主檔實作**,不是文案想像)與共用的 `opLines()`,
+卡片與階級表吃同一份,兩邊永遠一致。沒列進 `FLAG_LABEL` 的旗標 = 主檔還沒接線,
+**寧可不顯示也不要寫一個假的數字**。
+
+### B. 靜觀「劍訣精進」列出三層的實際效果
+原本只顯示進度條與「下一層 大成」,玩家不知道自己在追什麼。現在三層全列:
+```
+貫 貫鋒式  已臻 小成      420 / 500 斬 · 下一層 大成
+   小成  每斬一隻 傷害+5%          已臻
+   大成  末位破甲 受創+35%         500 斬
+   圓滿  結束回刺首名 八成         1000 斬
+```
+已臻的用墨色,未臻的淡一階並標出門檻。新增 `runtime.tierLines(id, idx)`。
+
+### C. 順帶查出的大洞:**21 個旗標沒接線,22 個階級層是空的**
+
+寫 `FLAG_LABEL` 時逐一比對主檔,發現這些 flag 在 `inkblade.html` 裡**零引用**:
+```
+listenToInk longBlade edgeMoment strokeLingers freeCastAtFull
+focusStacks focusStrike afterimage afterimageHits afterimageSolid
+dotRefresh dotSpread dotBurst rootOnSuppress rootWhiteCut
+healOnFullMana summonOnFullMana inkDropOnSplash inkDropExplode
+scatterEchoReturn volleyTighten
+```
+對應到 **22 個階級層、11 張卡**完全沒有效果:
+```
+齊鋒式·小成  疾影·小成/大成/圓滿   破墨·小成/大成
+蝕痕·小成/大成/圓滿                鎮痕·大成/圓滿
+斷意·大成/圓滿                     回元·大成/圓滿
+養鋒·小成/大成/圓滿                展鋒·圓滿
+納息·圓滿                          凝神·大成/圓滿
+```
+階級系統是玩家的長線目標(滿階後再斬 300/500/1000),**其中三分之一是空的**。
+疾影、蝕痕、養鋒三張卡的三層全空 —— 點滿之後再斬一千頭,什麼都不會發生。
+
+**這次沒有修**,只是查出來記下。修法是逐個接線,估計是一整輪的工作量。
+
+**怎麼推回去**:`effectLines` 改回原本的 inline 迴圈、刪掉 `FLAG_LABEL`/`opLines`/`tierLines`;
+`renderTierList` 改回單行進度版本,刪掉 `.tline` 相關 CSS。
+
+---
+
 ## [2026-08-09] #80 納息文案講清楚它會加耐久;**更正 #79 的平衡表**
 
 **決定**(使用者):納息維持現狀(A 案),不削數值、不給耐久加成遞減。

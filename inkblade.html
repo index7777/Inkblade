@@ -426,6 +426,14 @@
   #tierlist .tsub { font-size:11.5px; color:#7a6a54; letter-spacing:1px; }
   #tierlist .tdone { color:#6b7a55; }
   #tierlist .tempty { color:#8a7a5a; line-height:1.7; }
+  /* 三層效果:每層一行,已臻的用墨色,未臻的淡一階並標出還要幾斬 */
+  #tierlist .tline { display:flex; align-items:baseline; gap:6px; margin-top:4px;
+    font-size:11.5px; line-height:1.5; color:#8a7a5a; }
+  #tierlist .tline.on { color:#4a4033; }
+  #tierlist .tline b { flex:0 0 auto; font-weight:700; letter-spacing:1px; color:#7a5a2b; }
+  #tierlist .tline.on b { color:#6b7a55; }
+  #tierlist .tline span { flex:1 1 auto; }
+  #tierlist .tline em { flex:0 0 auto; font-style:normal; font-size:10.5px; opacity:.8; }
   /* 洗點:重塑劍意 */
   #respec { margin-top:14px; padding:12px 14px; border-radius:8px;
     background:rgba(246,240,226,.93); border:1px solid #b8a888; }
@@ -1490,6 +1498,11 @@ function inkCoreDissolve(q,ang){
 
 // ---------- 劍 ----------
 function pathLen(path){ let L=0; for(let i=1;i<path.length;i++) L+=Math.hypot(path[i].x-path[i-1].x,path[i].y-path[i-1].y); return L; }
+// 人工可在畫面任意處落筆，但飛劍仍視為由玩家中心御出；遠端落筆距離必須一併計價。
+function leadInLen(path){
+  const P=G.player,s=path&&path[0];
+  return P&&s?Math.hypot(s.x-P.x,s.y-P.y):0;
+}
 // 平行陣:整條墨痕沿各點法線平移 d
 function offsetPath(path,d){
   const out=[];
@@ -1697,20 +1710,23 @@ function launchCommand(path){
   if(budget<=0){
     floatText(s0.x,s0.y-14,'劍意不足','#c08a2e'); burst(s0.x,s0.y,'#8a7a5a',5); SND.nomana(); return;
   }
-  const cut=truncatePath(path, budget/perPx);
+  const leadLen=leadInLen(path), strokeBudget=budget/perPx-leadLen;
+  if(strokeBudget<=0){
+    floatText(s0.x,s0.y-14,'落筆太遠','#c08a2e'); burst(s0.x,s0.y,'#8a7a5a',5); SND.nomana(); return;
+  }
+  const cut=truncatePath(path, strokeBudget);
   if(!cut){
     floatText(s0.x,s0.y-14,'劍意不足','#c08a2e'); burst(s0.x,s0.y,'#8a7a5a',5); SND.nomana(); return;
   }
-  const len=pathLen(cut);
-  // 記下玩家實際畫多長 —— 「滿劍意可出幾劍」要用玩家自己的手感算,
-  // 拿一個我編的參考長度去除,算出來的劍數對他沒有意義。
+  const len=pathLen(cut), paidLen=leadLen+len;
+  // 平均消耗長度包含遠端落筆；耐久仍只看真正畫出的筆畫長度。
   G.strokeN++;
-  G.strokeAvg = G.strokeAvg ? (G.strokeAvg*0.75 + len*0.25) : len;
+  G.strokeAvg = G.strokeAvg ? (G.strokeAvg*0.75 + paidLen*0.25) : paidLen;
   if(freeCast){
     G.reserve--; G.reserveFlash=1;
     floatText(s0.x, s0.y-14, '劍匣', '#c08a2e');
   } else {
-    const spend=Math.min(G.mana, stat.costBase + len*perPx);
+    const spend=Math.min(G.mana, stat.costBase + paidLen*perPx);
     G.mana=Math.max(0, G.mana - spend); dpsAdd('m', spend);
   }
   SND.cast(len);
@@ -2402,7 +2418,7 @@ function move(e){ if(!drawing)return; e.preventDefault(); const p=pos(e);
     // 劍令:畫多長都行,不再凍結筆跡。超出可負擔長度的那一段改用金色提示,
     // 收筆時會被截掉 —— 玩家看得見「哪裡會斷」,而不是筆突然畫不動。
     path.push(p); curLen+=seg;
-    maxed = curLen > allowedLen();
+    maxed = leadInLen(path)+curLen > allowedLen();
   }
 }
 function up(e){ if(!drawing)return; e.preventDefault(); drawing=false; launchCommand(path); path=[]; curLen=0; maxed=false; }
@@ -2489,19 +2505,15 @@ function update(){
           for(let i=0;i<n;i++){ const o=(i-mid)*gap; if(Math.abs(o)<Math.abs(bo)) bo=o; }
           shift=-bo;                                 // 反向預移(沿法線)
         }
-        // 出鞘點沿「真實瞄準線」擺放(扇形繞起點旋轉,起點在線上才能完全歸零誤差)
+        // 自動御劍固定由玩家中心出發；陣型補正只作用於終點。
         const nx=-Math.sin(ang)*shift, ny=Math.cos(ang)*shift;
-        const ox=P.x+Math.cos(aim)*P.r+nx, oy=P.y+Math.sin(aim)*P.r+ny;
-        // 劍令系統移除了「續飛」——舊版這 90px 只是引導段,劍跑完會繼續橫穿畫面。
-        // 現在 Reach End → Destroy,固定 90px 等於自動御劍只打得到腳邊。
-        // 改為畫到目標身後(貫穿),長度受劍意可負擔上限約束,行為才接近人類玩家。
-        const dist=Math.hypot(best.x-P.x, best.y-P.y) - P.r;
-        const want=Math.max(120, dist + 150);              // 穿過目標再延伸一段
-        const L=Math.max(60, Math.min(want, allowedLen()));
-        const path=[{x:ox, y:oy},
-                    {x:ox+Math.cos(ang)*L, y:oy+Math.sin(ang)*L}];
-        const before=G.mana; launchSword(path);
-        if(G.mana<before){ G.autoUsed=true; G.autoTimer=0; } else { G.autoTimer=28; }
+        const tx=stat.formation==='parallel'?best.x+nx:P.x+Math.cos(ang)*Math.hypot(best.x-P.x,best.y-P.y);
+        const ty=stat.formation==='parallel'?best.y+ny:P.y+Math.sin(ang)*Math.hypot(best.x-P.x,best.y-P.y);
+        const want=Math.hypot(tx-P.x,ty-P.y);
+        if(allowedLen()+.01>=want){
+          const before=G.mana; launchSword([{x:P.x,y:P.y},{x:tx,y:ty}]);
+          if(G.mana<before){ G.autoUsed=true; G.autoTimer=0; } else { G.autoTimer=28; }
+        } else G.autoTimer=28; // 劍意不足以抵達目標：等待回復，不發射半途消散的空劍。
       }
     }
   }
@@ -3321,7 +3333,8 @@ function drawJian(ctx, s){
     const h=w/FLYSWORD.aspect*2.2;
     ctx.save(); ctx.translate(s.x,s.y); ctx.rotate(s.ang);
     ctx.globalAlpha=(s.echo?.72:.94)*M.alpha;
-    ctx.drawImage(FLYSWORD.image,-w*FLYSWORD.grip,-h/2,w,h);
+    // 母版原有銀白刃線縮到手機尺寸會讀成去背白邊；以 alpha 為輪廓統一壓成深墨剪影。
+    ctx.drawImage(tintFrame(FLYSWORD.image,'#181512'),-w*FLYSWORD.grip,-h/2,w,h);
     ctx.restore();
     return;
   }
@@ -3932,10 +3945,10 @@ function num2cn(n){
 // 畫線時跟著指尖跑的即時計價。玩家在收筆前就知道這一筆要花多少,
 // 不用去記「每寸多少」這種抽象數字 —— 數字直接長在他手上。
 // 用的是 truncate 後的長度,所以顯示的就是收筆時真的會被扣的錢。
-function drawStrokeCost(x, y, chargedLen){
+function drawStrokeCost(x, y, chargedLen, lifeLen){
   const free = (G.mana - stat.costBase <= 0) && G.reserve > 0;
   const cost = stat.costBase + chargedLen * Math.max(0.001, stat.costPerPx);
-  const life = cmdLife(chargedLen);
+  const life = cmdLife(lifeLen==null?chargedLen:lifeLen);
   const txt  = (free ? '劍匣 · 免費' : '-' + Math.round(cost) + ' 劍意') + '　耐久 ' + life;
   // 指尖會蓋住正下方,所以往上擺;靠畫面邊緣時翻到另一側,不要被切掉
   const up = (y > 96);
@@ -4985,16 +4998,33 @@ function renderTierList(){
       +'依序臻至 小成 · 大成 · 圓滿。</div>';
     return;
   }
+  const TN=['小成','大成','圓滿'];
+  const esc=t=>String(t).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
   box.innerHTML=view.map(v=>{
-    const cur=v.tierName ? '<i>已臻 '+v.tierName+'</i>' : '<i>累計中</i>';
-    if(!v.nextName)
-      return '<div class="trow"><div class="tname">'+v.rune+' '+v.name+' <i class="tdone">圓滿</i></div>'
-           + '<div class="tsub">本局已斬 '+v.kills+' 頭</div></div>';
-    const prev = v.level>0 ? v.tiers[v.level-1].kills : 0;
-    const pct = Math.max(0, Math.min(100, (v.kills-prev)/(v.nextAt-prev)*100));
-    return '<div class="trow"><div class="tname">'+v.rune+' '+v.name+' '+cur+'</div>'
-      + '<div class="tbar"><i style="width:'+pct.toFixed(1)+'%"></i></div>'
-      + '<div class="tsub">'+v.kills+' / '+v.nextAt+' 斬 · 下一層 '+v.nextName+'</div></div>';
+    // 三層全部列出來,每層都寫實際效果(不是只寫文案) —— 玩家才知道還在追什麼。
+    const rows=TN.map((nm,k)=>{
+      const t=(v.tiers&&v.tiers[k])||null;
+      const lines=INK_CONFIG.runtime.tierLines(v.id, k);
+      const txt=lines.length ? lines.join('、')
+              : (t&&t.description ? t.description.replace(/。$/,'') : '');
+      const got=v.level>k;
+      return '<div class="tline'+(got?' on':'')+'">'
+           + '<b>'+nm+'</b><span>'+esc(txt)+'</span>'
+           + '<em>'+(got?'已臻':(t?t.kills+' 斬':''))+'</em></div>';
+    }).join('');
+    let head, bar='';
+    if(!v.nextName){
+      head='<div class="tname">'+v.rune+' '+v.name+' <i class="tdone">圓滿</i></div>';
+      bar='<div class="tsub">本局已斬 '+v.kills+' 頭</div>';
+    } else {
+      const prev = v.level>0 ? v.tiers[v.level-1].kills : 0;
+      const pct = Math.max(0, Math.min(100, (v.kills-prev)/(v.nextAt-prev)*100));
+      head='<div class="tname">'+v.rune+' '+v.name+' '
+         + (v.tierName ? '<i>已臻 '+v.tierName+'</i>' : '<i>累計中</i>')+'</div>';
+      bar='<div class="tbar"><i style="width:'+pct.toFixed(1)+'%"></i></div>'
+        + '<div class="tsub">'+v.kills+' / '+v.nextAt+' 斬 · 下一層 '+v.nextName+'</div>';
+    }
+    return '<div class="trow">'+head+bar+rows+'</div>';
   }).join('');
 }
 // 左上狀態列與右上吊牌切齊下緣。吊牌的高度含固定 20px 間距與字級 clamp 下限,

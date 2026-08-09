@@ -618,36 +618,65 @@
     return w;
   }
   function fmtNum(v){ return String(Math.round(v*100)/100); }
-  function effectLines(item){
-    if (typeof item === 'string') item = insightById[item];
-    if (!item) return [];
+  // 旗標型效果的白話說明。數字直接抄主檔實作,不是文案想像 ——
+  // 卡面與靜觀的階級表都吃這一份,兩邊永遠一致。
+  // 沒列在這裡的旗標 = 主檔還沒接線,寧可不顯示也不要寫一個假的數字。
+  const FLAG_LABEL = Object.freeze({
+    'flags.splashOnKill':      '斬殺潑墨 波及28%',
+    'flags.whiteCutOnCrit':    '暴擊留下飛白',
+    'flags.autoRefill':        '每8息存一把免費劍',
+    'flags.scatterEcho':       '兩側各分一殘鋒',
+    'flags.scatterEchoIntent': '殘鋒也能上墨痕',
+    'flags.scatterQuad':       '殘鋒改為四面各分一道',
+    'flags.volleyStrike':      '同幀雙擊 傷害+60%',
+    'flags.volleyHeavy':       '每四次齊斬引重斬',
+    'flags.pierceRamp':        '每斬一隻 傷害+5%',
+    'flags.pierceBreak':       '末位破甲 受創+35%',
+    'flags.pierceRecoil':      '結束回刺首名 八成',
+    'flags.guideExtend':       '末端延伸 150→260',
+    'flags.guideRetarget':     '擊殺後再延伸一段',
+    'flags.guideNeverMiss':    '整道未中必尋得',
+    'flags.returnFaster':      '回程速度 +30%',
+    'flags.returnSeek':        '掉頭時朝最近墨獸切回',
+    'flags.returnKeep':        '每次折返保留三成耐久',
+    'flags.returnHaste':       '每折返劍速 ×1.35',
+    'flags.noSplit':           '不參與分裂',
+    'flags.mergeHeavy':        '每折返一趟傷害 +30%'
+  });
+  // 把一組 ops 轉成白話效果行(卡面與階級表共用)
+  function opLines(effects){
     const out=[];
-    for(const e of item.effects){
+    for(const e of (effects||[])){
       const L=EFFECT_LABEL[e.path];
-      if(e.op==='add' && L){
+      if(e.op==='flag'){ const t=FLAG_LABEL[e.path]; if(t) out.push(t); }
+      else if(e.op==='add' && L){
         const v=Number(e.value)||0, neg=v<0, a=Math.abs(v);
         out.push(L+' '+(neg?'−':'+')+(EFFECT_PCT.has(e.path)?Math.round(a*100)+'%':fmtNum(a)));
       } else if(e.op==='mul' && L){
         const d=Math.round((Number(e.value)-1)*100);
         if(d!==0) out.push(L+' '+(d>0?'+':'−')+Math.abs(d)+'%');
-      } else if(e.op==='set' && e.path==='formation'){
-        out.push('陣型 · '+(FORMATION_CN[e.value]||e.value));
-      } else if(e.op==='set' && e.path==='stats.swordCount'){
-        out.push('飛劍數 = '+e.value);
-      } else if(e.op==='max' && e.path==='stats.mana'){
-        out.push('補滿劍意');
-      } else if(e.op==='unlock' && e.path==='runUnlocks' && String(e.value).startsWith('returnDamageMultiplier:')){
-        const m=Math.round((parseFloat(String(e.value).split(':')[1])-1)*100);
-        out.push('回程傷害 +'+m+'%');
-      } else if(e.op==='status'){
-        // 敵方狀態:拆成短句,一行一件事 —— 併成一句會超出卡片寬度
+      } else if(e.op==='set' && e.path==='formation') out.push('陣型 · '+(FORMATION_CN[e.value]||e.value));
+      else if(e.op==='set' && e.path==='stats.swordCount') out.push('飛劍數 = '+e.value);
+      else if(e.op==='max' && e.path==='stats.mana') out.push('補滿劍意');
+      else if(e.op==='status'){
         const v=e.value||{};
         if(v.slow) out.push('緩速 '+Math.round(v.slow*100)+'%');
         if(v.damagePerSecond) out.push('每秒 −'+fmtNum(v.damagePerSecond));
         if(v.duration) out.push('續 '+fmtNum(v.duration)+' 秒');
       }
     }
-    return out.slice(0, EFFECT_MAX_LINES);
+    return out;
+  }
+  // 單一階級(小成/大成/圓滿)的效果行。沒接線的旗標會回空陣列,由呼叫端決定要不要退回文案。
+  function tierLines(item, idx){
+    if (typeof item === 'string') item = insightById[item];
+    if (!item || !item.tiers || !item.tiers[idx]) return [];
+    return opLines(item.tiers[idx].effects);
+  }
+  function effectLines(item){
+    if (typeof item === 'string') item = insightById[item];
+    if (!item) return [];
+    return opLines(item.effects).slice(0, EFFECT_MAX_LINES);
   }
 
   // 計算本次洗點消耗劍意(0=免費)。免費 1 次後遞增,封頂 250。
@@ -948,6 +977,7 @@
       noteKill,
       getTierView,
       effectLines,
+      tierLines,
       textWidth,
       validateConfig
     }),
