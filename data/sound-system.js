@@ -34,6 +34,7 @@
   let musicEnabled = true;
   let hardMuted = false;
   let music = null;
+  let coreSfxWarmed = false;
 
   function settings() {
     const fallback = { master:0.85, music:0.62, sfx:0.75 };
@@ -57,9 +58,11 @@
     if (pools.has(name)) return pools.get(name);
     const spec = BANK[name];
     const pool = [];
-    for (const file of spec.files) {
-      for (let i=0; i<spec.voices; i+=1) pool.push(makeAudio(ROOT + file));
-    }
+    // voices 是「這個音效可同時播放的總數」，不是每個變體各建 voices 份。
+    // 舊寫法會建立 files × voices 個 Audio：cast 20 個、hit 18 個；手機首次播放時
+    // 同時預載/解碼大量播放器，會在出劍或受擊音效觸發時卡住主執行緒。
+    for (let i=0; i<spec.voices; i+=1)
+      pool.push(makeAudio(ROOT + spec.files[i % spec.files.length]));
     pools.set(name, pool);
     return pool;
   }
@@ -172,9 +175,16 @@
 
   // 先建立音池即可；真正播放仍由使用者手勢觸發。
   function unlock() {
-    ['ui','cast','hit','kill','splash','pick','wave'].forEach(ensurePool);
+    // HTMLAudio 不需要像 WebAudio 一樣預建所有音效節點；用到時再建立小型音效池。
+    // 只在使用者手勢中啟動音樂，避免首頁一次配置數十個 Audio 元素。
     ensureMusic();
     applyVolume();
+    if (!coreSfxWarmed) {
+      coreSfxWarmed = true;
+      const warm = () => ['cast','hit','hurt'].forEach(ensurePool);
+      if (typeof requestIdleCallback === 'function') requestIdleCallback(warm,{ timeout:1200 });
+      else setTimeout(warm,0);
+    }
   }
 
   const api = {
