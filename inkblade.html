@@ -1770,7 +1770,6 @@ function launchCommand(path){
   // 連珠原本用 i*4 影格錯開出鞘,結果那幾幀裡整列疊在筆尖不動、也不判定命中,
   // 延遲結束才一次瞬移到位。車廂間距本來就把它們排開了,不需要延遲。
   for(let i=0;i<n;i++) spawnCmdSword(c, i, 0);
-  for(let i=0;i<10;i++) ink(s0.x,s0.y, (Math.random()-.5)*3,(Math.random()-.5)*3, 8+Math.random()*10);
 }
 // 相容:舊呼叫點仍叫 launchSword
 function launchSword(path){ return launchCommand(path); }
@@ -3766,6 +3765,40 @@ function drawBossShots(){
   }
 }
 
+// 兩套普通怪素材衍生六種玩法時，靠快取染色與極少量附著筆觸建立可讀差異。
+// 所有效果都不寫入長效墨層；低畫質只保留色調與輪廓，避免增加手機負擔。
+const ENEMY_TONE={
+  weaver:'rgba(72,92,101,.38)', orbiter:'rgba(43,96,72,.38)',
+  bulwark:'rgba(50,40,58,.24)', charger:'rgba(133,48,39,.38)', reaver:'rgba(34,48,68,.40)'
+};
+function enemyVariantFrame(en,img){
+  const tone=ENEMY_TONE[en.species];
+  return tone?tintFrame(img,tone):img;
+}
+function drawEnemyVariantFx(en,front){
+  if(DRAWLV<5||!en.species)return;
+  const r=en.r,dir=en.moveDir==null?0:en.moveDir;
+  ctx.save();ctx.translate(en.x,en.y);ctx.lineCap='round';ctx.lineJoin='round';
+  if(en.species==='weaver'&&!front){
+    ctx.rotate(dir);ctx.strokeStyle='rgba(66,84,92,.28)';
+    for(const side of [-1,1]){ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(-r*.3,side*r*.22);
+      ctx.quadraticCurveTo(-r*1.2,side*r*.5+Math.sin(G.t*.09+side)*3,-r*2.15,side*r*.12);ctx.stroke();}
+  } else if(en.species==='orbiter'&&front){
+    const spin=(en.orbitDir||1)*G.t*.018;ctx.strokeStyle='rgba(45,101,76,.48)';ctx.lineWidth=1.25;
+    for(let k=0;k<2;k++){ctx.beginPath();ctx.arc(0,0,r*(1.12+k*.22),spin+k*2.6,spin+k*2.6+1.75);ctx.stroke();}
+  } else if(en.species==='bulwark'&&!front){
+    ctx.fillStyle='rgba(31,25,34,.20)';ctx.scale(1,.34);ctx.beginPath();ctx.ellipse(0,r*.9,r*1.15,r*.55,0,0,6.283);ctx.fill();
+  } else if(en.species==='charger'&&front){
+    const t=en.aiT%155;if(t<48){ctx.rotate(dir);ctx.strokeStyle='rgba(151,50,40,'+(t<26?.32:.58)+')';
+      ctx.lineWidth=t<26?1.2:2;ctx.beginPath();ctx.moveTo(r*.25,0);ctx.lineTo(r*(1.15+t/48),0);ctx.stroke();}
+  } else if(en.species==='reaver'&&front){
+    ctx.strokeStyle='rgba(45,58,76,.58)';ctx.lineWidth=2.2;
+    for(const side of [-1,1]){ctx.beginPath();ctx.moveTo(side*r*.18,-r*.62);
+      ctx.lineTo(side*r*.58,-r*.42);ctx.lineTo(side*r*.72,-r*.08);ctx.stroke();}
+  }
+  ctx.restore();
+}
+
 // ---------- 繪製 ----------
 function draw(){
   ctx.setTransform(DPR,0,0,DPR,0,0);
@@ -3866,18 +3899,20 @@ function draw(){
             base=(en.hit>0?0.9:1)*(en.alpha==null?1:en.alpha);
       const visualLift=en.isBoss?bossVisualLift(en.bossSide):0;
       const put=(img,al)=>{
-        const iw=img.naturalWidth||1, ih=img.naturalHeight||1, b=img._inkBounds;
+        const src=en.isBoss?img:enemyVariantFrame(en,img);
+        const iw=src.naturalWidth||src.width||1, ih=src.naturalHeight||src.height||1, b=img._inkBounds;
         ctx.globalAlpha=al;
         if(en.isBoss&&b&&(en.bossSide===0||en.bossSide===2)){
           // 正面幀依透明墨形的實際邊界繪製；每幀統一有效高度，不再受畫布留白影響。
           const bodyH=en.r*1.85*scale, bodyW=bodyH*(b[2]/b[3]);
           const cy=Math.max(16+bodyH/2,Math.min(H-18-bodyH/2,en.y+visualLift));
-          ctx.drawImage(img,b[0],b[1],b[2],b[3],en.x-bodyW/2,cy-bodyH/2,bodyW,bodyH);
+          ctx.drawImage(src,b[0],b[1],b[2],b[3],en.x-bodyW/2,cy-bodyH/2,bodyW,bodyH);
         } else {
           const ww=hh*(iw/ih), y=Math.max(12,Math.min(H-hh-18,en.y-hh*.58+visualLift));
-          ctx.drawImage(img,en.x-ww/2,y,ww,hh);
+          ctx.drawImage(src,en.x-ww/2,y,ww,hh);
         }
       };
+      drawEnemyVariantFx(en,false);
       ctx.save();
       if(en.isBoss){
         // Boss 浮於畫卷空間，不畫平台式橢圓陰影；左右共用側面素材，左側水平鏡像。
@@ -3889,6 +3924,10 @@ function draw(){
         ctx.translate(en.x,0);
         ctx.scale(en.facing||1,1);
         ctx.translate(-en.x,0);
+      } else if(en.species==='weaver'||en.species==='orbiter'){
+        // 同一墨靈素材用輪廓比例區分：織影扁長、環煞略厚；碰撞尺寸不變。
+        const sx=en.species==='weaver'?1.10:1.04,sy=en.species==='weaver'?.88:1.04;
+        ctx.translate(en.x,en.y);ctx.scale(sx,sy);ctx.translate(-en.x,-en.y);
       }
       if(bossAtk){
         const fi=Math.max(0,Math.min(5,Math.floor(en.bossT/58*6)));
@@ -3908,6 +3947,7 @@ function draw(){
         put(fr[Math.floor(G.t*rate+en.anim)%n],base);
       }
       ctx.restore(); ctx.globalAlpha=1;
+      drawEnemyVariantFx(en,true);
     } else {
       // 回退:程序化墨團 + 眼
       ctx.save(); ctx.translate(en.x,en.y);
