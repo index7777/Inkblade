@@ -14,7 +14,7 @@
     font-family:"Noto Serif TC","STKaiti","KaiTi","LiSu",serif; touch-action:none; user-select:none; }
   body { display:grid; place-items:center; }
   #wrap { position:relative; width:min(100vw,56.25dvh); height:min(100dvh,177.778vw);
-    --paper-inset:clamp(18px,5vw,28px); --scroll-top-safe:clamp(44px,8vw,48px);
+    --paper-inset:0px; --scroll-top-safe:clamp(44px,8vw,48px);   /* 滿版:不再左右內縮留景深 */
     --scroll-bottom-safe:clamp(38px,6.7vw,42px); overflow:hidden; background:#27231e;
     box-shadow:0 0 48px rgba(0,0,0,.62); }
   /* ── 開場過場(v2)──────────────────────────────────────────────
@@ -52,8 +52,6 @@
   #wrap.op #paper, #wrap.op #game { filter:blur(calc((1 - var(--uf)) * 5px)); }
   /* 紙層與暈影層改由 CSS 合成:靜態內容交給 GPU 圖層,完全不進每幀繪圖,
      整頁也只剩一張畫布(先前三張滿版畫布並存 + 每幀滿版 blit 是效能疑點)。*/
-  #depthpaper { position:absolute; inset:-18px; z-index:0; background-repeat:no-repeat;
-    filter:blur(15px) brightness(.68) saturate(.72); transform:scale(1.07); opacity:.82; }
   #paper, .paperphase { position:absolute; top:0; bottom:0; left:var(--paper-inset); right:var(--paper-inset); z-index:0;
     background-repeat:no-repeat; background-position:center; background-size:cover; }
   #paper { box-shadow:0 0 18px rgba(12,10,8,.34); }
@@ -524,7 +522,6 @@
 </head>
 <body>
 <div id="wrap">
-  <div id="depthpaper"></div>
   <div id="paper"></div>
   <div id="paperlight" class="paperphase"></div>
   <div id="papermid" class="paperphase"></div>
@@ -3332,9 +3329,9 @@ function makePaperTile(){
 let paperDone=false;
 function buildPaper(){
   if(paperDone) return;
-  const depth=document.getElementById('depthpaper'), paper=document.getElementById('paper');
+  const paper=document.getElementById('paper');
   // 第一章四階段畫卷：所有圖共用同一構圖，以 opacity 交叉淡化。
-  for(const el of [depth,paper]){
+  for(const el of [paper]){
     el.style.backgroundColor='#e9e0cc';
     el.style.backgroundImage=
       'radial-gradient(circle at 50% 45%, rgba(20,18,14,0), rgba(20,18,14,.035) 82%),'

@@ -5,6 +5,32 @@
 
 ---
 
+## [2026-08-09] #77 畫面改滿版:拿掉左右景深留白
+
+**變更內容**
+1. `--paper-inset` 由 `clamp(18px,5vw,28px)` 改 `0px`。
+   `#paper` / `canvas` / `#vig` / `#hud` 都吃這個變數,一改全部跟著滿版。
+2. **移除 `#depthpaper`** —— 那是墊在畫卷後面、露在左右內縮處的模糊景深層
+   (`filter:blur(15px) brightness(.68) saturate(.72)`)。滿版之後它整片被畫卷蓋住,
+   留著只剩一個**全螢幕 blur 的合成成本**,對手機是純損失。
+   一併清掉 HTML 節點與 `buildPaper()` 裡對它的背景設定。
+
+**實測**
+```
+412× 915  wrap 412 / canvas 412 / paper 412  左右留白 0  depthpaper 已移除
+941×1672  wrap 941 / canvas 941 / paper 941  左右留白 0  depthpaper 已移除
+```
+
+**連帶效果**:`#hud` 是 `container-type:inline-size`,容器變寬 → 所有 cqw 尺寸等比放大。
+比例關係不變(HUD 內部一切都相對容器寬),而且**現在跟參考稿的條件一致** ——
+那張稿本來就是滿版 941 寬、沒有內縮。
+
+**怎麼推回去**:`--paper-inset` 改回 `clamp(18px,5vw,28px)`;
+加回 `#depthpaper` 的 CSS、`<div id="depthpaper"></div>` 節點,
+以及 `buildPaper()` 的 `const depth=…` 與 `for(const el of [depth,paper])`。
+
+---
+
 ## [2026-08-09] #76 分裂劍的可讀性:按威力縮小 + 同幀傷害合併
 
 **使用者問「分裂出來的劍像雜訊,是尺寸太小嗎?」** 查證後是相反的:**尺寸完全一樣。**
