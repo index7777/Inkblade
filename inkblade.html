@@ -1136,6 +1136,7 @@ const HERO_BODY_SCALE=HERO_VISUAL_SCALE*.85; // 立繪在目前尺寸上再縮�
 const G = {
   running:false, paused:false, t:0,
   player:null, enemies:[], bossShots:[], swords:[], particles:[], inks:[], texts:[], stains:[], splashes:[], mists:[],commands:[],
+  drops:[], lingers:[], edgeT:0, edgeReady:false, focus:0, focusIdle:0, focusReady:false, summonT:0,
   kills:0, wave:1, waveTimer:0, spawnAcc:0, eliteSpawned:{}, webT:0,
   xp:0, xpNeed:6, level:1, pendingLevels:0,
   shake:0, hitstop:0, flash:0, flashC:'255,255,255', banner:null,
@@ -1237,13 +1238,13 @@ const ENEMY_KINDS=[
     weight:w=>Math.max(10,62-w*.85)},
   {id:'weaver',  name:'織影', unlock:5,  type:'inkling',tier:0,hp:10,r:12,sp:1.22,dmg:6,xp:1,c:'#3f4b50',ai:'weave',visualScale:1.38,animRate:.105,
     weight:w=>18+Math.min(18,(w-5)*.55)},
-  {id:'bulwark', name:'墨甲', unlock:10, type:'blade',   tier:1,hp:46,r:23,sp:.57,dmg:12,xp:2,c:'#352f43',ai:'seek',visualScale:1.42,animRate:.055,
+  {id:'bulwark', name:'墨甲', unlock:10, type:'blade',   tier:1,hp:46,r:23,sp:.57,dmg:12,xp:2,c:'#352f43',ai:'seek',visualScale:1.42,visualHeight:72,animRate:.055,
     weight:w=>12+Math.min(22,(w-10)*.58)},
   {id:'orbiter', name:'環煞', unlock:17, type:'inkling',tier:1,hp:27,r:17,sp:.96,dmg:10,xp:2,c:'#334842',ai:'orbit',visualScale:1.35,animRate:.085,
     weight:w=>11+Math.min(20,(w-17)*.62)},
-  {id:'charger', name:'破陣', unlock:27, type:'blade',   tier:1,hp:35,r:19,sp:.72,dmg:15,xp:3,c:'#533633',ai:'charge',visualScale:1.38,animRate:.07,
+  {id:'charger', name:'破陣', unlock:27, type:'blade',   tier:1,hp:35,r:19,sp:.72,dmg:15,xp:3,c:'#533633',ai:'charge',visualScale:1.38,visualHeight:72,animRate:.07,
     weight:w=>9+Math.min(22,(w-27)*.72)},
-  {id:'reaver',  name:'劫墨', unlock:41, type:'blade',   tier:2,hp:105,r:29,sp:.68,dmg:20,xp:5,c:'#292f35',ai:'reaver',visualScale:1.48,animRate:.065,
+  {id:'reaver',  name:'劫墨', unlock:41, type:'blade',   tier:2,hp:105,r:29,sp:.68,dmg:20,xp:5,c:'#292f35',ai:'reaver',visualScale:1.48,visualHeight:72,animRate:.065,
     weight:w=>8+Math.min(28,(w-41)*1.35)}
 ];
 function waveEnemyKind(w){
@@ -1283,7 +1284,7 @@ function spawnEnemy(){
   const hp=kind.hp*q.hp;
   G.enemies.push({x,y,r:kind.r,hp,max:hp,sp:kind.sp*q.speed,
     c:kind.c,tier:kind.tier,type:kind.type,species:kind.id,speciesName:kind.name,ai:kind.ai,
-    contactDamage:Math.round(kind.dmg*q.damage),xpValue:kind.xp,visualScale:kind.visualScale,animRate:kind.animRate,
+    contactDamage:Math.round(kind.dmg*q.damage),xpValue:kind.xp,visualScale:kind.visualScale,visualHeight:kind.visualHeight,animRate:kind.animRate,
     aiT:(Math.random()*120)|0,aiSeed:Math.random()*6.283,orbitDir:Math.random()<.5?-1:1,
     chargeX:0,chargeY:0,anim:Math.random()*1000,ember:0,emberT:0,chill:0,hit:0,broken:0,wob:Math.random()*7,st:{}});
 }
@@ -2033,8 +2034,17 @@ function applyIntent(en){
     const cur  = en.st[key] || (en.st[key]={stk:0,t:0,acc:0});
     const before = cur.stk;
     cur.stk = Math.min(maxS, cur.stk + (cfg.stacks||1) * rank);
-    cur.t   = Math.round((cfg.duration||3) * 60 * (stat.statusScale||1));
+    // 蝕痕·小成「可被重新刷新」:沒有這個階級時,已在身上的蝕痕不會因為再命中而續期,
+    // 只會疊層數;有了才會把時間推回滿。
+    const full = Math.round((cfg.duration||3) * 60 * (stat.statusScale||1));
+    const TFa = stat.tierFlags||{};
+    if(key!=='erosion' || TFa.dotRefresh || cur.t<=0) cur.t = full;
+    else cur.t = Math.max(cur.t, Math.round(full*0.35));
     if(key==='suppression'){
+      // 鎮痕·大成「額外定身三分之一息」:滿層時把墨獸釘住 20 影格。
+      if((stat.tierFlags||{}).rootOnSuppress && cur.stk>=maxS && !(en.rootT>0)){
+        en.rootT=20; en.rootWC=!!(stat.tierFlags||{}).rootWhiteCut;
+      }
       const V = ensureSupV(en);
       V.press = 14;                              // 觸發:腳下重按一橫,再碎成兩側斷墨
       V.maxS  = maxS;
@@ -2455,6 +2465,15 @@ function dmgTo(en, v){ if(v>0){ en.hp-=v; dpsAdd('d',v); } }
 function update(){
   G.t++;
   const P=G.player;
+  const TF0=stat.tierFlags||{};
+  // 養鋒·圓滿「鋒芒」:每 6 息蓄滿一次,下一擊必暴。
+  if(TF0.edgeMoment){
+    if(!G.edgeReady){ if(++G.edgeT>=360){ G.edgeT=0; G.edgeReady=true;
+      floatText(P.x,P.y-52,'鋒芒','#c08a2e'); } }
+  } else { G.edgeReady=false; G.edgeT=0; }
+  // 凝神·大成/圓滿:連續命中累積專注,滿層讓下一道劍令化為凝神一劍。
+  if(!TF0.focusStacks){ G.focus=0; G.focusReady=false; }
+  else if(G.focusIdle!=null && ++G.focusIdle>180){ G.focus=0; G.focusIdle=0; }
   // 隕落動畫期間:戰鬥全部凍結,只推進動畫與特效計時
   if(G.deathT>0){
     G.deathT--;
@@ -2480,6 +2499,20 @@ function update(){
   if(G.mana<stat.manaMax){
     const webMul=G.webT>0?.45:1;
     G.mana=Math.min(stat.manaMax,G.mana+stat.manaRegen*webMul);
+  } else {
+    const TFm=stat.tierFlags||{};
+    // 回元·大成:劍意滿了之後,溢出的回氣轉成神識
+    if(TFm.healOnFullMana && P.hp<P.max){
+      P.hp=Math.min(P.max, P.hp + stat.manaRegen*0.35);
+      if(G.t%45===0) floatText(P.x,P.y-46,'回元','#4aa0b8');
+    }
+    // 回元·圓滿:劍意滿盈時每 3 息自行召出一把飛劍
+    if(TFm.summonOnFullMana && ++G.summonT>=180){
+      G.summonT=0;
+      const tg=nearestEnemy(P.x,P.y,1e9);
+      if(tg){ spawnAutoCommand(P.x,P.y,tg.x,tg.y,{dmgMul:0.7,intent:true});
+        floatText(P.x,P.y-58,'召劍','#c08a2e'); }
+    }
   }
   // 自動御劍:定時朝最近之敵直射(收益打折、不計紀錄)
   if(G.auto){
@@ -2564,12 +2597,28 @@ function update(){
             }
             if(G.t%20===0) floatText(en.x,en.y-en.r, key==='erosion'?'蝕':'鎮',
                                      key==='erosion'?'#7a6a58':'#5a6a80');
+            // 蝕痕·大成:每次跳傷有機會把一層蝕痕帶給附近的墨獸
+            if(key==='erosion' && (stat.tierFlags||{}).dotSpread && Math.random()<0.34){
+              for(const e2 of G.enemies){
+                if(e2===en || Math.hypot(e2.x-en.x,e2.y-en.y)>92) continue;
+                if(!e2.st) e2.st={};
+                const c2=e2.st.erosion || (e2.st.erosion={stk:0,t:0,acc:0});
+                if(c2.stk<6){ c2.stk++; c2.t=Math.max(c2.t, 90); }
+                break;
+              }
+            }
             if(en.hp<=0){ dead=true; break; }
           }
         }
         if(e.t<=0) e.stk=0;
       }
       if(dead){ killEnemy(i); continue; }
+      if(en.rootT>0){
+        en.rootT--; sp=0;
+        // 鎮痕·圓滿:定身結束時炸開一道留白斬
+        if(en.rootT===0 && en.rootWC){ whiteCut(en.x,en.y,Math.random()*6.283);
+          dmgTo(en, stat.damage*0.9); en.hit=6; splash(en.x,en.y,'#efe4cc',1.4); }
+      }
       if(slow>0) sp *= (1 - Math.min(0.7, slow));
       // 鎮痕視覺:收束循環與拖滯(放在 update 才會跟著靜觀一起凍結)
       const sup=en.st.suppression;
@@ -2622,10 +2671,12 @@ function update(){
       } else { mx=-dx/d*.32+(-dy/d)*(en.orbitDir||1)*.55; my=-dy/d*.32+(dx/d)*(en.orbitDir||1)*.55; }
       const ml=Math.hypot(mx,my)||1; mx/=ml; my/=ml;
     }
-    // 墨刃兵與幽冥墨蛛只有單側動作素材：以實際水平移動方向記錄朝向。
-    // 接近垂直移動時沿用上一個方向，避免每幀在左右之間抖動。
-    if((en.type==='blade'||en.type==='spider') && Math.abs(mx)>.045)
-      en.facing=mx>=0?1:-1;
+    // 素材原生朝左：向右移動時才鏡像。接近垂直則沿用上一方向，避免左右抖動。
+    if(en.type==='blade'||en.type==='spider'){
+      if(Math.abs(mx)>.045) en.facing=mx>=0?-1:1;
+      else if(en.facing==null) en.facing=dx>=0?-1:1;
+      en.moveDir=Math.atan2(my,mx);
+    }
     en.x+=mx*sp; en.y+=my*sp;
     en.wob+=0.1;
     if(en.hit>0)en.hit--;
@@ -2988,6 +3039,32 @@ function update(){
     if(G.reserve>cap) G.reserve=cap;
   } else { G.reserve=0; G.reserveT=0; }
   if(G.reserveFlash>0) G.reserveFlash-=0.02;
+  // 破墨·小成/大成:潑墨處留下的墨滴,碰到墨獸就化開;大成再炸一次。
+  for(let i=G.drops.length-1;i>=0;i--){
+    const d=G.drops[i]; d.t--;
+    if(d.t<=0){ G.drops.splice(i,1); continue; }
+    for(const en of G.enemies){
+      if(Math.hypot(en.x-d.x,en.y-d.y) < en.r+d.r){
+        dmgTo(en, d.dmg); en.hit=6; splash(d.x,d.y,'#3a332a',0.9);
+        if(d.boom) for(const e2 of G.enemies)
+          if(e2!==en && Math.hypot(e2.x-d.x,e2.y-d.y)<70){ dmgTo(e2,d.dmg*0.6); e2.hit=6; }
+        G.drops.splice(i,1); break;
+      }
+    }
+  }
+  // 展鋒·圓滿:收筆後劍痕滯留半息,墨獸碰到還會再受一次傷。
+  for(let i=G.lingers.length-1;i>=0;i--){
+    const L=G.lingers[i]; L.t--;
+    if(L.t<=0){ G.lingers.splice(i,1); continue; }
+    if(G.t%4) continue;
+    for(const en of G.enemies){
+      if(L.hit.has(en)) continue;
+      for(let k=1;k<L.pts.length;k++)
+        if(segCircleDist(L.pts[k-1].x,L.pts[k-1].y,L.pts[k].x,L.pts[k].y,en.x,en.y) < en.r+stat.size){
+          dmgTo(en, L.dmg); en.hit=6; L.hit.add(en); break;
+        }
+    }
+  }
   flushDamage();
   dpsTick();
   if(G.t%5===0) updateHUD();
@@ -3008,6 +3085,13 @@ function killEnemy(idx){
   // 蝕痕滿層只讓消散霧色更深，不在紙面留下焦墨斑。
   if(en.eroV && en.st && en.st.erosion && en.st.erosion.stk>=4){
     mistDissolve(en.x,en.y,1.45,'28,25,22');
+  }
+  // 蝕痕·圓滿:潰散時把剩下的蝕傷一次爆出來
+  if((stat.tierFlags||{}).dotBurst && en.st && en.st.erosion && en.st.erosion.t>0){
+    const e=en.st.erosion, left=e.stk*4*(e.t/60);
+    if(left>0){ splash(en.x,en.y,'#5a4a3a',1.8);
+      for(const e2 of G.enemies) if(e2!==en && Math.hypot(e2.x-en.x,e2.y-en.y)<86){ dmgTo(e2,left); e2.hit=6; }
+      floatText(en.x,en.y-en.r-30,'蝕爆','#7a6a58'); }
   }
   G.kills++; dpsAdd('k',1); G.player.hp=Math.min(G.player.max,G.player.hp+stat.regen);
   // 階級推進:每個滿階技能各自累計局內擊殺,達 300/500/1000 進小成/大成/圓滿
@@ -3712,8 +3796,8 @@ function draw(){
         ? grp.attack.filter(Boolean) : null;
       const fr=bossAtk||bossDis||spiderAtk||(bossIdle?[bossIdle]:grp.frames.filter(Boolean)), n=fr.length,
             scale=en.visualScale||1,
-            hh=en.isBoss&&(en.bossSide===1||en.bossSide===3)
-              ?Math.min(en.r*2.1*scale,W*.25):en.r*2.1*scale,
+            hh=en.visualHeight||(en.isBoss&&(en.bossSide===1||en.bossSide===3)
+              ?Math.min(en.r*2.1*scale,W*.25):en.r*2.1*scale),
             base=(en.hit>0?0.9:1)*(en.alpha==null?1:en.alpha);
       const visualLift=en.isBoss?bossVisualLift(en.bossSide):0;
       const put=(img,al)=>{
@@ -3843,7 +3927,7 @@ function draw(){
   if(DRAWLV>=6 && drawing&&path.length>1){
     ctx.lineCap='round'; ctx.lineJoin='round';
     // 分段上色:累計長度在可負擔範圍內 → 墨色;超出 → 金色(收筆時這段會被截掉)
-    const budget=allowedLen();
+    const totalBudget=allowedLen(), lead=leadInLen(path), budget=Math.max(0,totalBudget-lead);
     let run=0;
     for(let k=1;k<path.length;k++){
       run+=Math.hypot(path[k].x-path[k-1].x, path[k].y-path[k-1].y);
@@ -3856,7 +3940,8 @@ function draw(){
     const ang=Math.atan2(b.y-a.y,b.x-a.x);
     ctx.save(); ctx.translate(b.x,b.y); ctx.rotate(ang); ctx.fillStyle='#7a2b2b';
     ctx.beginPath(); ctx.moveTo(14,0); ctx.lineTo(2,7); ctx.lineTo(2,-7); ctx.closePath(); ctx.fill(); ctx.restore();
-    drawStrokeCost(b.x, b.y, Math.min(curLen, budget));
+    const strokeCharged=Math.min(curLen,budget);
+    drawStrokeCost(b.x, b.y, lead+strokeCharged, strokeCharged);
   }
 
   // 墨獸死亡霧團：短暫播放後完全清除，不參與畫卷污染。
@@ -4489,6 +4574,7 @@ function start(mode){
     kills:0,wave:bossTest?60:1,waveTimer:0,spawnAcc:0,eliteSpawned:{},webT:0,bossTest,bossShowcase:false,bossEntered:bossTest,chapterComplete:false,
     bossPreset60:false,bossFightFrames:0,bossKillSecs:null,hpLocked:false,xp:0,xpNeed:6,level:1,pendingLevels:0,mana:100,
     reserve:0,reserveT:0,reserveFlash:0,strokeAvg:0,strokeN:0,
+    drops:[],lingers:[],edgeT:0,edgeReady:false,focus:0,focusIdle:0,focusReady:false,summonT:0,
     auto:false,autoUsed:false,autoTimer:0,
     shake:0,hitstop:0,flash:0,flashC:'255,255,255',banner:null,
     aim:0.85,facing:1,intent:0,streaks:[],cuts:[],firstStrikeDone:false,respecWave:0,
