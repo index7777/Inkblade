@@ -2135,3 +2135,33 @@ if(FX.trail) for(let k=1;k<s.trail.length;k++){
 - 後果(拔掉前實測,拔掉後即恢復此數值):畫長 400→外側劍離中心 306px;900→463px;1800→925px(約 261 幀在畫面外)。
 - 怎麼推回去(還原依據):在 `fanPose` 的 `return` 前補回 4 行 clamp:
   `const CAP=Math.min(300,W*0.28); const ox=x-c.x,oy=y-c.y,m=Math.hypot(ox,oy); if(m>CAP){const k=CAP/m; x=c.x+ox*k; y=c.y+oy*k;}`
+
+## #88 折返收窄到單式/聚鋒;分裂整個移除;齊鋒撲空自行追跡
+### 折返
+- 新增 `canReturn(f)`(inkblade.html),只有 `single` / `merge` 回 true;`launchCommand` 的 `returnsLeft` 改吃它。
+- 理由:齊鋒/散鋒/連珠折返時整列前後對調,那一幀讀起來是瞬移不是掉頭,演出不成立。
+- 實測 `returnsLeft`:single 2 / merge 2 / fan 0 / parallel 0 / inline 0。
+- 文案:齊鋒、散鋒、貫鋒 tradeoff 加「此式不折返」;歸鋒說明改為「僅單式與聚鋒能折返」;聚鋒 tradeoff 改為「此式可折返」。
+### 分裂
+- 整套移除:`splitPieces()`、`SPLIT_FRAMES`、`sw.dmgScale`、`sw.birth/b0` 出生動畫、`doReturn` 裡的分裂區塊、`flags.noSplit`、卡片〈析鋒〉、`stats.pierce`(允許清單/clamp/label/statMap/snapshot/base)。
+- `swMul()` 退成常數 `{size:1,alpha:1}`(保留簽名,免得改四處呼叫點)。
+- 一筆開天移除 `flags.noSplit` op;文案「厚重不分」改「劍身厚重」。
+- 折返現在買到的是「同一批耐久多掃一趟」,不再變多把。
+### 齊鋒
+- `cmdReachedEnd` 在 `c.free=true` 之前:formation==='parallel' 且非自動劍令時,把 `hitSet.size===0 && pierceLeft>0` 的劍標記 `sw.solo=true`。
+- 脫隊劍改由劍的迴圈自行推進(轉向上限 `SOLO_TURN=0.075` rad/幀,加上 `stat.homing`),陣型定位迴圈與劍令死亡都跳過它們。
+- 實測:三把劍朝正上方出鞘(-90°),筆跡走完後同時轉 solo,角度各自分岔 -129/-131/-134 並收斂到左上角的怪身上。
+### 怎麼推回去(還原依據)
+- 折返門檻:把 `canReturn(stat.formation) &&` 從 `returnsLeft` 拿掉即可全劍式恢復。
+- 分裂:見 git `1523b29` 之前的 `doReturn`。
+- 齊鋒追跡:刪掉 `cmdReachedEnd` 的 parallel 區塊與劍迴圈開頭的 `if(s.solo)` 區塊。
+
+## #89 引鋒的追蹤本體從來沒接線(修)
+- `stat.homing=m.homingStrength` 只有被賦值,**全檔沒有任何地方讀取** —— 引鋒 1~4 階等於只吃了 `傷害×0.88` 與「不能暴擊」,零收益。使用者回報「現在的引鋒看起來沒效果」,屬實。
+- 修法:在 `update` 的 `c.free`(續飛)分支開頭,每幀朝 `nearestEnemy(c.x,c.y,HOMING_RANGE)` 修正 `c.ang`,單幀轉向上限 = `stat.homing`;實際掰彎過就設 `c.homed=true`。
+- **只修正續飛段**:手畫的筆跡是玩家意志,不能被系統偷偷掰彎;筆跡走完之後才輪到劍自己找路。
+- `HOMING_RANGE=520`(約畫面短邊六成)。太大會變成一出鞘整道劍令被拉直往怪飛,玩家畫的線變裝飾。
+- 順手接上代價:`if(!stat.homingCanCrit && C && C.homed) isCrit=false;` —— 卡面寫的「引鋒本身不能暴擊」原本也沒實作。
+- 脫隊追跡(齊鋒)的轉向上限改成 `SOLO_TURN + stat.homing`,兩張卡自然疊。
+- 實測(單式,筆跡朝正上方,怪在左上 200,500):homing=0 → 最近距離 500px、0 命中;homing=0.055(1 階)→ 最近 7px、命中;homing=0.275(5 階)→ 最近 1px。
+- 怎麼推回去(還原依據):刪掉 `c.free` 分支開頭那段 `if(stat.homing>0 && !c.auto){...}` 與 `homingCanCrit` 那一行。

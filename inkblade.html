@@ -1637,11 +1637,7 @@ function cmdLife(len){
 }
 // 一次命中要扣多少耐久 = 這一擊打出的傷害相當於幾份基礎劍傷。
 // 暴擊、破甲、齊斬打得越重,劍耗損越快;這讓「重擊」與「續航」自然互斥。
-// 分裂數(stats.pierce):折返掉頭時,一把劍會裂成這麼多把。
-// 傷害與耐久都按份數平分 —— 總量不變,換的是同時覆蓋的面。
-function splitPieces(){ return Math.max(1, 1 + (stat.pierce|0)); }
-// 分裂張開的影格數。太快看起來像瞬間變多把,太慢會拖到回程的節奏。
-const SPLIT_FRAMES=14;
+// 分裂已整個移除(#88)。要多把劍就開匣/劍式加,不再有「打到一半變多把」這回事。
 // 劍愈快斬愈重。以基準劍速 14 為 1.0,每快一成加六分之一成傷害。
 // **這一段加成刻意不計入耐久消耗** —— durCost 只吃速度加成之前的傷害。
 // 否則「加速 = 加傷 = 更快耗盡」,總輸出不變,加速就等於白做(歸藏無痕先前就踩到這個)。
@@ -1680,7 +1676,7 @@ function spawnCmdSword(c, slot, delay){
              // 聚形要看起來是一把劍,連貼圖動畫幀都得對齊,所以整道劍令共用一個 seed
              seed:(c.formation==='merge' && c.seed!=null) ? c.seed : Math.random()*8,
              delay:delay||0,
-             pierceLeft: c.life || 1, dmgScale: 1,
+             pierceLeft: c.life || 1,
              hitSet:new Set(), hitPass:new Map(), shotPass:new Map(), passId:0, runDir:null, runTravel:0,
              returned:false, echo:false };
   c.swords[slot]=sw; G.swords.push(sw);
@@ -1817,7 +1813,9 @@ function launchCommand(path){
     spacing:(stat.size*2.2+10) * ((stat.tierFlags||{}).volleyTighten ? 0.6 : 1),
     swords:new Array(n).fill(null),
     slots:n,
-    returnsLeft: stat.ret ? Math.max(1, stat.returnHits||1) : 0,
+    // 折返只有「畫面上讀成一把劍」的劍式能用:單式與聚形。
+    // 齊鋒/散鋒/連珠折返時整列會前後對調,那一幀讀起來是瞬移不是掉頭 —— 演出不成立。
+    returnsLeft: (canReturn(stat.formation) && stat.ret) ? Math.max(1, stat.returnHits||1) : 0,
     alive:true, age:0,
     hitOrder:[], volley:0, frameHit:null, extended:0, dmgMul:1, anyHit:false, free:false,
     freeBack:false, passAt:buildStrokePasses(cut)
@@ -1827,6 +1825,13 @@ function launchCommand(path){
   // 延遲結束才一次瞬移到位。車廂間距本來就把它們排開了,不需要延遲。
   for(let i=0;i<n;i++) spawnCmdSword(c, i, 0);
 }
+// 脫隊追跡的每幀轉向上限(弧度)。0.075 ≈ 4.3°/幀:看得出在拐彎,但拐不出直角。
+const SOLO_TURN=0.075;
+// 引鋒的感知範圍。超過這個距離不修正,否則一出鞘就整道劍令被拉直往怪飛,
+// 玩家畫的線變成裝飾。520 約等於畫面短邊的六成。
+const HOMING_RANGE=520;
+// 哪些劍式可以折返(#88)。改這裡就等於改折返的適用範圍。
+function canReturn(f){ return f==='single' || f==='merge'; }
 // 相容:舊呼叫點仍叫 launchSword
 function launchSword(path){ return launchCommand(path); }
 
@@ -2048,7 +2053,7 @@ function syncStat(){
   if(!runState) return;
   const s=runState.stats, m=runState.mechanics;
   stat.count=s.swordCount; stat.damage=s.damage; stat.size=s.swordWidth; stat.speed=s.swordSpeed;
-  stat.pierce=s.pierce; stat.crit=s.critChance; stat.critMul=s.critMultiplier;
+  stat.crit=s.critChance; stat.critMul=s.critMultiplier;
   stat.homing=m.homingStrength; stat.homingCanCrit=(m.homingCanCrit!==false);
   stat.explode=m.splashRadius; stat.splashDamage=m.splashDamage;
   stat.ret=m.returnEnabled?1:0; stat.returnHits=m.returnHits;
@@ -2803,6 +2808,18 @@ function update(){
     // 續飛:筆跡走完後,劍令沿最後方向繼續前進,直到飛出畫面。
     // 劍沒打到東西就憑空消失不合理 —— 筆跡定義的是「怎麼去」,不是「走完就結束」。
     if(c.free){
+      // 引鋒(stats→mechanics.homingStrength):**只修正續飛段**。
+      // 手畫的筆跡是玩家的意志,不能被系統偷偷掰彎;筆跡走完之後才輪到劍自己找路。
+      // 這條在 #89 之前只有賦值、沒有任何地方讀 —— 引鋒 1~4 階等於純扣傷,是漏接線。
+      if(stat.homing>0 && !c.auto){
+        const tg=nearestEnemy(c.x, c.y, HOMING_RANGE);
+        if(tg){
+          let dd=Math.atan2(tg.y-c.y, tg.x-c.x)-c.ang;
+          while(dd> Math.PI) dd-=6.283185; while(dd<-Math.PI) dd+=6.283185;
+          const turn=Math.max(-stat.homing, Math.min(stat.homing, dd));
+          if(Math.abs(turn)>1e-4){ c.ang+=turn; c.homed=true; }
+        }
+      }
       c.x+=Math.cos(c.ang)*budget; c.y+=Math.sin(c.ang)*budget;
       // 邊緣折返:碰到戰場邊界才掉頭。用「畫面內縮」而不是畫面外,
       // 否則玩家會看到劍先飛出去消失一下再冒回來,讀不出「掉頭」。
@@ -2830,7 +2847,7 @@ function update(){
       } else { c.x+=dx/d*budget; c.y+=dy/d*budget; c.ang=Math.atan2(dy,dx); budget=0; }
     }
     if(!c.alive){
-      for(const sw of c.swords) if(sw) sw.dead=true;
+      for(const sw of c.swords) if(sw && !sw.solo) sw.dead=true;
       G.commands.splice(ci,1);
       continue;
     }
@@ -2839,13 +2856,13 @@ function update(){
     for(let k=0;k<c.slots;k++){
       let sw=c.swords[k];
       // 穿透耗盡而死的劍不再接力補上 —— 死了就少一把,劍令帶著剩下的劍繼續走。
-      if(sw && sw.dead) continue;
+      if(sw && (sw.dead || sw.solo)) continue;
       // 只有「從來沒填過」的空槽才生劍(自動劍令會用到)。
       // 接力關掉後這裡不再有延遲可調 —— 開匣·大成已改成直接加劍速。
       if(!sw) sw=spawnCmdSword(c,k,0);
       if(sw.delay>0){ sw.delay--; sw.trail.length=0; continue; }
       const off=formationOffset(c.formation, k, c.slots, c.spacing, c.age*(stat.flySpeed||stat.speed||14));
-      if(off.fan && c.ox!=null && !sw.birth){
+      if(off.fan && c.ox!=null){
         const q=fanPose(c, off.ang);
         if(sw.snap){ sw.px=q.x; sw.py=q.y; sw.snap=false; } else { sw.px=sw.x; sw.py=sw.y; }
         sw.vx=q.x-sw.x; sw.vy=q.y-sw.y;
@@ -2854,14 +2871,6 @@ function update(){
         continue;
       }
       let oa=off.along, os=off.side;
-      // 分裂出生動畫:從母劍的局部位置平滑張開到自己的陣位。
-      // 用局部座標插值(而不是世界座標),子劍才會跟著劍令中心一起前進,不會被留在原地。
-      if(sw.birth>0 && sw.b0){
-        const t=1-(sw.birth/SPLIT_FRAMES), e=t*t*(3-2*t);
-        oa=sw.b0.along+(oa-sw.b0.along)*e;
-        os=sw.b0.side +(os-sw.b0.side )*e;
-        if(--sw.birth<=0) sw.b0=null;
-      }
       const nx=c.x + ca*oa - sa*os;
       const ny=c.y + sa*oa + ca*os;
       // 掃掠命中要知道這一幀是從哪走到哪。折返那一幀整列會前後對調(等於瞬移),
@@ -2894,10 +2903,8 @@ function update(){
       const en=nearestEnemy(c.x,c.y,1e9);
       if(en) c.ang=Math.atan2(en.y-c.y, en.x-c.x);
     }
-    // 折返**不補耐久**。補了就等於白拿,那是預付制不允許的。
-    // 補償方式是「分裂」:每把還活著的劍在掉頭時裂成兩把,把剩下的耐久平分。
-    // 總耐久不變,換到的是覆蓋面 —— 這才是折返值得帶的理由。
-    const alive=[];
+    // 折返**不補耐久**,也不再分裂(#88 分裂整個移除)。
+    // 折返買到的是「同一批耐久多掃一趟」—— 覆蓋面來自來回,不是來自變多把。
     for(const sw of c.swords) if(sw && !sw.dead){
       sw.hitSet.clear(); sw.hitPass.clear(); sw.shotPass.clear(); sw.passId++;
       sw.runDir=null; sw.runTravel=0; sw.returned=true;
@@ -2905,37 +2912,6 @@ function update(){
       // 歸鋒·圓滿「歸而不竭」:折返保留三成耐久 —— 這是「折返不補耐久」唯一的例外,
       // 而且是上限制的補(補到不超過這道劍令原本的耐久)。
       if(TF.returnKeep) sw.pierceLeft=Math.min(c.life||1, sw.pierceLeft + (c.life||1)*0.3);
-      alive.push(sw);
-    }
-    // 聚形與一筆開天不參與分裂:一個是「聚而不分」,一個是「厚重不分」。
-    const noSplit = (c.formation==='merge') || !!TF.noSplit;
-    const CAP=24, pieces=noSplit?1:splitPieces();
-    if(pieces>1 && alive.length){
-      // 分裂後一律改成扇形排開 —— 母劍那一刻是「分開」,列隊或重疊都讀不出分裂。
-      c.formation='fan';
-      const ca0=Math.cos(c.ang), sa0=Math.sin(c.ang);
-      for(const sw of alive){
-        if(c.slots>=CAP) break;
-        if(sw.pierceLeft<=0.4) continue;              // 太少就不分,免得裂出一堆一碰即死的劍
-        const n=Math.min(pieces, 1+(CAP-c.slots));    // 受總量上限約束
-        const eachDur=sw.pierceLeft/n, eachDmg=(sw.dmgScale||1)/n;
-        // 母劍當下相對中心的局部座標 —— 子劍從這裡「長出來」,再張開到自己的陣位。
-        const dx=sw.x-c.x, dy=sw.y-c.y;
-        const b0={ along:dx*ca0+dy*sa0, side:-dx*sa0+dy*ca0 };
-        sw.pierceLeft=eachDur; sw.dmgScale=eachDmg;   // 本體也算其中一份
-        sw.birth=SPLIT_FRAMES; sw.b0=b0;              // 母劍也要動畫過去,否則它會瞬移到新陣位
-        for(let k=1;k<n;k++){
-          const slot=c.slots++;
-          c.swords[slot]=null;
-          const nw=spawnCmdSword(c, slot, 0);
-          nw.pierceLeft=eachDur; nw.dmgScale=eachDmg;
-          nw.returned=true; nw.snap=true; nw.passId=sw.passId;
-          nw.birth=SPLIT_FRAMES; nw.b0=b0;            // 從母劍身上出生
-          nw.x=sw.x; nw.y=sw.y; nw.px=sw.x; nw.py=sw.y;
-        }
-        splash(sw.x, sw.y, '#2b2620', 0.9);           // 分裂點潑一團墨,交代「這裡裂開了」
-        for(let q=0;q<6;q++) ink(sw.x,sw.y,(Math.random()-.5)*3.2,(Math.random()-.5)*3.2,6+Math.random()*8);
-      }
     }
     if(stat.returnDry) whiteCut(c.x,c.y,c.ang);
     return true;
@@ -2962,6 +2938,14 @@ function update(){
         if(en && extendCommand(c,en.x,en.y)){ c.extended++; return; }
       }
     }
+    // 齊鋒式:筆跡走完的那一刻,凡是「一隻都沒斬到」的劍脫離陣列自行追跡。
+    // 齊鋒的弱點是轉向遲緩、整排一起撲空;讓撲空的劍自己去找目標,
+    // 等於把「沒斬到」這件事本身變成它的機制,而不是白白飛出畫面。
+    if(c.formation==='parallel' && !c.auto){
+      for(const sw of c.swords) if(sw && !sw.dead && sw.hitSet.size===0 && sw.pierceLeft>0){
+        sw.solo=true; sw.px=sw.x; sw.py=sw.y;
+      }
+    }
     // 筆跡走完 → 轉續飛(不是消散)。折返改在邊界觸發,這裡不再掉頭。
     c.free=true;
     c.ang=Math.atan2(c.y-(c.py!=null?c.py:c.y), c.x-(c.px!=null?c.px:c.x)) || c.ang;
@@ -2977,6 +2961,23 @@ function update(){
     const s=G.swords[i];
     if(s.dead){ G.swords.splice(i,1); continue; }
     if(s.delay>0) continue;
+    // 脫隊追跡(齊鋒):不再由劍令擺位,自己轉向、自己前進、自己出界。
+    if(s.solo){
+      const sp=(stat.flySpeed||stat.speed||14);
+      const tg=nearestEnemy(s.x,s.y,1e9);
+      if(tg){
+        let d=Math.atan2(tg.y-s.y,tg.x-s.x)-s.ang;
+        while(d> Math.PI) d-=6.283185; while(d<-Math.PI) d+=6.283185;
+        const lim=SOLO_TURN+(stat.homing||0);                  // 有轉向上限,不然像磁鐵吸過去;引鋒直接加在上面
+        s.ang+=Math.max(-lim,Math.min(lim,d));
+      }
+      s.px=s.x; s.py=s.y;
+      s.vx=Math.cos(s.ang)*sp; s.vy=Math.sin(s.ang)*sp;
+      s.x+=s.vx; s.y+=s.vy; s.age++;
+      if(FX.trail){ s.trail.push({x:s.x,y:s.y}); if(s.trail.length>18) s.trail.shift(); }
+      else if(s.trail.length) s.trail.length=0;
+      if(s.x<-60||s.x>W+60||s.y<-60||s.y>H+60){ s.dead=true; G.swords.splice(i,1); continue; }
+    }
     // passId 已由原始手繪折線預先計算；一段同方向揮行對同一目標只傷一次。
     if(!s.hitPass) s.hitPass=new Map();
     if(!s.shotPass) s.shotPass=new Map();
@@ -3005,6 +3006,8 @@ function update(){
         let dmg=stat.damage;
         let isCrit = Math.random()<stat.crit;
         if(stat.firstStrike && !G.firstStrikeDone){ isCrit=true; G.firstStrikeDone=true; }
+        // 引鋒的代價「引鋒本身不能暴擊」:被追蹤掰彎過的那道劍令,這一擊不暴擊。
+        if(!stat.homingCanCrit && C && C.homed) isCrit=false;
         // 養鋒·圓滿「鋒芒」:蓄滿後的下一擊必定暴擊
         if(G.edgeReady){ isCrit=true; G.edgeReady=false; whiteCut(en.x,en.y,s.ang); }
         // 凝神·圓滿:專注滿層時,這一擊化為凝神一劍
@@ -3017,7 +3020,6 @@ function update(){
         if(en.broken>0) dmg*=1.35;                        // 貫鋒式·大成掛的破甲狀態:受創加深
         // 分裂後每把劍的威力被攤薄:一把打 80 的劍裂成兩把,每把打 40。
         // 傷害變小 → durCost 也跟著變小,所以總傷害不變,換到的是覆蓋面。
-        dmg *= (s.dmgScale||1);
         // 聚鋒式·圓滿:聚形不分裂,改用折返把威力疊上去。
         if(TF.mergeHeavy && C && C.formation==='merge' && C.returnsDone)
           dmg *= 1 + 0.3*C.returnsDone;
@@ -3549,14 +3551,9 @@ function drawInkFlyingSword(ctx,s){
   ctx.fillStyle='#15120f'; ctx.beginPath(); ctx.arc(-18,0,bw*.72,0,6.283); ctx.fill();
   ctx.restore();
 }
-// 分裂後威力被攤薄的劍要看得出來比較輕。沿用殘鋒(echo)早就在用的約定:小一點、淡一點。
-// 指數用 0.35 而不是線性 —— 線性會讓五份裂劍細成髮絲,反而看不見。
-// 命中範圍不跟著縮:分裂換到的就是覆蓋面,縮判定等於把設計本身抵消掉。
-function swMul(s){
-  const d=Math.max(0.02, s && s.dmgScale!=null ? s.dmgScale : 1);
-  if(d>=0.999) return {size:1, alpha:1};
-  return { size:Math.pow(d,0.35), alpha:0.55+0.45*Math.pow(d,0.4) };
-}
+// 分裂移除後每把劍威力都是全額,不再需要「裂劍畫小一點」。保留函式簽名免得四處改呼叫點。
+const SW_FULL={size:1, alpha:1};
+function swMul(s){ return SW_FULL; }
 function drawJian(ctx, s){
   // 飛出去的是同一把母版飛劍；劍寬只小幅影響尺寸，避免升級後變成巨型黑針。
   if(FLYSWORD.ok){
