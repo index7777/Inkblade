@@ -1075,7 +1075,7 @@ function warmSwordTint(){
 }
 // 敵人/Boss sprite 載入器:偵測到真透明 PNG 就用,否則回退程序化墨團(見敵人繪製)。
 // 檔名對應 docs/ch1-asset-library.md;放進對應資料夾即自動生效,無需改碼。
-const ENESPR = { inkling:{frames:[],ok:false}, blade:{frames:[],ok:false}, spider:{frames:[],attack:[],ok:false},
+const ENESPR = { inkling:{frames:[],ok:false}, blade:{frames:[],ok:false}, raven:{frames:[],ok:false}, fang:{frames:[],ok:false}, spider:{frames:[],attack:[],ok:false},
   boss:{frames:[],attack:[],dissolve:[],top:{idle:null,attack:[]},bottom:{idle:null,attack:[]},ok:false} };
 (function(){
   const srcs={
@@ -1086,6 +1086,8 @@ const ENESPR = { inkling:{frames:[],ok:false}, blade:{frames:[],ok:false}, spide
            'assets/enemies/ENE_BLADE_walk_05.png','assets/enemies/ENE_BLADE_walk_06.png',
            'assets/enemies/ENE_BLADE_walk_07.png','assets/enemies/ENE_BLADE_walk_08.png',
            'assets/enemies/ENE_BLADE_walk_09.png'],
+    raven:['assets/enemies/generated/ENE_INK_RAVEN.png'],
+    fang:['assets/enemies/generated/ENE_INK_FANG.png'],
     spider:['assets/enemies/elite/ENE_NETHER_SPIDER_walk_01.png','assets/enemies/elite/ENE_NETHER_SPIDER_walk_02.png',
             'assets/enemies/elite/ENE_NETHER_SPIDER_walk_03.png','assets/enemies/elite/ENE_NETHER_SPIDER_walk_04.png',
             'assets/enemies/elite/ENE_NETHER_SPIDER_walk_05.png','assets/enemies/elite/ENE_NETHER_SPIDER_walk_06.png',
@@ -1231,7 +1233,7 @@ function Player(){
 // 是否在畫面可視範圍內(自動瞄準 / 追蹤 / 角色朝向都只看得見的目標)
 function onScreen(en){ return en.x>=-en.r && en.x<=W+en.r && en.y>=-en.r && en.y<=H+en.r; }
 
-// 第 1～59 境敵群。共用現有兩套透明素材，但以體型、色調、速度與移動模式形成六種玩法。
+// 第 1～59 境敵群。六種既有敵人加上兩套獨立生成素材，共八種輪廓與玩法。
 // weight 可隨波次增加，避免後期仍大量抽到只會直走的入門怪。
 const ENEMY_KINDS=[
   {id:'wisp',    name:'游墨', unlock:1,  type:'inkling',tier:0,hp:13,r:14,sp:.88,dmg:6,xp:1,c:'#51433f',ai:'seek',visualScale:1.42,animRate:.075,
@@ -1242,8 +1244,12 @@ const ENEMY_KINDS=[
     weight:w=>12+Math.min(22,(w-10)*.58)},
   {id:'orbiter', name:'環煞', unlock:17, type:'inkling',tier:1,hp:27,r:17,sp:.96,dmg:10,xp:2,c:'#334842',ai:'orbit',visualScale:1.35,animRate:.085,
     weight:w=>11+Math.min(20,(w-17)*.62)},
+  {id:'raven',   name:'墨羽妖',unlock:22, type:'raven',   tier:1,hp:24,r:16,sp:1.02,dmg:11,xp:2,c:'#3f2828',ai:'swoop',visualScale:1,visualHeight:58,animRate:.08,
+    weight:w=>9+Math.min(20,(w-22)*.68)},
   {id:'charger', name:'破陣', unlock:27, type:'blade',   tier:1,hp:35,r:19,sp:.72,dmg:15,xp:3,c:'#533633',ai:'charge',visualScale:1.38,visualHeight:72,animRate:.07,
     weight:w=>9+Math.min(22,(w-27)*.72)},
+  {id:'fang',    name:'墨牙獸',unlock:34, type:'fang',    tier:2,hp:76,r:27,sp:.76,dmg:19,xp:4,c:'#40372a',ai:'pounce',visualScale:1,visualHeight:62,animRate:.06,
+    weight:w=>8+Math.min(22,(w-34)*.88)},
   {id:'reaver',  name:'劫墨', unlock:41, type:'blade',   tier:2,hp:105,r:29,sp:.68,dmg:20,xp:5,c:'#292f35',ai:'reaver',visualScale:1.48,visualHeight:72,animRate:.065,
     weight:w=>8+Math.min(28,(w-41)*1.35)}
 ];
@@ -1253,8 +1259,8 @@ function waveEnemyKind(w){
   const decade=(w%10===0), surge=(w%5===0);
   let total=0, weights=pool.map(k=>{
     let n=k.weight(w);
-    if(decade && (k.id==='bulwark'||k.id==='reaver')) n*=1.85;
-    if(surge && (k.id==='weaver'||k.id==='charger')) n*=1.55;
+    if(decade && (k.id==='bulwark'||k.id==='fang'||k.id==='reaver')) n*=1.85;
+    if(surge && (k.id==='weaver'||k.id==='raven'||k.id==='charger')) n*=1.55;
     total+=n; return n;
   });
   let roll=Math.random()*total;
@@ -2662,6 +2668,22 @@ function update(){
       const side=(en.orbitDir||1)*(d>150?.78:.98), inward=d>135?.7:.18;
       mx=dx/d*inward+(-dy/d)*side; my=dy/d*inward+(dx/d)*side;
       const ml=Math.hypot(mx,my)||1; mx/=ml; my/=ml;
+    } else if(en.ai==='swoop'){
+      // 墨羽妖先繞在玩家外圈，再鎖定當下方向俯衝；錯身後主動拉開重整。
+      const t=en.aiT%170;
+      if(t<84){
+        const inward=d>210?.72:d<165?-.38:.05, side=(en.orbitDir||1)*.92;
+        mx=dx/d*inward+(-dy/d)*side; my=dy/d*inward+(dx/d)*side;
+      } else if(t<104){
+        if(t===84){ en.chargeX=dx/d; en.chargeY=dy/d; }
+        mx=en.chargeX; my=en.chargeY; sp*=.18;
+      } else if(t<132){
+        mx=en.chargeX; my=en.chargeY; sp*=3.15;
+      } else {
+        mx=-dx/d*.74+(-dy/d)*(en.orbitDir||1)*.26;
+        my=-dy/d*.74+(dx/d)*(en.orbitDir||1)*.26;
+      }
+      const ml=Math.hypot(mx,my)||1; mx/=ml; my/=ml;
     } else if(en.ai==='charge'||en.ai==='reaver'){
       const cycle=en.ai==='reaver'?125:155, t=en.aiT%cycle;
       if(t===1){ en.chargeX=dx/d; en.chargeY=dy/d; }
@@ -2670,6 +2692,16 @@ function update(){
       else if(en.ai==='reaver'){
         mx=dx/d*.45+(-dy/d)*(en.orbitDir||1)*.72; my=dy/d*.45+(dx/d)*(en.orbitDir||1)*.72;
       }
+    } else if(en.ai==='pounce'){
+      // 墨牙獸貼地追獵，停步壓身後作短距離猛撲，不會一路高速黏住玩家。
+      const t=en.aiT%138;
+      if(t<38){ sp*=.82; }
+      else if(t<56){
+        if(t===38){ en.chargeX=dx/d; en.chargeY=dy/d; }
+        mx=en.chargeX; my=en.chargeY; sp*=.12;
+      } else if(t<76){
+        mx=en.chargeX; my=en.chargeY; sp*=3.35;
+      } else if(t<98){ sp*=.34; }
     } else if(en.ai==='spider'){
       const t=en.aiT%180;
       if(t<54){
@@ -2686,7 +2718,7 @@ function update(){
       const ml=Math.hypot(mx,my)||1; mx/=ml; my/=ml;
     }
     // 素材原生朝左：向右移動時才鏡像。接近垂直則沿用上一方向，避免左右抖動。
-    if(en.type==='blade'||en.type==='spider'){
+    if(en.type==='blade'||en.type==='spider'||en.type==='raven'||en.type==='fang'){
       if(Math.abs(mx)>.045) en.facing=mx>=0?-1:1;
       else if(en.facing==null) en.facing=dx>=0?-1:1;
       en.moveDir=Math.atan2(my,mx);
@@ -3906,11 +3938,12 @@ function draw(){
         ctx.translate(en.x,en.y);
         if(en.bossSide===3) ctx.scale(-1,1);
         ctx.translate(-en.x,-en.y-en.r*(scale-1)*.18);
-      } else if(en.type==='blade'||en.type==='spider'){
+      } else if(en.type==='blade'||en.type==='spider'||en.type==='raven'||en.type==='fang'){
         // 僅鏡像敵人立繪；後面另畫的狀態環、血條與特效維持原方向。
         ctx.translate(en.x,0);
         ctx.scale(en.facing||1,1);
         ctx.translate(-en.x,0);
+        if(en.type==='raven') ctx.translate(0,Math.sin(en.aiT*.14+en.aiSeed)*2.2);
       } else if(en.species==='weaver'||en.species==='orbiter'){
         // 同一墨靈素材用輪廓比例區分：織影扁長、環煞略厚；碰撞尺寸不變。
         const sx=en.species==='weaver'?1.10:1.04,sy=en.species==='weaver'?.88:1.04;
