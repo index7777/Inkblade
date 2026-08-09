@@ -1885,26 +1885,27 @@ function inkTrail(ctx, tr, size, rgb, dryWhite){
 // 黑墨、飛白回程都共用這個幾何，只改著色與透明度，因此兩者都不會再變成實心三角。
 function swordFxTrail(ctx,tr,size,rgb){
   const n=tr.length;if(n<2){return;}
-  const a=tr[0],b=tr[n-1],dx=b.x-a.x,dy=b.y-a.y,L=Math.hypot(dx,dy)||1;
+  const b=tr[n-1],pale=rgb==='196,186,168';
   if(TRAILFX.ok){
-    const pale=rgb==='196,186,168';
     const col=pale?'rgba(238,232,217,1)':'rgba('+rgb+',1)';
-    const im=tintFrame(TRAILFX.image,col),w=Math.max(18,L*1.08),h=Math.max(size*3.1,w*.19);
-    ctx.save();ctx.translate(b.x,b.y);ctx.rotate(Math.atan2(dy,dx));
-    ctx.globalAlpha*=pale?.42:.34;
-    ctx.drawImage(im,-w,-h*.5,w,h);
-    ctx.restore();
-  }
-  // 兩道不連續的乾筆芯線補足水墨質感；刻意留空，不封閉、不填面。
-  ctx.save();ctx.strokeStyle='rgba('+rgb+',.38)';ctx.lineCap='round';
-  for(let lane=-1;lane<=1;lane+=2){
-    ctx.lineWidth=Math.max(.55,size*(lane<0?.18:.11));ctx.beginPath();
-    for(let i=1;i<n;i++){
-      if((i+lane+3)%4===0)continue;
-      const p=tr[i],q=tr[i-1],nx=-(p.y-q.y),ny=p.x-q.x,d=Math.hypot(nx,ny)||1,off=lane*size*.28;
-      ctx.moveTo(q.x+nx/d*off,q.y+ny/d*off);ctx.lineTo(p.x+nx/d*off,p.y+ny/d*off);
+    const im=tintFrame(TRAILFX.image,col);
+    // 保留 FX 原始比例，只作兩枚短筆觸；禁止沿整條尾巴拉伸成雙叉。
+    for(const t of [.42,.68]){
+      const i=Math.max(1,Math.min(n-1,Math.round((n-1)*t))),p=tr[i],q=tr[i-1];
+      const w=Math.max(8,size*(pale?2.8:3.3)),h=w/TRAILFX.aspect;
+      ctx.save();ctx.translate(p.x,p.y);ctx.rotate(Math.atan2(p.y-q.y,p.x-q.x));
+      ctx.globalAlpha*=pale?.16:.12;ctx.drawImage(im,-w,-h*.5,w,h);ctx.restore();
     }
-    ctx.stroke();
+  }
+  // 單一斷續乾筆主線：逐段收粗細，不畫長距離平行副線。
+  ctx.save();ctx.lineCap='round';
+  for(let i=1;i<n;i++){
+    if(i%4===1&&i<n-1)continue;
+    const p=tr[i],q=tr[i-1],t=i/(n-1),nx=-(p.y-q.y),ny=p.x-q.x,d=Math.hypot(nx,ny)||1;
+    const j=Math.sin(i*17.17)*size*.08;
+    ctx.strokeStyle='rgba('+rgb+','+((pale?.11:.16)+t*(pale?.16:.22))+')';
+    ctx.lineWidth=Math.max(.55,size*(.10+t*.22));ctx.beginPath();
+    ctx.moveTo(q.x+nx/d*j,q.y+ny/d*j);ctx.lineTo(p.x+nx/d*j,p.y+ny/d*j);ctx.stroke();
   }
   ctx.restore();
 }
@@ -3316,7 +3317,8 @@ function drawJian(ctx, s){
     const speed=Math.hypot(s.vx||0,s.vy||0);
     const M=swMul(s);
     const w=(44+stat.size*.9+Math.min(5,speed*.22))*(s.echo?.88:1)*M.size;
-    const h=w/FLYSWORD.aspect;
+    // 加寬只作用於立繪，不改飛劍碰撞半徑。
+    const h=w/FLYSWORD.aspect*2.2;
     ctx.save(); ctx.translate(s.x,s.y); ctx.rotate(s.ang);
     ctx.globalAlpha=(s.echo?.72:.94)*M.alpha;
     ctx.drawImage(FLYSWORD.image,-w*FLYSWORD.grip,-h/2,w,h);
