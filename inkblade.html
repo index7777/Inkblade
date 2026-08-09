@@ -140,12 +140,18 @@
   .inkbtn .vt b { display:block; font-weight:600; font-size:clamp(13px,2.6cqw,26px); color:#241f1a;
     font-family:"Noto Serif TC","STKaiti","KaiTi",serif; letter-spacing:0; }
   .inkbtn:active { transform:scale(.95); }
-  /* 御劍啟用:不上黃、不加虛線 —— 直接讓原本那個手繪墨圈外框自己緩緩旋轉。
-     圈是不規則的,轉起來就像一道墨線繞著劍令走。 */
+  /* 御劍啟用:墨圈持續運行,整顆按鈕緩慢收放呼吸；朱紅只落在文字明暗,
+     不加光圈或外掛線條,讓狀態明顯但不變成警示燈。 */
+  #autobtn.on { animation:autoBreath 1.8s ease-in-out infinite; will-change:transform; }
   #autobtn.on::before { animation:inkorbit 7s linear infinite; }
-  #autobtn.on .vt b { color:#1c1712; }
+  #autobtn.on .vt b { animation:autoInkBreath 1.8s ease-in-out infinite; }
   @keyframes inkorbit { to { transform:rotate(360deg); } }
-  @media (prefers-reduced-motion: reduce){ #autobtn.on::before { animation:none; } }
+  @keyframes autoBreath { 0%,100%{transform:scale(.97)} 50%{transform:scale(1.055)} }
+  @keyframes autoInkBreath { 0%,100%{color:#34251f} 50%{color:#8b3028} }
+  @media (prefers-reduced-motion: reduce){
+    #autobtn.on,#autobtn.on::before,#autobtn.on .vt b { animation:none; }
+    #autobtn.on .vt b { color:#8b3028; }
+  }
   #pausebtn .pause-label { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); }
   .ctl:hover { color:#7a2b2b; }
   /* 毛筆刷痕:兩端收鋒、腰身略粗,軌道與填色共用同一個遮罩 */
@@ -649,6 +655,7 @@
         <div class="segrow" id="herochoices" role="radiogroup" aria-label="角色墨形">
           <div class="seg" data-hero="m" role="radio" aria-checked="false">劍 客</div>
           <div class="seg" data-hero="f" role="radio" aria-checked="false">女 修</div>
+          <div class="seg" data-hero="x" role="radio" aria-checked="false">玄 衣</div>
         </div>
         <div class="sethead" style="margin-top:14px;">震 動</div>
         <div class="segrow" id="shakerow">
@@ -1042,6 +1049,15 @@ const HEROF={ idle:[], ok:false, proc:false, aspect:0.9944, foot:0.9833, n:0, ne
     im.src='assets/hero-f/HEROF_idle_'+String(i).padStart(2,'0')+'.png';
     HEROF.idle.push(im); }
 })();
+// 玄衣女修:先前完成的彩墨全身母版。單幀以同一套呼吸、轉身、受擊染色與死亡淡出接入戰鬥，
+// 不再只留在 references 裡當未使用概念圖；後續可在此陣列繼續補專屬動作幀。
+const HEROX={ idle:[], hurt:[], cast:[], death:[], ok:false, aspect:.586, foot:.982 };
+(function loadHeroX(){
+  const im=new Image();
+  im.onload=()=>{ HEROX.aspect=im.naturalWidth/im.naturalHeight; HEROX.ok=true; };
+  im.onerror=()=>{ HEROX.ok=false; };
+  im.src='assets/references/female-cultivator-master-v2.png'; HEROX.idle.push(im);
+})();
 // 飛劍使用單一水墨母版；所有方向只旋轉同一輪廓，避免多組 sprite 像不同武器。
 const FLYSWORD={ image:new Image(), ok:false, aspect:5.2, grip:0.2013 };
 FLYSWORD.image.onload=()=>{ FLYSWORD.aspect=FLYSWORD.image.naturalWidth/FLYSWORD.image.naturalHeight; FLYSWORD.ok=true; };
@@ -1184,7 +1200,7 @@ function loadMeta(){
   try{ const s=localStorage.getItem('inkjian_meta'); if(s){ meta=Object.assign(meta,JSON.parse(s)); } }catch(e){}
   meta.up=meta.up||{}; meta.unlock=meta.unlock||{}; meta.best=meta.best||{kills:0,wave:1,level:1};
   meta.gems=meta.gems||0; meta.offCap=meta.offCap||8; meta.skin=meta.skin||'none';
-  meta.mute=!!meta.mute; meta.heroSkin = (meta.heroSkin==='m')?'m':'f';   // 預設女修
+  meta.mute=!!meta.mute; meta.heroSkin = ['m','f','x'].includes(meta.heroSkin)?meta.heroSkin:'f';   // 預設女修
   if(!['n','s','m','l'].includes(meta.shake)) meta.shake='m';            // 震動強度,預設中
   if(!['low','med','high'].includes(meta.quality)) meta.quality='high'; // 畫質,預設高
   if(![30,60,120,0].includes(meta.fps)) meta.fps=60;                    // 幀數上限,0=不限
@@ -1560,6 +1576,22 @@ function bladeLength(){ return 44 + stat.size*0.9; }
 // 10px 的縫會被劍身邊緣與拖尾吃掉，六劍會讀成一根黑桿。
 function inlineGap(){ return bladeLength() + 28; }
 // 陣型:相對於「移動中的中心點」的偏移(along=沿行進方向,side=法線方向)
+// 散鋒的半錐角(約 30°,整錐 60°)
+const FAN_PHI=0.52;
+// 散鋒:把劍令當下的位置繞「出鞘點」旋轉 a 弧度 —— 每把劍因此走的是
+// 同一道筆跡的旋轉副本,軌跡各自獨立(該彎的地方各自彎),不是綁在一根桿子上。
+function fanPose(c, a){
+  const dx=c.x-c.ox, dy=c.y-c.oy, ca=Math.cos(a), sa=Math.sin(a);
+  let x=c.ox + dx*ca - dy*sa, y=c.oy + dx*sa + dy*ca;
+  // 繞固定原點旋轉 → 側向偏移隨「離出鞘點的距離」線性長大。
+  // 長劍令(1800 寸)實測外側劍會甩到離中心 925px,有一半時間在畫面外,
+  // 等於你付了長度卻只有中間那把在打。所以把「離劍令中心的距離」設上限,
+  // 超過之後方向保留、距離不再拉開(錐張到最大就轉成平行推進)。
+  const CAP=Math.min(300, W*0.28);
+  const ox=x-c.x, oy=y-c.y, m=Math.hypot(ox,oy);
+  if(m>CAP){ const k=CAP/m; x=c.x+ox*k; y=c.y+oy*k; }
+  return { x, y, ang:c.ang + a };
+}
 function formationOffset(formation, i, n, spacing, spread){
   if(n<=1) return {along:0, side:0};
   const mid=(n-1)/2, t=(i-mid)/Math.max(1,mid);
@@ -1570,14 +1602,10 @@ function formationOffset(formation, i, n, spacing, spread){
   // 原本是「以中心對稱」,結果前半列在出鞘瞬間就站在玩家前方一兩百 px,
   // 那段近距離永遠沒有劍經過,近身的墨獸就少挨好幾刀(#68 的近身空區)。
   if(formation==='inline')   return {along:-i*inlineGap(), side:0};
-  // 散鋒:真正的錐面。
-  // 前兩版都只是「側向偏移」—— 所有劍的朝向仍是 c.ang,劍一多就變成一道越來越寬的牆,
-  // 跟齊鋒還是很像。真的錐要用**極座標**:每把劍從出鞘點沿自己的角度射出去,
-  // 側向距離隨飛行距離線性成長,而且**劍身朝向也跟著轉**,外側劍自然落後成弧。
-  const PHI=0.52;                                   // 半錐角(約 30°,整錐 60°)
-  const L=spacing*1.4 + Math.min(spread||0, Math.min(320, W*0.30));   // 張開距離(上限避免錐寬到失控)
-  const a=t*PHI;
-  return { along:L*Math.cos(a)-L, side:L*Math.sin(a), ang:a };
+  // 散鋒:不走偏移,改由排位處把「整條劍令繞出鞘點旋轉」——
+  // 偏移法不管算得多準,劍都是同一個剛體上的幾根刺,看起來像被綁在一起。
+  // 這裡只回報這把劍該轉幾度,實際位置由 fanPose() 算(見排位迴圈)。
+  return { along:0, side:0, ang:t*FAN_PHI, fan:true };
 }
 // 線段 (ax,ay)-(bx,by) 到點 (px,py) 的最短距離。掃掠命中判定用。
 function segCircleDist(ax, ay, bx, by, px, py){
@@ -1633,9 +1661,11 @@ function spawnCmdSword(c, slot, delay){
   // 出鞘就直接站到陣型位置。原本一律生在 c.x/c.y(筆尖),
   // 第一次被排位時整把劍瞬移一兩百 px 過去,那段距離沒有任何命中判定。
   const _o=formationOffset(c.formation, slot, c.slots, c.spacing, c.age*(stat.flySpeed||stat.speed||14));
-  const _ca=Math.cos(c.ang), _sa=Math.sin(c.ang);
-  const _x=c.x + _ca*_o.along - _sa*_o.side;
-  const _y=c.y + _sa*_o.along + _ca*_o.side;
+  let _x, _y;
+  if(_o.fan && c.ox!=null){ const q=fanPose(c,_o.ang); _x=q.x; _y=q.y; }
+  else { const _ca=Math.cos(c.ang), _sa=Math.sin(c.ang);
+         _x=c.x + _ca*_o.along - _sa*_o.side;
+         _y=c.y + _sa*_o.along + _ca*_o.side; }
   const sw={ cmd:c, slot:slot, x:_x, y:_y, px:_x, py:_y, ang:c.ang+(_o.ang||0), vx:0, vy:0,
              trail:[], age:0,
              // 聚形要看起來是一把劍,連貼圖動畫幀都得對齊,所以整道劍令共用一個 seed
@@ -1674,7 +1704,7 @@ function spawnAutoCommand(x0,y0,x1,y1,opts){
   if(G.commands.length>=28) return null;
   opts=opts||{};
   const _len=Math.hypot(x1-x0,y1-y0);
-  const c={ id:++cmdSeq, pts:[{x:x0,y:y0},{x:x1,y:y1}], len:_len, life:cmdLife(_len),
+  const c={ id:++cmdSeq, pts:[{x:x0,y:y0},{x:x1,y:y1}], len:_len, life:cmdLife(_len), ox:x0, oy:y0,
     seg:1, step:1, x:x0, y:y0, ang:Math.atan2(y1-y0,x1-x0),
     formation:'single', spacing:0, swords:[null], slots:1,
     returnsLeft:opts.returns||0, alive:true, age:0,
@@ -1767,6 +1797,7 @@ function launchCommand(path){
   const n=Math.max(1, stat.count|0);
   const c={
     id:++cmdSeq, pts:cut, len:len,
+    ox:cut[0].x, oy:cut[0].y,                       // 出鞘點:散鋒的旋轉中心
     life: cmdLife(len),                             // 這道劍令買到的「命」(每把劍能斬幾隻)
     seg:1, step:1,                                  // step 1=順走,-1=倒走(歸鋒)
     x:cut[0].x, y:cut[0].y,
@@ -2805,6 +2836,14 @@ function update(){
       if(!sw) sw=spawnCmdSword(c,k,0);
       if(sw.delay>0){ sw.delay--; sw.trail.length=0; continue; }
       const off=formationOffset(c.formation, k, c.slots, c.spacing, c.age*(stat.flySpeed||stat.speed||14));
+      if(off.fan && c.ox!=null && !sw.birth){
+        const q=fanPose(c, off.ang);
+        if(sw.snap){ sw.px=q.x; sw.py=q.y; sw.snap=false; } else { sw.px=sw.x; sw.py=sw.y; }
+        sw.vx=q.x-sw.x; sw.vy=q.y-sw.y;
+        sw.x=q.x; sw.y=q.y; sw.ang=q.ang; sw.age++;
+        sw.trail.push({x:sw.x,y:sw.y}); if(sw.trail.length>18) sw.trail.shift();
+        continue;
+      }
       let oa=off.along, os=off.side;
       // 分裂出生動畫:從母劍的局部位置平滑張開到自己的陣位。
       // 用局部座標插值(而不是世界座標),子劍才會跟著劍令中心一起前進,不會被留在原地。
@@ -3229,7 +3268,11 @@ function bakeHero(h){
   };
   heroCv=mk(null); heroHurtCv=mk('rgba(176,56,40,0.85)');
 }
-function heroSet(){ return (meta.heroSkin==='f' && HEROF.ok) ? HEROF : HEROSPR; }
+function heroSet(){
+  if(meta.heroSkin==='x'&&HEROX.ok) return HEROX;
+  if(meta.heroSkin==='f'&&HEROF.ok) return HEROF;
+  return HEROSPR;
+}
 function drawHero(P){
   const S=heroSet();
   if(S===HEROF && HEROF.proc){ drawHeroF(P); return; }   // 女修:單張身體 + 全程序化演出
@@ -5066,7 +5109,7 @@ function renderHeroChoices(){
   });
 }
 function setHeroSkin(skin){
-  if(skin!=='m'&&skin!=='f') return;
+  if(!['m','f','x'].includes(skin)) return;
   meta.heroSkin=skin;
   saveMeta(); SND.ui(); renderHeroChoices();
 }
