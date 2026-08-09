@@ -1062,7 +1062,7 @@ function warmSwordTint(){
 }
 // 敵人/Boss sprite 載入器:偵測到真透明 PNG 就用,否則回退程序化墨團(見敵人繪製)。
 // 檔名對應 docs/ch1-asset-library.md;放進對應資料夾即自動生效,無需改碼。
-const ENESPR = { inkling:{frames:[],ok:false}, blade:{frames:[],ok:false}, spider:{frames:[],ok:false},
+const ENESPR = { inkling:{frames:[],ok:false}, blade:{frames:[],ok:false}, spider:{frames:[],attack:[],ok:false},
   boss:{frames:[],attack:[],dissolve:[],top:{idle:null,attack:[]},bottom:{idle:null,attack:[]},ok:false} };
 (function(){
   const srcs={
@@ -1073,7 +1073,10 @@ const ENESPR = { inkling:{frames:[],ok:false}, blade:{frames:[],ok:false}, spide
            'assets/enemies/ENE_BLADE_walk_05.png','assets/enemies/ENE_BLADE_walk_06.png',
            'assets/enemies/ENE_BLADE_walk_07.png','assets/enemies/ENE_BLADE_walk_08.png',
            'assets/enemies/ENE_BLADE_walk_09.png'],
-    spider:['assets/enemies/elite/ENE_NETHER_SPIDER_idle_01.png'],
+    spider:['assets/enemies/elite/ENE_NETHER_SPIDER_walk_01.png','assets/enemies/elite/ENE_NETHER_SPIDER_walk_02.png',
+            'assets/enemies/elite/ENE_NETHER_SPIDER_walk_03.png','assets/enemies/elite/ENE_NETHER_SPIDER_walk_04.png',
+            'assets/enemies/elite/ENE_NETHER_SPIDER_walk_05.png','assets/enemies/elite/ENE_NETHER_SPIDER_walk_06.png',
+            'assets/enemies/elite/ENE_NETHER_SPIDER_walk_07.png','assets/enemies/elite/ENE_NETHER_SPIDER_walk_08.png'],
     // 第一章正式 Boss 母版：玄冥墨蛟。戰鬥動作與攻擊節奏見
     // docs/ch1-boss-xuanming-master.md；缺圖時仍回退程序化墨團。
     boss:['assets/boss/BOSS_XUANMING_idle_01.png']
@@ -1088,6 +1091,10 @@ const ENESPR = { inkling:{frames:[],ok:false}, blade:{frames:[],ok:false}, spide
     img.src='assets/boss/BOSS_XUANMING_lunge_'+String(i).padStart(2,'0')+'.png';
     const dis=new Image(); dis.onload=()=>{ ENESPR.boss.dissolve[i-1]=dis; };
     dis.src='assets/boss/BOSS_XUANMING_dissolve_'+String(i).padStart(2,'0')+'.png';
+  }
+  for(let i=1;i<=6;i++){ const img=new Image();
+    img.onload=()=>{ ENESPR.spider.attack[i-1]=img; };
+    img.src='assets/enemies/elite/ENE_NETHER_SPIDER_attack_'+String(i).padStart(2,'0')+'.png';
   }
   for(const dir of ['top','bottom']){
     const bounds=dir==='top'
@@ -1440,13 +1447,27 @@ function spawnBossRing(en){
       r:10,hp:1,max:1,dmg:9,age:0,seed:Math.random()*100});
   }
 }
+function spawnSpiderWebShot(en){
+  const P=G.player, dir=en.facing||1;
+  const ox=en.x+dir*en.r*.62,oy=en.y-en.r*.18;
+  const dx=P.x-ox,dy=P.y-oy,L=Math.hypot(dx,dy)||1,spd=2.05;
+  G.bossShots.push({x:ox,y:oy,px:ox,py:oy,vx:dx/L*spd,vy:dy/L*spd,
+    r:13,hp:1,max:1,dmg:0,web:true,age:0,seed:Math.random()*100});
+}
 function updateBossShots(){
   const P=G.player;
   for(let i=G.bossShots.length-1;i>=0;i--){
     const q=G.bossShots[i]; q.age++; q.px=q.x; q.py=q.y; q.x+=q.vx; q.y+=q.vy;
     if(Math.hypot(q.x-P.x,q.y-P.y)<q.r+P.r){
-      if(!G.hpLocked) P.hp=Math.max(0,P.hp-(q.dmg||18)); else P.hp=P.max;
-      P.pulse=1; G.hurtT=20; SND.hurt(); shake(8); flash(.18,'176,64,48');
+      if(q.web){
+        G.webT=Math.max(G.webT,105);
+        floatText(P.x,P.y-P.r-24,'蛛網封脈','#397b62');
+        for(let n=0;n<8;n++){ const a=n*.785; ink(P.x+Math.cos(a)*54,P.y+Math.sin(a)*54,0,0,4); }
+        SND.hit(); shake(4); flash(.1,'190,225,205');
+      } else {
+        if(!G.hpLocked) P.hp=Math.max(0,P.hp-(q.dmg||18)); else P.hp=P.max;
+        P.pulse=1; G.hurtT=20; SND.hurt(); shake(8); flash(.18,'176,64,48');
+      }
       inkCoreDissolve(q,Math.atan2(q.vy,q.vx)); G.bossShots.splice(i,1); updateHUD();
       if(P.hp<=0){ beginDeath(); return; }
     } else if(q.age>360) G.bossShots.splice(i,1);
@@ -1547,6 +1568,8 @@ function cmdLife(len){
 // 分裂數(stats.pierce):折返掉頭時,一把劍會裂成這麼多把。
 // 傷害與耐久都按份數平分 —— 總量不變,換的是同時覆蓋的面。
 function splitPieces(){ return Math.max(1, 1 + (stat.pierce|0)); }
+// 分裂張開的影格數。太快看起來像瞬間變多把,太慢會拖到回程的節奏。
+const SPLIT_FRAMES=14;
 function durCost(dmg){
   const base=Math.max(1, stat.damage||1);
   // 分母是「當下的基礎劍傷」,所以升傷害不會讓劍耗損更快(分子分母一起變大)。
@@ -2525,16 +2548,15 @@ function update(){
       }
     } else if(en.ai==='spider'){
       const t=en.aiT%180;
-      if(t===1){
-        G.webT=Math.max(G.webT,105);
-        floatText(P.x,P.y-P.r-24,'蛛網封脈','#397b62');
-        for(let n=0;n<8;n++){ const a=n*.785; ink(P.x+Math.cos(a)*54,P.y+Math.sin(a)*54,0,0,4); }
-      }
-      if(t<72){
+      if(t<54){
+        // 壓低蓄勢 → 張顎吐絲；絲球實際生成後才可能對玩家施加封脈。
+        sp*=.08; mx=dx/d; my=dy/d;
+        if(t===38) spawnSpiderWebShot(en);
+      } else if(t<126){
         const inward=d>185?.58:d<145?-.35:.08, side=(en.orbitDir||1)*.92;
         mx=dx/d*inward+(-dy/d)*side; my=dy/d*inward+(dx/d)*side;
-      } else if(t<98){
-        if(t===72){ en.chargeX=dx/d; en.chargeY=dy/d; }
+      } else if(t<152){
+        if(t===126){ en.chargeX=dx/d; en.chargeY=dy/d; }
         mx=en.chargeX; my=en.chargeY; sp*=2.8;
       } else { mx=-dx/d*.32+(-dy/d)*(en.orbitDir||1)*.55; my=-dy/d*.32+(dx/d)*(en.orbitDir||1)*.55; }
       const ml=Math.hypot(mx,my)||1; mx/=ml; my/=ml;
@@ -2619,8 +2641,17 @@ function update(){
       if(!sw) sw=spawnCmdSword(c,k,0);
       if(sw.delay>0){ sw.delay--; sw.trail.length=0; continue; }
       const off=formationOffset(c.formation, k, c.slots, c.spacing);
-      const nx=c.x + ca*off.along - sa*off.side;
-      const ny=c.y + sa*off.along + ca*off.side;
+      let oa=off.along, os=off.side;
+      // 分裂出生動畫:從母劍的局部位置平滑張開到自己的陣位。
+      // 用局部座標插值(而不是世界座標),子劍才會跟著劍令中心一起前進,不會被留在原地。
+      if(sw.birth>0 && sw.b0){
+        const t=1-(sw.birth/SPLIT_FRAMES), e=t*t*(3-2*t);
+        oa=sw.b0.along+(oa-sw.b0.along)*e;
+        os=sw.b0.side +(os-sw.b0.side )*e;
+        if(--sw.birth<=0) sw.b0=null;
+      }
+      const nx=c.x + ca*oa - sa*os;
+      const ny=c.y + sa*oa + ca*os;
       // 掃掠命中要知道這一幀是從哪走到哪。折返那一幀整列會前後對調(等於瞬移),
       // 那一幀用 snap 標記跳過掃掠,否則會斬到整條路徑上本來碰不到的墨獸。
       if(sw.snap){ sw.px=nx; sw.py=ny; sw.snap=false; }
@@ -2659,19 +2690,31 @@ function update(){
       alive.push(sw);
     }
     const CAP=24, pieces=splitPieces();
-    if(pieces>1) for(const sw of alive){
-      if(c.slots>=CAP) break;
-      if(sw.pierceLeft<=0.4) continue;                // 太少就不分,免得裂出一堆一碰即死的劍
-      const n=Math.min(pieces, 1+(CAP-c.slots));      // 受總量上限約束
-      const eachDur=sw.pierceLeft/n, eachDmg=(sw.dmgScale||1)/n;
-      sw.pierceLeft=eachDur; sw.dmgScale=eachDmg;     // 本體也算其中一份
-      for(let k=1;k<n;k++){
-        const slot=c.slots++;
-        c.swords[slot]=null;
-        const nw=spawnCmdSword(c, slot, 0);
-        nw.pierceLeft=eachDur; nw.dmgScale=eachDmg;
-        nw.returned=true; nw.snap=true; nw.passId=sw.passId;
-        splash(nw.x, nw.y, '#2b2620', 0.7);
+    if(pieces>1 && alive.length){
+      // 分裂後一律改成扇形排開 —— 母劍那一刻是「分開」,列隊或重疊都讀不出分裂。
+      c.formation='fan';
+      const ca0=Math.cos(c.ang), sa0=Math.sin(c.ang);
+      for(const sw of alive){
+        if(c.slots>=CAP) break;
+        if(sw.pierceLeft<=0.4) continue;              // 太少就不分,免得裂出一堆一碰即死的劍
+        const n=Math.min(pieces, 1+(CAP-c.slots));    // 受總量上限約束
+        const eachDur=sw.pierceLeft/n, eachDmg=(sw.dmgScale||1)/n;
+        // 母劍當下相對中心的局部座標 —— 子劍從這裡「長出來」,再張開到自己的陣位。
+        const dx=sw.x-c.x, dy=sw.y-c.y;
+        const b0={ along:dx*ca0+dy*sa0, side:-dx*sa0+dy*ca0 };
+        sw.pierceLeft=eachDur; sw.dmgScale=eachDmg;   // 本體也算其中一份
+        sw.birth=SPLIT_FRAMES; sw.b0=b0;              // 母劍也要動畫過去,否則它會瞬移到新陣位
+        for(let k=1;k<n;k++){
+          const slot=c.slots++;
+          c.swords[slot]=null;
+          const nw=spawnCmdSword(c, slot, 0);
+          nw.pierceLeft=eachDur; nw.dmgScale=eachDmg;
+          nw.returned=true; nw.snap=true; nw.passId=sw.passId;
+          nw.birth=SPLIT_FRAMES; nw.b0=b0;            // 從母劍身上出生
+          nw.x=sw.x; nw.y=sw.y; nw.px=sw.x; nw.py=sw.y;
+        }
+        splash(sw.x, sw.y, '#2b2620', 0.9);           // 分裂點潑一團墨,交代「這裡裂開了」
+        for(let q=0;q<6;q++) ink(sw.x,sw.y,(Math.random()-.5)*3.2,(Math.random()-.5)*3.2,6+Math.random()*8);
       }
     }
     if(stat.returnDry) whiteCut(c.x,c.y,c.ang);
@@ -3468,6 +3511,15 @@ function buildBlots(){
 function drawBossShots(){
   for(const q of G.bossShots){
     ctx.save(); ctx.translate(q.x,q.y); ctx.rotate(G.t*.025+q.seed);
+    if(q.web){
+      const pulse=1+Math.sin(G.t*.18+q.seed)*.08;
+      ctx.scale(pulse,pulse);
+      ctx.fillStyle='rgba(232,238,220,.9)';ctx.strokeStyle='rgba(48,74,61,.78)';ctx.lineWidth=1.5;
+      ctx.beginPath();ctx.arc(0,0,q.r*.72,0,6.283);ctx.fill();ctx.stroke();
+      ctx.strokeStyle='rgba(72,102,84,.7)';ctx.lineWidth=1;
+      for(let k=0;k<4;k++){const a=k*1.571;ctx.beginPath();ctx.arc(0,0,q.r*(.38+k*.12),a,a+2.35);ctx.stroke();}
+      ctx.restore();continue;
+    }
     const tail=Math.min(42,8+q.age*.6),v=Math.hypot(q.vx,q.vy)||1,ux=q.vx/v,uy=q.vy/v;
     ctx.rotate(-(G.t*.025+q.seed));
     const grd=ctx.createLinearGradient(-ux*tail,-uy*tail,0,0);
@@ -3582,7 +3634,9 @@ function draw(){
         ? atkSrc.filter(Boolean) : null;
       const bossDis=en.isBoss&&(en.bossSide===1||en.bossSide===3)&&en.bossState==='dissolve'&&grp.dissolve&&grp.dissolve.filter(Boolean).length===6
         ? grp.dissolve.filter(Boolean) : null;
-      const fr=bossAtk||bossDis||(bossIdle?[bossIdle]:grp.frames.filter(Boolean)), n=fr.length,
+      const spiderAtk=en.type==='spider'&&(en.aiT%180)<54&&grp.attack&&grp.attack.filter(Boolean).length===6
+        ? grp.attack.filter(Boolean) : null;
+      const fr=bossAtk||bossDis||spiderAtk||(bossIdle?[bossIdle]:grp.frames.filter(Boolean)), n=fr.length,
             scale=en.visualScale||1,
             hh=en.isBoss&&(en.bossSide===1||en.bossSide===3)
               ?Math.min(en.r*2.1*scale,W*.25):en.r*2.1*scale,
@@ -3621,6 +3675,8 @@ function draw(){
         // 首八幀與待機母版交叉淡入，避免最後一張攻擊姿態瞬間跳成消散姿態。
         if(en.bossT<8&&bossIdle) put(bossIdle,base*(1-en.bossT/8));
         put(fr[fi],base*Math.min(1,en.bossT/8));
+      } else if(spiderAtk){
+        put(fr[Math.max(0,Math.min(5,Math.floor((en.aiT%180)/9)))],base);
       } else if(n<=1){ put(fr[0], base); }
       else {
         // move / walk 檔是真正的連續動作幀。舊版墨靈同時交叉畫兩張會重影、
