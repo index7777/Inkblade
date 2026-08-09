@@ -75,8 +75,8 @@
    * status:命中附加狀態;unlock:當局解鎖;truth:啟用互斥真意。
    */
   const OP_SCHEMA = Object.freeze({
-    add: ['stats.hpMax', 'stats.costMultiplier', 'mechanics.hitPadding', 'mechanics.manaRefund', 'mechanics.splashChain', 'stats.damage', 'stats.swordWidth', 'stats.swordSpeed', 'stats.pierce', 'stats.critChance', 'stats.critMultiplier', 'stats.manaMax', 'stats.manaRegen', 'stats.manaOnKill', 'stats.swordCap', 'stats.swordCount', 'stats.manaCostBase', 'stats.manaCostPerPixel', 'mechanics.returnHits', 'mechanics.splashRadius', 'mechanics.homingStrength'],
-    mul: ['stats.costMultiplier', 'stats.damage', 'stats.swordWidth', 'stats.swordSpeed', 'stats.critMultiplier', 'stats.manaCostBase', 'stats.manaCostPerPixel', 'mechanics.splashDamage', 'mechanics.statusDuration', 'mechanics.trailOpacity'],
+    add: ['stats.hpMax', 'stats.swordArmor', 'stats.costMultiplier', 'mechanics.hitPadding', 'mechanics.manaRefund', 'mechanics.splashChain', 'stats.damage', 'stats.swordWidth', 'stats.swordSpeed', 'stats.pierce', 'stats.critChance', 'stats.critMultiplier', 'stats.manaMax', 'stats.manaRegen', 'stats.manaOnKill', 'stats.swordCap', 'stats.swordCount', 'stats.manaCostBase', 'stats.manaCostPerPixel', 'mechanics.returnHits', 'mechanics.splashRadius', 'mechanics.homingStrength'],
+    mul: ['stats.costMultiplier', 'stats.swordArmor', 'stats.damage', 'stats.swordWidth', 'stats.swordSpeed', 'stats.critMultiplier', 'stats.manaCostBase', 'stats.manaCostPerPixel', 'mechanics.splashDamage', 'mechanics.statusDuration', 'mechanics.trailOpacity'],
     set: ['formation', 'stats.swordCount', 'mechanics.homingCanCrit', 'mechanics.returnEnabled'],
     max: ['stats.mana', 'stats.manaMax', 'stats.swordCap'],
     flag: ['flags.firstStrikeCrit', 'flags.returnLeavesDryBrush', 'flags.splashOnKill', 'flags.listenToInk', 'flags.whiteCutOnCrit',
@@ -120,7 +120,11 @@
   // 道行成長:每提升一重,神識與劍意上限的額外加成。
   // 存在的理由 —— 敵人的總血量到第 40 境是第 10 境的 8.4 倍,但玩家被咬一口的傷害是固定值,
   // 容錯永遠停在「漏 10 隻就死」。不隨道行成長的話後期容錯率會掉到 12%。
-  const GROWTH = Object.freeze({ hpPerLevel: 6, manaPerLevel: 5 });
+  // 道行每重的成長。護甲(swordArmor)降低每次命中扣掉的耐久 ——
+  // 它跟傷害倍率(暴擊/破甲狀態/齊斬)直接對沖:打得越重扣越多,護甲越高扣越少。
+  const GROWTH = Object.freeze({ hpPerLevel: 6, manaPerLevel: 5, damagePerLevel: 1.0, armorPerLevel: 0.3 });
+  // 耐久抵免 = 1 + 護甲 × ARMOR_PER_POINT。護甲 10 → 每擊只扣一半。
+  const ARMOR_MODEL = Object.freeze({ perPoint: 0.10 });
   function strokeCostPerPixel(stats) {
     const wf = Math.pow(Math.max(1, stats.swordWidth) / COST_MODEL.baseWidth, COST_MODEL.widthExponent);
     const cf = Math.pow(Math.max(1, stats.swordCount), COST_MODEL.countExponent);
@@ -225,7 +229,7 @@
     activeForm: null,
     appliedTruthEffects: [],
     appliedFormEffects: [],
-    stats: Object.freeze({ hpMax: 100, costMultiplier: 1, damage: 24, swordWidth: 18, swordSpeed: 14, pierce: 0, critChance: 0.05, critMultiplier: 2, manaMax: 100, mana: 100, manaRegen: 0.85, manaOnKill: 0, swordCap: 4, swordCount: 1, manaCostBase: 6, manaCostPerPixel: 0.13 }),
+    stats: Object.freeze({ hpMax: 100, costMultiplier: 1, damage: 24, swordArmor: 0, swordWidth: 18, swordSpeed: 14, pierce: 0, critChance: 0.05, critMultiplier: 2, manaMax: 100, mana: 100, manaRegen: 0.85, manaOnKill: 0, swordCap: 4, swordCount: 1, manaCostBase: 6, manaCostPerPixel: 0.13 }),
     mechanics: Object.freeze({ homingStrength: 0, homingCanCrit: true, returnEnabled: false, returnHits: 0, splashRadius: 0, splashDamage: 0.35, statusDuration: 1, trailOpacity: 1, hitPadding: 0, manaRefund: 0, splashChain: 0 }),
     statuses: Object.freeze({}),
     flags: Object.freeze({ firstStrikeCrit: false, returnLeavesDryBrush: false, splashOnKill: false, listenToInk: false, whiteCutOnCrit: false }),
@@ -341,6 +345,7 @@
     s.mana = Math.min(s.mana, s.manaMax);
     s.swordSpeed = Math.max(5, Math.min(s.swordSpeed, 60));
     s.pierce = Math.max(0, Math.min(s.pierce, 8));
+    s.swordArmor = Math.max(0, Math.min(s.swordArmor || 0, 40));
     s.critMultiplier = Math.max(1, Math.min(s.critMultiplier, 10));
     s.manaCostBase = Math.max(0, Math.min(s.manaCostBase, 60));
     s.manaCostPerPixel = Math.max(0.01, Math.min(s.manaCostPerPixel, 1));
@@ -585,7 +590,7 @@
   // 否則版面驗證會跟實際顯示脫節(卡片只有 ~103px 可用寬,超出就被裁掉)。
   const EFFECT_LABEL = Object.freeze({
     'stats.hpMax':'神識上限','stats.damage':'傷害','stats.swordWidth':'劍寬','stats.swordSpeed':'劍速',
-    'stats.pierce':'分裂','stats.critChance':'暴擊率','stats.critMultiplier':'暴擊倍',
+    'stats.pierce':'分裂','stats.swordArmor':'護甲','stats.critChance':'暴擊率','stats.critMultiplier':'暴擊倍',
     'stats.manaMax':'劍意上限','stats.manaRegen':'劍意回復','stats.manaOnKill':'回劍意',
     'stats.swordCap':'劍匣席','stats.swordCount':'飛劍數','stats.costMultiplier':'劍意消耗',
     'stats.manaCostBase':'起手劍意','stats.manaCostPerPixel':'每寸劍意',
@@ -847,7 +852,7 @@
   /* 舊引擎相容層:完整支援mul/flag/status/truth全部機制 */
   const LEGACY_RARITY = Object.freeze({ awakening: 'n', clarity: 'r', penetration: 'e', truth: 'l' });
   const LEGACY_PATH = Object.freeze({
-    'stats.hpMax': 'hpMax', 'stats.swordCount': 'count', 'stats.damage': 'damage', 'stats.swordWidth': 'size', 'stats.swordSpeed': 'speed', 'stats.pierce': 'pierce', 'stats.critChance': 'crit', 'stats.manaMax': 'manaMax', 'stats.manaRegen': 'manaRegen', 'stats.manaOnKill': 'regen', 'stats.swordCap': 'cap', 'mechanics.homingStrength': 'homing', 'mechanics.returnHits': 'ret', 'mechanics.splashRadius': 'explode', formation: 'formation'
+    'stats.hpMax': 'hpMax', 'stats.swordCount': 'count', 'stats.damage': 'damage', 'stats.swordWidth': 'size', 'stats.swordSpeed': 'speed', 'stats.pierce': 'pierce', 'stats.swordArmor': 'armor', 'stats.critChance': 'crit', 'stats.manaMax': 'manaMax', 'stats.manaRegen': 'manaRegen', 'stats.manaOnKill': 'regen', 'stats.swordCap': 'cap', 'mechanics.homingStrength': 'homing', 'mechanics.returnHits': 'ret', 'mechanics.splashRadius': 'explode', formation: 'formation'
   });
 
   function toLegacyEffect(item) {
@@ -895,6 +900,7 @@
     terminology: Object.freeze({ upgradeTitle: '悟道', upgradePrompt: '請領悟一縷劍意', rebirthTitle: '問道', currency: '劍意' }),
     growth: GROWTH,
     lifeModel: LIFE_MODEL,
+    armorModel: ARMOR_MODEL,
     category: CATEGORY,
     rebirthBranch: REBIRTH_BRANCH,
     rarity,

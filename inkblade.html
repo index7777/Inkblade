@@ -1112,7 +1112,8 @@ const ENESPR = { inkling:{frames:[],ok:false}, blade:{frames:[],ok:false}, spide
 // gripX 取在護手位置,劍身自此往 +x 延伸
 const HERO={ handX:0.9652, handY:0.5097, gripX:0.279, gripY:0.50,
              aspect:417/620, swAspect:45/520 };
-const HERO_VISUAL_SCALE=0.85; // 中央角色只縮視覺，不動碰撞半徑與戰鬥數值
+const HERO_VISUAL_SCALE=0.85;              // 腳下環繞與既有演出基準，不跟著立繪縮放
+const HERO_BODY_SCALE=HERO_VISUAL_SCALE*.85; // 立繪在目前尺寸上再縮小 15%，不動碰撞與環繞
 
 // ---------- 遊戲狀態 ----------
 const G = {
@@ -1551,7 +1552,11 @@ function cmdLife(len){
 function splitPieces(){ return Math.max(1, 1 + (stat.pierce|0)); }
 function durCost(dmg){
   const base=Math.max(1, stat.damage||1);
-  return Math.max(0.1, dmg/base);
+  // 分母是「當下的基礎劍傷」,所以升傷害不會讓劍耗損更快(分子分母一起變大)。
+  // 真正多扣耐久的是倍率型效果:暴擊、破甲狀態、齊斬。
+  const AM=(window.INK_CONFIG && INK_CONFIG.armorModel) || {perPoint:0.10};
+  const soak=1 + Math.max(0, stat.armor||0)*AM.perPoint;   // 護甲抵免
+  return Math.max(0.05, dmg/base/soak);
 }
 // 劍力盡:化墨消散(不是憑空不見)
 function swordDissolve(sw){
@@ -1894,6 +1899,9 @@ function syncStat(){
   const GW=INK_CONFIG.growth||{hpPerLevel:0,manaPerLevel:0}, lvUp=Math.max(0,(G.level||1)-1);
   stat.hpMax=s.hpMax + lvUp*GW.hpPerLevel;
   stat.cap=s.swordCap; stat.manaMax=s.manaMax + lvUp*GW.manaPerLevel; stat.manaRegen=s.manaRegen; stat.regen=s.manaOnKill;
+  // 道行成長:劍意上限、劍傷、護甲。護甲降低每次命中的耐久消耗(見 durCost)。
+  stat.damage = s.damage + lvUp*(GW.damagePerLevel||0);
+  stat.armor  = (s.swordArmor||0) + lvUp*(GW.armorPerLevel||0);
   stat.formation = (runState.formation && runState.formation!=='single') ? runState.formation : 'fan';
   // 遊戲專屬、config 未涵蓋的欄位
   stat.element='none'; stat.ember=0; stat.ice=0;
@@ -2934,7 +2942,7 @@ function tintFrame(im,col){
 }
 function drawHeroSprite(P){
   const S=heroSet();
-  const h=P.r*5.0*HERO_VISUAL_SCALE, w=h*S.aspect, feet=P.y+P.r*1.18;
+  const h=P.r*5.0*HERO_BODY_SCALE, w=h*S.aspect, feet=P.y+P.r*1.18;
   const dying=G.deathT>0;
   const hasDeath=!!(S.death&&S.death.length), hasHurt=!!(S.hurt&&S.hurt.length), hasCast=!!(S.cast&&S.cast.length);
   const br=dying?0:Math.sin(G.t*0.042);
@@ -2995,7 +3003,7 @@ function hfOrbit(P){
   return { cx:P.x, cy:feet-h*0.20, rx:w*0.62, ry:h*0.088, h:h, w:w };
 }
 function drawHeroFBody(P,alpha){
-  const h=P.r*5.0*HERO_VISUAL_SCALE, w=h*HEROF.aspect, feet=P.y+P.r*1.18;
+  const h=P.r*5.0*HERO_BODY_SCALE, w=h*HEROF.aspect, feet=P.y+P.r*1.18;
   bakeHeroF(h,w);
   const dying=G.deathT>0;
   const br=dying?0:Math.sin(G.t*0.042);
@@ -3065,7 +3073,7 @@ function drawHeroF(P){
 // 舊的程序化剪影(逐列風動),沒有 sprite 時的回退
 function drawHeroProc(P){
 
-  const h=P.r*4.7*HERO_VISUAL_SCALE;
+  const h=P.r*4.7*HERO_BODY_SCALE;
   bakeHero(h);
   const w=heroW, feet=P.y+P.r*1.05;
   const br=Math.sin(G.t*0.042);
