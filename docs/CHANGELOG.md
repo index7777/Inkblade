@@ -5,6 +5,63 @@
 
 ---
 
+## [2026-08-09] #72 音效改走 WebAudio(每次出劍/受擊都會卡的真正共通點)
+
+**使用者更正 #71**:「受擊不是四成以下才卡,是**每次**受擊都卡。」
+#71 修的低血量劍環是真問題(15.6 倍)但不是這一個。
+
+### 先把畫面成本排除
+
+逐項量過受擊當下的每一種視覺效果(6 倍 CPU 節流,412×915 DPR2):
+```
+基準 3.5ms / 只有震動 2.1 / 只有閃光 2.7 / 受擊光暈 2.3 / 全部一起 2.0 / 加潑墨 2.3
+```
+**全部在雜訊範圍內,畫面不是原因。**
+
+### 剩下唯一同時發生在「出劍」與「受擊」的東西:音效
+
+`play()` 的核心是
+```js
+audio.pause(); audio.currentTime = 0; audio.playbackRate = …; audio.play();
+```
+在 HTMLAudioElement 上做這組操作,會在**主執行緒同步重置一條壓縮音訊串流**。實測:
+```
+改前  首次 cast 5.2ms / hurt 4.7ms
+      重複 cast 中位 1.8、最高 3.9ms
+      重複 hurt 中位 3.5、最高 6.5ms
+```
+而 `SND.cast()` 只在出劍時呼叫、`SND.hurt()` 只在受擊時呼叫 —— 症狀與觸發點完全吻合。
+
+### 修正:音效預先解碼成 AudioBuffer
+
+`data/sound-system.js` 新增 WebAudio 音效層:
+1. `unlock()`(使用者手勢)時建立 `AudioContext` 並 `fetch` + `decodeAudioData` 全部音效檔,存進 `buffers`。
+2. `play()` 優先走 `playBuffer()`:建一個 `BufferSource` + `GainNode` 接上就 `start()`,
+   **不碰任何 HTMLAudioElement**,沒有同步重置成本。
+3. **保留原本的 HTMLAudio 音池當退路** —— `file://` 直接雙擊開啟時 `fetch` 會被瀏覽器擋掉,
+   那時 `wa` 維持 false,行為與改版前完全一致。手機是連線上去玩(https),走得到 WebAudio。
+4. `stopAll()` 一併停掉在播的 BufferSource。
+5. 音樂仍走 HTMLAudio 串流(長檔案不該全解碼進記憶體)。
+
+**改後(http 服務,同樣節流)**
+```
+重複 cast 中位 1.5、最高 2.7ms(原本最高 3.9)
+重複 hurt 中位 0.9、最高 1.7ms(原本最高 6.5)
+1500 幀壓力測試:平均 0.39ms、最慢 16.3ms、零例外
+```
+
+### 使用者可自行驗證的十秒測試
+
+**在靜觀把音律關掉再打一輪。** 如果卡頓消失 → 確認是音效路徑。
+如果還在 → 下一個嫌疑是 `hitstop(4)`:受擊會**故意**凍結 4 個邏輯影格(約 67ms)當作打擊感,
+那是設計而不是效能問題,可以調成 2 或做成可關。
+
+**怎麼推回去**:`data/sound-system.js` 移除 WebAudio 區塊(`actx`/`buffers`/`liveSources`/
+`ensureCtx`/`loadBuffers`/`playBuffer`)、`play()` 裡的 `if (wa) {...}` 分支、
+`unlock()` 裡的 `ensureCtx(); loadBuffers();`、`stopAll()` 的 BufferSource 迴圈。
+
+---
+
 ## [2026-08-09] #71 手機卡幀:低血量時劍環每幀重新上色(15.6 倍代價)
 
 **回報**:手機上「只有出劍跟受擊的時候會卡幀」。

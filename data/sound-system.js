@@ -30,6 +30,58 @@
 
   const pools = new Map();
   const lastPlayed = new Map();
+
+  // ── WebAudio 音效層 ────────────────────────────────────────────
+  // 原本音效走 HTMLAudioElement,每次播放要 pause() → currentTime=0 → play()。
+  // 那組操作會在主執行緒上同步重置一條壓縮音訊串流 —— 實測(6 倍 CPU 節流)
+  // 每次呼叫 1.8~6.5ms,而它剛好只發生在「出劍」與「受擊」,就是手機卡幀的來源。
+  // 改為預先解碼成 AudioBuffer,播放時只建一個 BufferSource(微秒等級,不阻塞)。
+  // file:// 直接雙擊開啟時 fetch 會被擋,那時自動退回原本的 HTMLAudio 音池。
+  let actx = null, wa = false;
+  const buffers = new Map();          // 檔名 → AudioBuffer
+  const liveSources = new Set();
+  function ensureCtx() {
+    if (actx) return actx;
+    const AC = global.AudioContext || global.webkitAudioContext;
+    if (!AC) return null;
+    try { actx = new AC(); } catch (_) { actx = null; }
+    return actx;
+  }
+  function loadBuffers() {
+    const ctx = ensureCtx();
+    if (!ctx) return;
+    const names = new Set();
+    for (const k in BANK) BANK[k].files.forEach(f => names.add(f));
+    let okCount = 0, done = 0, total = names.size;
+    names.forEach(file => {
+      fetch(ROOT + file)
+        .then(r => r.ok ? r.arrayBuffer() : Promise.reject(new Error('http')))
+        .then(buf => new Promise((res, rej) => {
+          // 舊版 Safari 只支援 callback 形式的 decodeAudioData
+          const pr = ctx.decodeAudioData(buf, res, rej);
+          if (pr && pr.then) pr.then(res, rej);
+        }))
+        .then(b => { buffers.set(file, b); okCount += 1; })
+        .catch(() => {})
+        .then(() => { done += 1; if (done === total) wa = okCount > 0; });
+    });
+  }
+  function playBuffer(spec, file, pitch, volumeScale) {
+    const ctx = actx, buf = buffers.get(file);
+    if (!ctx || !buf) return false;
+    if (ctx.state === 'suspended') { try { ctx.resume(); } catch (_) {} }
+    const v = settings();
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.playbackRate.value = Math.max(0.5, Math.min(2, pitch));
+    const g = ctx.createGain();
+    g.gain.value = Math.max(0, Math.min(1, spec.volume * volumeScale * v.master * v.sfx));
+    src.connect(g); g.connect(ctx.destination);
+    src.onended = () => { liveSources.delete(src); try { g.disconnect(); } catch (_) {} };
+    liveSources.add(src);
+    try { src.start(0); } catch (_) { liveSources.delete(src); return false; }
+    return true;
+  }
   let enabled = true;
   let musicEnabled = true;
   let hardMuted = false;
@@ -81,10 +133,15 @@
     const time = performance.now();
     if (time - (lastPlayed.get(name) || 0) < spec.cooldown) return null;
     lastPlayed.set(name, time);
-    const audio = chooseVoice(name);
     const [minRate,maxRate] = spec.rate;
     const volumeScale = Number.isFinite(options.volume) ? options.volume : 1;
     const pitch = Number.isFinite(options.rate) ? options.rate : minRate + Math.random()*(maxRate-minRate);
+    // WebAudio 路徑:不碰 HTMLAudioElement,不會有同步重置串流的成本
+    if (wa) {
+      const file = spec.files[(Math.random()*spec.files.length)|0];
+      if (playBuffer(spec, file, pitch, volumeScale)) return null;
+    }
+    const audio = chooseVoice(name);
     const v = settings();
     try {
       audio.pause();
@@ -188,6 +245,9 @@
     applyVolume();
     if (!coreSfxWarmed) {
       coreSfxWarmed = true;
+      ensureCtx();
+      loadBuffers();                       // 預先解碼成 AudioBuffer(成功就走 WebAudio)
+      // 音池仍然建立,當作 file:// 或解碼失敗時的退路
       const warm = () => ['cast','hit','hurt'].forEach(ensurePool);
       if (typeof requestIdleCallback === 'function') requestIdleCallback(warm,{ timeout:1200 });
       else setTimeout(warm,0);
@@ -209,7 +269,11 @@
     menuPlaying() { return !!(menu && !menu.paused); },
     // 依波次切換戰鬥樂段(1–20 / 21–40 / 41–60)
     intensity(wave) { setBand(bandOf(Number(wave)||1)); },
-    stopAll() { for (const pool of pools.values()) for (const audio of pool) { try { audio.pause(); audio.currentTime=0; } catch (_) {} } },
+    stopAll() {
+      for (const pool of pools.values()) for (const audio of pool) { try { audio.pause(); audio.currentTime=0; } catch (_) {} }
+      for (const src of liveSources) { try { src.stop(0); } catch (_) {} }
+      liveSources.clear();
+    },
 
     cast(length) { play('cast',{ rate:0.92 + Math.min(0.14,Number(length||0)/5000) }); },
     hit() { play('hit'); },
