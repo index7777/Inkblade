@@ -725,9 +725,9 @@ let W=0,H=0,DPR=Math.min(window.devicePixelRatio||1,2), booted=false;
 let jianSprite=null, jianKey='', jianOX=0, jianOY=0;   // 劍身貼圖(在 resize 前就會被參照)
 
 // 畫質檔位:控制 DPR 上限、裝飾層開關、以及墨滴/粒子的同屏上限。
-// 低檔刻意保留 trail 與潑墨 —— 那兩個是打擊回饋,砍掉會變得沒手感,不是「畫質」。
+// 低檔以手機穩幀優先：飛劍拖尾每把劍每幀都要配置軌跡並建立墨帶路徑，必須關閉。
 const QUALITY={
-  low : { dpr:1,   fx:{bg:true,vig:false,trail:true,ink:false,part:false,glow:false}, ink:0,   part:0   },
+  low : { dpr:1,   fx:{bg:true,vig:false,trail:false,ink:false,part:false,glow:false}, ink:0,   part:0   },
   med : { dpr:1.5, fx:{bg:true,vig:true, trail:true,ink:true, part:true, glow:false}, ink:90,  part:120 },
   high: { dpr:2,   fx:{bg:true,vig:true, trail:true,ink:true, part:true, glow:true }, ink:220, part:300 }
 };
@@ -2474,7 +2474,10 @@ function update(){
       sw.vx=nx-sw.x; sw.vy=ny-sw.y;
       sw.x=nx; sw.y=ny; sw.ang=c.ang; sw.age++;
       if(!c.free&&c.passAt) sw.passId=c.passAt[Math.max(0,Math.min(c.passAt.length-1,c.seg))]||0;
-      sw.trail.push({x:sw.x,y:sw.y}); if(sw.trail.length>18) sw.trail.shift();
+      if(FX.trail){
+        sw.trail.push({x:sw.x,y:sw.y});
+        if(sw.trail.length>18) sw.trail.shift();
+      } else if(sw.trail.length) sw.trail.length=0;
     }
   }
   // 執行一次折返(端點觸發與命中觸發共用)。回傳是否成功。
@@ -4104,7 +4107,9 @@ function playOpening(done){
     if(hud) hud.style.opacity='';
     done && done();
   };
-  if(reduce || openingSeen){ finish(); return; }
+  // 低畫質裝置跳過大圖縮放、雙層畫軸位移與全畫面 blur；這些 DOM 合成成本
+  // 和 Canvas DPR 無關，在手機上即使戰鬥畫質最低仍會造成開局嚴重掉幀。
+  if(meta.quality==='low' || reduce || openingSeen){ finish(); return; }
   openingSeen=true;
   applyOpeningVars();
   splash.classList.add('zooming');                       // 首頁保持可見,跟著鏡頭一起推近
@@ -4172,6 +4177,9 @@ function start(mode){
   } else {
     G.paused=true;
     playOpening(()=>{ G.paused=false;
+      // 低畫質已跳過展卷，不能讓剛由「入局」手勢啟動的首頁 OP 再淡出 400ms，
+      // 否則會先漏出一小段 OP 才切到第一波戰鬥曲。
+      if(meta.quality==='low') SND.stopMenu(0);
       SND.startMusic();        // 畫卷拉開完畢 → 首頁樂淡出、戰鬥樂淡入(startMusic 內含 stopMenu)
     });
   }

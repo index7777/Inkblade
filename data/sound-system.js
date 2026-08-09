@@ -149,6 +149,13 @@
   }
   function stopMenu(fadeMs) {
     if (!menu) return;
+    if (fadeMs === 0) {
+      if (menuRAF) { cancelAnimationFrame(menuRAF); menuRAF = 0; }
+      menu.volume = 0;
+      try { menu.pause(); menu.currentTime = 0; } catch (_) {}
+      return;
+    }
+    if (menu.paused) { menu.volume = 0; return; }
     fadeVol(menu, 0, fadeMs==null?600:fadeMs, () => { try { menu.pause(); } catch(_){} });
   }
 
