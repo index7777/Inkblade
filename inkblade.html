@@ -1723,7 +1723,17 @@ function launchCommand(path){
   // 平均消耗長度包含遠端落筆；耐久仍只看真正畫出的筆畫長度。
   G.strokeN++;
   G.strokeAvg = G.strokeAvg ? (G.strokeAvg*0.75 + paidLen*0.25) : paidLen;
-  if(freeCast){
+  const TFc=stat.tierFlags||{};
+  // 展鋒·圓滿:收筆後劍痕滯留半息,墨獸碰到還會再受一次傷
+  if(TFc.strokeLingers){
+    G.lingers.push({pts:cut.slice(), t:36, dmg:stat.damage*0.5, hit:new Set()});
+    if(G.lingers.length>6) G.lingers.shift();
+  }
+  // 納息·圓滿:劍意滿盈時,這一道免費
+  const fullFree = TFc.freeCastAtFull && G.mana>=stat.manaMax-0.01;
+  if(fullFree){
+    floatText(s0.x, s0.y-14, '定息', '#4aa0b8');
+  } else if(freeCast){
     G.reserve--; G.reserveFlash=1;
     floatText(s0.x, s0.y-14, '劍匣', '#c08a2e');
   } else {
@@ -1747,7 +1757,8 @@ function launchCommand(path){
     ang:Math.atan2(cut[1].y-cut[0].y, cut[1].x-cut[0].x),
     formation:stat.formation,
     seed:Math.random()*8,                           // 聚形共用:讓 N 把劍的動畫幀完全一致
-    spacing:stat.size*2.2+10,
+    // 齊鋒式·小成「飛劍間距收窄,自動集火」
+    spacing:(stat.size*2.2+10) * ((stat.tierFlags||{}).volleyTighten ? 0.6 : 1),
     swords:new Array(n).fill(null),
     slots:n,
     returnsLeft: stat.ret ? Math.max(1, stat.returnHits||1) : 0,
@@ -1843,7 +1854,7 @@ function pendDamage(en, dmg, crit){
 function flushDamage(){
   if(!dmgAcc.size) return;
   for(const [en,e] of dmgAcc)
-    floatText(e.x, e.y, '-'+Math.round(e.sum), e.crit?'#f1d18a':'#fffaf0', e.crit);
+    floatText(e.x, e.y, '-'+Math.round(e.sum), e.crit?'#9f3028':'#fffaf0', e.crit);
   dmgAcc.clear();
 }
 function floatText(x,y,txt,c,critFlag){
@@ -2905,6 +2916,11 @@ function update(){
         let dmg=stat.damage;
         let isCrit = Math.random()<stat.crit;
         if(stat.firstStrike && !G.firstStrikeDone){ isCrit=true; G.firstStrikeDone=true; }
+        // 養鋒·圓滿「鋒芒」:蓄滿後的下一擊必定暴擊
+        if(G.edgeReady){ isCrit=true; G.edgeReady=false; whiteCut(en.x,en.y,s.ang); }
+        // 凝神·圓滿:專注滿層時,這一擊化為凝神一劍
+        if(TF.focusStrike && G.focusReady){ G.focusReady=false; G.focus=0;
+          dmg*=2.2; splash(en.x,en.y,'#c08a2e',2.4); floatText(en.x,en.y-en.r-40,'凝神一劍','#c08a2e'); }
         if(isCrit) dmg*=(stat.critMul||2);
         if(s.returned) dmg*=(stat.returnDmgMul||1);      // 歸鋒:回程傷害加成
         if(s.echo) dmg*=0.5;                              // 殘鋒為半傷
@@ -2968,6 +2984,25 @@ function update(){
         // 看起來像撓癢,但總傷害其實跟沒分裂一樣。所以同一幀打同一隻墨獸的傷害
         // 全部累加成一個數字,玩家看到的是這一擊真正的總量。
         // 暴擊旗標由第三個參數帶進去(floatText 原本靠字串裡的「!」判斷,那個已移除)。
+        // 凝神·大成:連續命中累積專注,滿八層待發
+        if(TF.focusStacks){ G.focusIdle=0;
+          if(!G.focusReady && ++G.focus>=8){ G.focus=8; G.focusReady=true;
+            floatText(G.player.x,G.player.y-52,'凝神','#c08a2e'); } }
+        // 破墨·小成:潑墨處留下墨滴(大成的墨滴會再炸一次)
+        if(TF.inkDropOnSplash && stat.explode>0 && Math.random()<0.5){
+          const a=Math.random()*6.283, r=18+Math.random()*24;
+          G.drops.push({x:en.x+Math.cos(a)*r, y:en.y+Math.sin(a)*r, r:14, t:300,
+                        dmg:stat.damage*0.35, boom:!!TF.inkDropExplode});
+          if(G.drops.length>24) G.drops.shift();
+        }
+        // 疾影·大成/圓滿:殘影補刀。大成只補在同一目標身上,圓滿讓殘影自己找目標。
+        if(TF.afterimageHits && s.trail && s.trail.length>4){
+          const g=s.trail[Math.max(0,s.trail.length-5)];
+          if(TF.afterimageSolid){
+            for(const e2 of G.enemies)
+              if(e2!==en && Math.hypot(e2.x-g.x,e2.y-g.y)<e2.r+stat.size){ pendDamage(e2, dmg*0.25, false); e2.hit=6; break; }
+          } else pendDamage(en, dmg*0.25, false);
+        }
         pendDamage(en, dmg, isCrit);
         splash(s.x,s.y,(ELEM[stat.element]||ELEM.none).hit,1);
         if(isCrit){ SND.crit(); shake(4); hitstop(3); flash(0.12,'240,220,160');
@@ -3011,7 +3046,20 @@ function update(){
   for(let i=G.texts.length-1;i>=0;i--){const t=G.texts[i];t.age++;t.x+=t.dx||0;t.y+=t.vy||-0.7;
     if(t.damage)t.vy*=0.94;t.life-=t.damage?0.026:0.02;if(t.life<=0)G.texts.splice(i,1);}
   for(let i=G.stains.length-1;i>=0;i--){const st=G.stains[i];st.a-=0.00035;if(st.a<=0)G.stains.splice(i,1);}
-  for(let i=G.cuts.length-1;i>=0;i--){const c=G.cuts[i];c.life-=0.09;if(c.life<=0)G.cuts.splice(i,1);}
+  {
+    const TFw=stat.tierFlags||{};
+    const decay = TFw.whiteCutLingers ? 0.03 : 0.09;   // 圓滿:飛白滯留兩息不散
+    for(let i=G.cuts.length-1;i>=0;i--){
+      const c=G.cuts[i]; c.life-=decay;
+      // 大成:飛白自行斬出一擊(每道只斬一次)
+      if(TFw.whiteCutSlash && !c.slashed && c.life<0.72){
+        c.slashed=true;
+        for(const en of G.enemies)
+          if(Math.hypot(en.x-c.x,en.y-c.y) < en.r+c.len*0.8){ dmgTo(en, stat.damage*0.55); en.hit=6; }
+      }
+      if(c.life<=0)G.cuts.splice(i,1);
+    }
+  }
   if(G.shake>0) G.shake*=0.86; if(G.shake<0.2) G.shake=0;
   if(G.flash>0) G.flash-=0.035;
   if(G.banner){ G.banner.life-=0.0085; if(G.banner.life<=0) G.banner=null; }
@@ -3412,7 +3460,22 @@ function drawJian(ctx, s){
   if(FLYSWORD.ok){
     const speed=Math.hypot(s.vx||0,s.vy||0);
     const M=swMul(s);
-    const w=(44+stat.size*.9+Math.min(5,speed*.22))*(s.echo?.88:1)*M.size;
+    const TFd=stat.tierFlags||{};
+    // 疾影·小成:身後留下殘影(先畫,才會在劍身後面)
+    if(TFd.afterimage && s.trail && s.trail.length>3){
+      ctx.save();
+      for(let g=1;g<=2;g++){
+        const q=s.trail[Math.max(0,s.trail.length-1-g*3)]; if(!q) continue;
+        ctx.globalAlpha=0.20/g;
+        const gw=(44+stat.size*.9)*M.size*(1-g*0.08), gh=gw/FLYSWORD.aspect;
+        ctx.save(); ctx.translate(q.x,q.y); ctx.rotate(s.ang);
+        ctx.drawImage(FLYSWORD.image,-gw*FLYSWORD.grip,-gh/2,gw,gh); ctx.restore();
+      }
+      ctx.restore();
+    }
+    // 養鋒·小成:劍身拉長
+    const longK = TFd.longBlade ? 1.28 : 1;
+    const w=(44+stat.size*.9+Math.min(5,speed*.22))*(s.echo?.88:1)*M.size*longK;
     // 加寬只作用於立繪，不改飛劍碰撞半徑。
     const h=w/FLYSWORD.aspect*2.2;
     ctx.save(); ctx.translate(s.x,s.y); ctx.rotate(s.ang);
@@ -3909,6 +3972,8 @@ function draw(){
     if(stat.element==='none' && meta.skin==='gold') rgb='198,150,60'; // 外觀:墨金劍痕
     // 歸念 / 歸藏無痕:折返後的劍痕轉為淡飛白(易辨識回程);殘鋒較細
     if(s.returned && stat.returnDry) rgb='196,186,168';
+    // 養鋒·大成:劍氣拖尾轉為飛白乾筆
+    if((stat.tierFlags||{}).dryBrushTrail) rgb='206,196,178';
     if(FX.trail){
       // 貫鋒的多把劍在同一軸上，拖尾必須更短、更淡，才不會把劍間留白塗成黑牆。
       const inline=s.cmd&&s.cmd.formation==='inline';
@@ -3923,6 +3988,22 @@ function draw(){
     drawJian(ctx, s);
   }
 
+  // 破墨:場上的墨滴
+  if(DRAWLV>=4) for(const d of G.drops){
+    const k=Math.min(1,d.t/40);
+    ctx.globalAlpha=0.34*k+0.12; ctx.fillStyle='#2b2620';
+    ctx.beginPath(); ctx.arc(d.x,d.y,d.r*(0.8+0.2*Math.sin(G.t*0.09+d.x)),0,6.283); ctx.fill();
+    ctx.globalAlpha=1;
+  }
+  // 展鋒·圓滿:滯留的劍痕
+  if(DRAWLV>=6) for(const L of G.lingers){
+    ctx.save(); ctx.globalAlpha=Math.min(0.5, L.t/36*0.5);
+    ctx.strokeStyle='rgba(43,38,32,.8)'; ctx.lineCap='round'; ctx.lineJoin='round';
+    ctx.lineWidth=2+stat.size*0.35;
+    ctx.beginPath(); ctx.moveTo(L.pts[0].x,L.pts[0].y);
+    for(let k=1;k<L.pts.length;k++) ctx.lineTo(L.pts[k].x,L.pts[k].y);
+    ctx.stroke(); ctx.restore();
+  }
   // 當前畫痕
   if(DRAWLV>=6 && drawing&&path.length>1){
     ctx.lineCap='round'; ctx.lineJoin='round';
