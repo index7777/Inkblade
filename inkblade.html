@@ -4035,7 +4035,10 @@ function loop(ts){
         else update();
         logicAcc-=LOGIC_MS; steps++;
       }
-      if(steps===0 && logicAcc>LOGIC_MS*4) logicAcc=0;
+      // 一幀已補滿上限仍有欠步時,只保留不足一格的餘數。
+      // 舊條件要求 steps===0,但有欠步時 steps 必定大於 0,導致手機掉幀後 backlog 永遠清不掉,
+      // 每個畫面都連跑四次 update(),形成越補越卡的 spiral of death。
+      if(steps===4 && logicAcc>=LOGIC_MS) logicAcc%=LOGIC_MS;
       const m2=DIAG.on?performance.now():0;
       // 畫面幀率上限(meta.fps,0=不限)
       let paint=true;
@@ -4131,6 +4134,8 @@ function start(mode){
   const bossTest=mode==='boss'||mode==='boss-fast';
   const fastRestart=mode==='boss-fast';
   dpsReset();
+  // 新局不可繼承上一局/開場期間累積的邏輯與繪圖計時。
+  logicAcc=0; renderAcc=0; lastFrameTs=performance.now();
   Object.assign(G,{running:true,paused:false,t:0,enemies:[],bossShots:[],swords:[],particles:[],inks:[],texts:[],stains:[],splashes:[],mists:[],commands:[],
     kills:0,wave:bossTest?60:1,waveTimer:0,spawnAcc:0,bossTest,bossShowcase:false,bossEntered:bossTest,chapterComplete:false,
     bossPreset60:false,bossFightFrames:0,bossKillSecs:null,hpLocked:false,xp:0,xpNeed:6,level:1,pendingLevels:0,mana:100,
