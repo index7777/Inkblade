@@ -294,16 +294,8 @@
   global.SND = api;
 
   // 選單完整覆蓋：既有程式不必逐顆按鈕補 SND.ui()。
-  let lastHover = null;
-  document.addEventListener('pointerover', (event) => {
-    const control = event.target && event.target.closest ? event.target.closest('button,.btn,.tab,.card,[role="button"]') : null;
-    if (!control || control === lastHover) return;
-    lastHover = control;
-    play('uiMove');
-  }, { passive:true });
-  document.addEventListener('pointerout', (event) => {
-    if (lastHover && !lastHover.contains(event.relatedTarget)) lastHover = null;
-  }, { passive:true });
+  // 滑過去的 uiMove 音效已移除 —— 桌面上滑鼠只是經過就叫,很吵,
+  // 而且觸控裝置的 pointerover 會在點擊前一瞬間補發,等於每次點擊都響兩聲。
   document.addEventListener('click', (event) => {
     const control = event.target && event.target.closest ? event.target.closest('button,.btn,.tab,[role="button"]') : null;
     if (!control || control.classList.contains('card')) return;

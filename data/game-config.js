@@ -624,16 +624,16 @@
   // 卡面與靜觀的階級表都吃這一份,兩邊永遠一致。
   // 沒列在這裡的旗標 = 主檔還沒接線,寧可不顯示也不要寫一個假的數字。
   const FLAG_LABEL = Object.freeze({
-    'flags.splashOnKill':      '斬殺潑墨 波及28%',
+    'flags.splashOnKill':      '斬殺潑墨 劍傷28%',
     'flags.autoRefill':        '每8息存一把免費劍',
-    'flags.scatterEcho':       '兩側各分一殘鋒',
+    'flags.scatterEcho':       ['命中後兩側各分一殘鋒','殘鋒 劍傷20%'],
     'flags.scatterEchoIntent': '殘鋒也能上墨痕',
     'flags.scatterQuad':       '殘鋒改為四面各分一道',
     'flags.volleyStrike':      '同幀雙擊 傷害+60%',
     'flags.volleyHeavy':       '每四次齊斬引重斬',
-    'flags.pierceRamp':        '每斬一隻 傷害+5%',
+    'flags.pierceRamp':        '每斬一隻 本劍+5%',
     'flags.pierceBreak':       '末位破甲 受創+35%',
-    'flags.pierceRecoil':      '結束回刺首名 八成',
+    'flags.pierceRecoil':      '結束回刺首名 80%',
     'flags.guideExtend':       '末端延伸 150→260',
     'flags.guideRetarget':     '擊殺後再延伸一段',
     'flags.guideNeverMiss':    '整道未中必尋得',
@@ -642,38 +642,39 @@
     'flags.returnKeep':        '每次折返保留三成耐久',
     'flags.returnHaste':       '每折返劍速 ×1.35',
     'flags.noSplit':           '不參與分裂',
-    'flags.mergeHeavy':        '每折返一趟傷害 +30%',
+    'flags.mergeHeavy':        '每折返一趟 該擊+30%',
     'flags.volleyTighten':     '陣型間距 ×0.6 集火',
     'flags.afterimage':        '身後留下兩道殘影',
-    'flags.afterimageHits':    '殘影補 25% 傷害',
+    'flags.afterimageHits':    '殘影補該擊 25%',
     'flags.afterimageSolid':   '殘影自行找目標',
-    'flags.inkDropOnSplash':   '潑墨留墨滴 35% 傷',
-    'flags.inkDropExplode':    '墨滴化開再炸一次',
+    'flags.inkDropOnSplash':   ['潑墨處留下墨滴','墨滴 劍傷35%'],
+    'flags.inkDropExplode':    ['墨滴化開再炸一次','波及 墨滴的60%'],
     'flags.dotRefresh':        '蝕痕命中可續期',
     'flags.dotSpread':         '蝕痕傳染鄰近墨獸',
     'flags.dotBurst':          '潰散爆出剩餘蝕傷',
     'flags.rootOnSuppress':    '滿層定身三分之一息',
-    'flags.rootWhiteCut':      '定身結束炸留白斬',
+    'flags.rootWhiteCut':      ['定身結束炸留白','該斬 劍傷90%'],
     'flags.whiteCutTwin':      '暴擊改留兩道飛白',
-    'flags.whiteCutSlash':     '飛白傷害 30%→70%',
+    'flags.whiteCutSlash':     '飛白 劍傷30%→70%',
     'flags.whiteCutLingers':   '飛白滯留兩息不散',
     'flags.healOnFullMana':    '滿劍意後回氣轉神識',
-    'flags.summonOnFullMana':  '滿劍意每三息召劍',
+    'flags.summonOnFullMana':  ['滿劍意每三息召劍','召劍 劍傷70%'],
     'flags.longBlade':         '劍身加長 28%',
     'flags.dryBrushTrail':     '拖尾轉飛白乾筆',
     'flags.edgeMoment':        '每六息蓄鋒芒 必暴',
-    'flags.strokeLingers':     '劍痕滯留 再傷 50%',
+    'flags.strokeLingers':     ['收筆後劍痕滯留','碰到 劍傷50%'],
     'flags.freeCastAtFull':    '劍意滿盈時該道免費',
     'flags.focusStacks':       '連續命中累積專注',
-    'flags.focusStrike':       '專注滿八層 傷害×2.2',
-    'flags.whiteCutOnCrit':    '暴擊留飛白 三成傷'
+    'flags.focusStrike':       '專注滿八層 該擊×2.2',
+    'flags.whiteCutOnCrit':    ['暴擊留下飛白','飛白 劍傷30%']
   });
   // 把一組 ops 轉成白話效果行(卡面與階級表共用)
   function opLines(effects){
     const out=[];
     for(const e of (effects||[])){
       const L=EFFECT_LABEL[e.path];
-      if(e.op==='flag'){ const t=FLAG_LABEL[e.path]; if(t) out.push(t); }
+      if(e.op==='flag'){ const t=FLAG_LABEL[e.path];
+        if(Array.isArray(t)) out.push.apply(out,t); else if(t) out.push(t); }
       else if(e.op==='add' && L){
         const v=Number(e.value)||0, neg=v<0, a=Math.abs(v);
         let line=L+' '+(neg?'−':'+')+(EFFECT_PCT.has(e.path)?Math.round(a*100)+'%':fmtNum(a));
