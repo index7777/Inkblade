@@ -2998,10 +2998,12 @@ function update(){
         // 疾影·大成/圓滿:殘影補刀。大成只補在同一目標身上,圓滿讓殘影自己找目標。
         if(TF.afterimageHits && s.trail && s.trail.length>4){
           const g=s.trail[Math.max(0,s.trail.length-5)];
+          // pendDamage 只負責跳字,實際扣血一定要走 dmgTo —— 少了它殘影就是純特效。
           if(TF.afterimageSolid){
             for(const e2 of G.enemies)
-              if(e2!==en && Math.hypot(e2.x-g.x,e2.y-g.y)<e2.r+stat.size){ pendDamage(e2, dmg*0.25, false); e2.hit=6; break; }
-          } else pendDamage(en, dmg*0.25, false);
+              if(e2!==en && Math.hypot(e2.x-g.x,e2.y-g.y)<e2.r+stat.size){
+                dmgTo(e2, dmg*0.25); pendDamage(e2, dmg*0.25, false); e2.hit=6; break; }
+          } else { dmgTo(en, dmg*0.25); pendDamage(en, dmg*0.25, false); }
         }
         pendDamage(en, dmg, isCrit);
         splash(s.x,s.y,(ELEM[stat.element]||ELEM.none).hit,1);

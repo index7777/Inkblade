@@ -5,6 +5,63 @@
 
 ---
 
+## [2026-08-09] #82 把 #81 查出的空階級層全部接線(21 個旗標)
+
+`#81` 查出 21 個旗標在主檔零引用、22 個階級層是空的。這一輪全部接上。
+
+### 接線清單
+| 卡·層 | 旗標 | 實作 |
+|---|---|---|
+| 齊鋒式·小成 | volleyTighten | 陣型間距 ×0.6(自動集火) |
+| 疾影·小成 | afterimage | 劍身後畫兩層殘影(拖尾取樣) |
+| 疾影·大成 | afterimageHits | 殘影補 25% 傷害 |
+| 疾影·圓滿 | afterimageSolid | 殘影改為自行找目標 |
+| 破墨·小成 | inkDropOnSplash | 潑墨處留墨滴,碰到墨獸化開(35% 傷) |
+| 破墨·大成 | inkDropExplode | 墨滴化開時再炸一次(60% 波及) |
+| 蝕痕·小成 | dotRefresh | **沒有這層時蝕痕不再續期**,只疊層數 |
+| 蝕痕·大成 | dotSpread | 每次跳傷 34% 機率把一層帶給 92px 內的鄰居 |
+| 蝕痕·圓滿 | dotBurst | 潰散時把剩餘蝕傷一次爆出(86px 範圍) |
+| 鎮痕·大成 | rootOnSuppress | 滿層時定身 20 影格 |
+| 鎮痕·圓滿 | rootWhiteCut | 定身結束炸一道留白斬(90% 傷) |
+| 斷意·大成 | whiteCutSlash | 飛白自行斬一擊(55% 傷) |
+| 斷意·圓滿 | whiteCutLingers | 飛白衰減 0.09 → 0.03 |
+| 回元·大成 | healOnFullMana | 劍意滿後溢出的回氣轉神識 |
+| 回元·圓滿 | summonOnFullMana | 劍意滿盈時每 3 息自行召劍(70% 傷) |
+| 養鋒·小成 | longBlade | 劍身 ×1.28 |
+| 養鋒·大成 | dryBrushTrail | 拖尾轉飛白乾筆色 |
+| 養鋒·圓滿 | edgeMoment | 每 6 息蓄滿「鋒芒」,下一擊必暴 |
+| 展鋒·圓滿 | strokeLingers | 收筆後劍痕滯留 36 影格,再傷一次(50%) |
+| 納息·圓滿 | freeCastAtFull | 劍意滿盈時該道免費 |
+| 凝神·大成 | focusStacks | 連續命中累積,3 秒沒命中歸零 |
+| 凝神·圓滿 | focusStrike | 滿八層時下一擊 ×2.2 |
+
+新增狀態容器:`G.drops`(墨滴)、`G.lingers`(滯留劍痕)、`G.edgeT/edgeReady`、
+`G.focus/focusIdle/focusReady`、`G.summonT`;敵人新增 `rootT/rootWC`。
+
+### 實測(關掉暴擊變因,固定三隻靶)
+```
+基準              72
+afterimageHits    90   (+25%)
+afterimageSolid   84   (改打別隻)
+whiteCutSlash    112   (72 → 112)
+strokeLingers    108   (72 → 108)
+inkDrop      96 → 128  (且場上確實生出墨滴)
+dotSpread    感染 0 → 2 隻
+edgeMoment   edgeReady 由 false → true
+2000 幀壓力測試:零例外
+```
+
+### 過程中修掉自己的一個 bug
+第一版把殘影傷害寫成 `pendDamage(...)` —— 但 `pendDamage` 只負責**跳字**,
+實際扣血要走 `dmgTo`。所以殘影原本是純特效、一點傷害都沒有,
+而且因為浮字合併,畫面上還會顯示「有打到」。實測 90 vs 96(關暴擊前)才抓到不對勁。
+**這正是 `#57` 立下「所有傷害統一走 dmgTo」那條規則要防的事,我自己第一個違反。**
+
+**怎麼推回去**:各項見上表的旗標名,逐一在主檔搜尋該旗標即可定位;
+移除 `G.drops/G.lingers/edgeT/edgeReady/focus/focusIdle/focusReady/summonT` 與 `en.rootT/rootWC`。
+
+---
+
 ## [2026-08-09] #81 卡片與階級表都改寫實際效果;**查出 22 個空的階級層**
 
 ### A. 旗標型效果現在也會顯示
