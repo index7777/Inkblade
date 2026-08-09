@@ -1782,6 +1782,19 @@ function drawMistDissolve(ctx,m){
   }
   ctx.restore();
 }
+// 同幀同目標的傷害累加,於 update() 結尾一次跳字
+const dmgAcc=new Map();
+function pendDamage(en, dmg, crit){
+  const e=dmgAcc.get(en);
+  if(e){ e.sum+=dmg; e.crit=e.crit||crit; }
+  else dmgAcc.set(en,{sum:dmg, crit:!!crit, x:en.x, y:en.y-en.r-10});
+}
+function flushDamage(){
+  if(!dmgAcc.size) return;
+  for(const [en,e] of dmgAcc)
+    floatText(e.x, e.y, '-'+Math.round(e.sum), e.crit?'#f1d18a':'#fffaf0', e.crit);
+  dmgAcc.clear();
+}
 function floatText(x,y,txt,c,critFlag){
   const raw=String(txt);
   const damage=/^-?\d/.test(raw) || /^-\d/.test(raw) || /^[-]?\d+!?$/.test(raw);
@@ -2529,6 +2542,10 @@ function update(){
       } else { mx=-dx/d*.32+(-dy/d)*(en.orbitDir||1)*.55; my=-dy/d*.32+(dx/d)*(en.orbitDir||1)*.55; }
       const ml=Math.hypot(mx,my)||1; mx/=ml; my/=ml;
     }
+    // 墨刃兵與幽冥墨蛛只有單側動作素材：以實際水平移動方向記錄朝向。
+    // 接近垂直移動時沿用上一個方向，避免每幀在左右之間抖動。
+    if((en.type==='blade'||en.type==='spider') && Math.abs(mx)>.045)
+      en.facing=mx>=0?1:-1;
     en.x+=mx*sp; en.y+=my*sp;
     en.wob+=0.1;
     if(en.hit>0)en.hit--;
@@ -2781,9 +2798,11 @@ function update(){
         }
         if(stat.ember>0){ en.ember=Math.max(en.ember,stat.ember); }
         if(stat.ice>0){ en.chill=100; }
-        // 暴擊不再加「!」。原本「!」兼作暴擊旗標(floatText 靠它判斷 crit),
-        // 所以改用第五個參數明確傳入,而不是只把字刪掉。
-        floatText(en.x,en.y-en.r-10, '-'+Math.round(dmg), isCrit?'#f1d18a':'#fffaf0', isCrit);
+        // 分裂後每把劍只打全額的 1/N,逐把跳字會變成一串「五」「五」「五」——
+        // 看起來像撓癢,但總傷害其實跟沒分裂一樣。所以同一幀打同一隻墨獸的傷害
+        // 全部累加成一個數字,玩家看到的是這一擊真正的總量。
+        // 暴擊旗標由第三個參數帶進去(floatText 原本靠字串裡的「!」判斷,那個已移除)。
+        pendDamage(en, dmg, isCrit);
         splash(s.x,s.y,(ELEM[stat.element]||ELEM.none).hit,1);
         if(isCrit){ SND.crit(); shake(4); hitstop(3); flash(0.12,'240,220,160');
           if(stat.whiteCut) whiteCut(s.x,s.y,s.ang);
@@ -2854,6 +2873,7 @@ function update(){
     if(G.reserve>cap) G.reserve=cap;
   } else { G.reserve=0; G.reserveT=0; }
   if(G.reserveFlash>0) G.reserveFlash-=0.02;
+  flushDamage();
   dpsTick();
   if(G.t%5===0) updateHUD();
 }
@@ -3140,7 +3160,7 @@ function drawSwordSprite(ctx,s){
   ctx.restore();
 }
 function drawInkFlyingSword(ctx,s){
-  const speed=Math.hypot(s.vx||0,s.vy||0), k=stat.size;
+  const speed=Math.hypot(s.vx||0,s.vy||0), k=stat.size*swMul(s).size;
   const BL=38+k*1.8+Math.min(12,speed*.7), bw=2.8+k*.22;
   const EL=ELEM[stat.element]||ELEM.none, phase=(G.t+s.age*3)*.08;
   ctx.save(); ctx.translate(s.x,s.y); ctx.rotate(s.ang);
@@ -3183,14 +3203,23 @@ function drawInkFlyingSword(ctx,s){
   ctx.fillStyle='#15120f'; ctx.beginPath(); ctx.arc(-18,0,bw*.72,0,6.283); ctx.fill();
   ctx.restore();
 }
+// 分裂後威力被攤薄的劍要看得出來比較輕。沿用殘鋒(echo)早就在用的約定:小一點、淡一點。
+// 指數用 0.35 而不是線性 —— 線性會讓五份裂劍細成髮絲,反而看不見。
+// 命中範圍不跟著縮:分裂換到的就是覆蓋面,縮判定等於把設計本身抵消掉。
+function swMul(s){
+  const d=Math.max(0.02, s && s.dmgScale!=null ? s.dmgScale : 1);
+  if(d>=0.999) return {size:1, alpha:1};
+  return { size:Math.pow(d,0.35), alpha:0.55+0.45*Math.pow(d,0.4) };
+}
 function drawJian(ctx, s){
   // 飛出去的是同一把母版飛劍；劍寬只小幅影響尺寸，避免升級後變成巨型黑針。
   if(FLYSWORD.ok){
     const speed=Math.hypot(s.vx||0,s.vy||0);
-    const w=(44+stat.size*.9+Math.min(5,speed*.22))*(s.echo?.88:1);
+    const M=swMul(s);
+    const w=(44+stat.size*.9+Math.min(5,speed*.22))*(s.echo?.88:1)*M.size;
     const h=w/FLYSWORD.aspect;
     ctx.save(); ctx.translate(s.x,s.y); ctx.rotate(s.ang);
-    ctx.globalAlpha=s.echo?.72:.94;
+    ctx.globalAlpha=(s.echo?.72:.94)*M.alpha;
     ctx.drawImage(FLYSWORD.image,-w*FLYSWORD.grip,-h/2,w,h);
     ctx.restore();
     return;
@@ -3581,6 +3610,11 @@ function draw(){
         ctx.translate(en.x,en.y);
         if(en.bossSide===3) ctx.scale(-1,1);
         ctx.translate(-en.x,-en.y-en.r*(scale-1)*.18);
+      } else if(en.type==='blade'||en.type==='spider'){
+        // 僅鏡像敵人立繪；後面另畫的狀態環、血條與特效維持原方向。
+        ctx.translate(en.x,0);
+        ctx.scale(en.facing||1,1);
+        ctx.translate(-en.x,0);
       }
       if(bossAtk){
         const fi=Math.max(0,Math.min(5,Math.floor(en.bossT/58*6)));
@@ -3669,8 +3703,9 @@ function draw(){
       const inline=s.cmd&&s.cmd.formation==='inline';
       const keep=inline?2:7;
       const shortTrail=s.trail.length>keep?s.trail.slice(-keep):s.trail;
-      ctx.save(); ctx.globalAlpha=s.echo?.35:(inline ? .18 : .58);
-      inkTrail(ctx,shortTrail,Math.max(1.1,stat.size*(inline ? .18 : .42))*(s.echo?.7:1),rgb,false);
+      const TM=swMul(s);
+      ctx.save(); ctx.globalAlpha=(s.echo?.35:(inline ? .18 : .58))*TM.alpha;
+      inkTrail(ctx,shortTrail,Math.max(1.1,stat.size*(inline ? .18 : .42))*(s.echo?.7:1)*TM.size,rgb,false);
       ctx.restore();
     }
     // 劍身(統一水墨母版)
