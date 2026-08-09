@@ -1094,7 +1094,7 @@ function warmSwordTint(){
 }
 // 敵人/Boss sprite 載入器:偵測到真透明 PNG 就用,否則回退程序化墨團(見敵人繪製)。
 // 檔名對應 docs/ch1-asset-library.md;放進對應資料夾即自動生效,無需改碼。
-const ENESPR = { inkling:{frames:[],ok:false}, blade:{frames:[],ok:false}, raven:{frames:[],ok:false}, fang:{frames:[],ok:false}, spider:{frames:[],attack:[],ok:false},
+const ENESPR = { inkling:{frames:[],ok:false}, blade:{frames:[],ok:false}, raven:{frames:[],attack:[],ok:false}, fang:{frames:[],attack:[],ok:false}, spider:{frames:[],attack:[],ok:false},
   boss:{frames:[],attack:[],dissolve:[],top:{idle:null,attack:[]},bottom:{idle:null,attack:[]},ok:false} };
 (function(){
   const srcs={
@@ -1105,8 +1105,12 @@ const ENESPR = { inkling:{frames:[],ok:false}, blade:{frames:[],ok:false}, raven
            'assets/enemies/ENE_BLADE_walk_05.png','assets/enemies/ENE_BLADE_walk_06.png',
            'assets/enemies/ENE_BLADE_walk_07.png','assets/enemies/ENE_BLADE_walk_08.png',
            'assets/enemies/ENE_BLADE_walk_09.png'],
-    raven:['assets/enemies/generated/ENE_INK_RAVEN.png'],
-    fang:['assets/enemies/generated/ENE_INK_FANG.png'],
+    raven:['assets/enemies/generated/raven/ENE_INK_RAVEN_move_01.png','assets/enemies/generated/raven/ENE_INK_RAVEN_move_02.png',
+           'assets/enemies/generated/raven/ENE_INK_RAVEN_move_03.png','assets/enemies/generated/raven/ENE_INK_RAVEN_move_04.png',
+           'assets/enemies/generated/raven/ENE_INK_RAVEN_move_05.png','assets/enemies/generated/raven/ENE_INK_RAVEN_move_06.png'],
+    fang:['assets/enemies/generated/fang/ENE_INK_FANG_move_01.png','assets/enemies/generated/fang/ENE_INK_FANG_move_02.png',
+          'assets/enemies/generated/fang/ENE_INK_FANG_move_03.png','assets/enemies/generated/fang/ENE_INK_FANG_move_04.png',
+          'assets/enemies/generated/fang/ENE_INK_FANG_move_05.png','assets/enemies/generated/fang/ENE_INK_FANG_move_06.png'],
     spider:['assets/enemies/elite/ENE_NETHER_SPIDER_walk_01.png','assets/enemies/elite/ENE_NETHER_SPIDER_walk_02.png',
             'assets/enemies/elite/ENE_NETHER_SPIDER_walk_03.png','assets/enemies/elite/ENE_NETHER_SPIDER_walk_04.png',
             'assets/enemies/elite/ENE_NETHER_SPIDER_walk_05.png','assets/enemies/elite/ENE_NETHER_SPIDER_walk_06.png',
@@ -1129,6 +1133,11 @@ const ENESPR = { inkling:{frames:[],ok:false}, blade:{frames:[],ok:false}, raven
   for(let i=1;i<=6;i++){ const img=new Image();
     img.onload=()=>{ ENESPR.spider.attack[i-1]=img; };
     img.src='assets/enemies/elite/ENE_NETHER_SPIDER_attack_'+String(i).padStart(2,'0')+'.png';
+  }
+  for(const kind of ['raven','fang']) for(let i=1;i<=4;i++){ const img=new Image();
+    img.onload=()=>{ ENESPR[kind].attack[i-1]=img; };
+    const pre=kind==='raven'?'ENE_INK_RAVEN':'ENE_INK_FANG';
+    img.src='assets/enemies/generated/'+kind+'/'+pre+'_attack_'+String(i).padStart(2,'0')+'.png';
   }
   for(const dir of ['top','bottom']){
     const bounds=dir==='top'
@@ -3961,7 +3970,10 @@ function draw(){
         ? grp.dissolve.filter(Boolean) : null;
       const spiderAtk=en.type==='spider'&&(en.aiT%180)<54&&grp.attack&&grp.attack.filter(Boolean).length===6
         ? grp.attack.filter(Boolean) : null;
-      const fr=bossAtk||bossDis||spiderAtk||(bossIdle?[bossIdle]:grp.frames.filter(Boolean)), n=fr.length,
+      const ravenT=en.type==='raven'?en.aiT%170:-1, fangT=en.type==='fang'?en.aiT%138:-1;
+      const creatureAtk=((en.type==='raven'&&ravenT>=84&&ravenT<132)||(en.type==='fang'&&fangT>=38&&fangT<98))
+        &&grp.attack&&grp.attack.filter(Boolean).length===4 ? grp.attack.filter(Boolean) : null;
+      const fr=bossAtk||bossDis||spiderAtk||creatureAtk||(bossIdle?[bossIdle]:grp.frames.filter(Boolean)), n=fr.length,
             scale=en.visualScale||1,
             hh=en.visualHeight||(en.isBoss&&(en.bossSide===1||en.bossSide===3)
               ?Math.min(en.r*2.1*scale,W*.25):en.r*2.1*scale),
@@ -4004,6 +4016,9 @@ function draw(){
         put(fr[fi],base*Math.min(1,en.bossT/8));
       } else if(spiderAtk){
         put(fr[Math.max(0,Math.min(5,Math.floor((en.aiT%180)/9)))],base);
+      } else if(creatureAtk){
+        const p=en.type==='raven'?(ravenT-84)/48:(fangT-38)/60;
+        put(fr[Math.max(0,Math.min(3,Math.floor(p*4)))],base);
       } else if(n<=1){ put(fr[0], base); }
       else {
         // move / walk 檔是真正的連續動作幀。舊版墨靈同時交叉畫兩張會重影、

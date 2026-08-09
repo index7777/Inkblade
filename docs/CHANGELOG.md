@@ -2128,3 +2128,10 @@ if(FX.trail) for(let k=1;k<s.trail.length;k++){
   }
 }
 ```
+
+## #87 散鋒:移除側向距離上限
+- `fanPose` 的 `CAP=Math.min(300, W*0.28)` 整段拔掉,錐口隨離出鞘點的距離自然張開。
+- 依據使用者既有原則「不要設上限,出問題再說」。
+- 後果(拔掉前實測,拔掉後即恢復此數值):畫長 400→外側劍離中心 306px;900→463px;1800→925px(約 261 幀在畫面外)。
+- 怎麼推回去(還原依據):在 `fanPose` 的 `return` 前補回 4 行 clamp:
+  `const CAP=Math.min(300,W*0.28); const ox=x-c.x,oy=y-c.y,m=Math.hypot(ox,oy); if(m>CAP){const k=CAP/m; x=c.x+ox*k; y=c.y+oy*k;}`
