@@ -1,0 +1,9 @@
+Asset: Slash desaturated.png
+Author: MetaShinryu
+Source: https://opengameart.org/content/slash-effect
+Direct file: https://opengameart.org/sites/default/files/Slash%20desaturated.png
+License: CC0 1.0 Universal (public domain dedication)
+License URL: https://creativecommons.org/publicdomain/zero/1.0/
+
+The source page states: "Use as you see fit for any purpose".
+In Inkblade the texture is recolored and stretched as a flying-sword trail mask.
