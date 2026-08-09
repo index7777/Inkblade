@@ -1036,12 +1036,24 @@ const SWDSPR={ idle:[], atk:[], ok:false, aspect:2.504, grip:0.22, blade:0.645, 
 (function loadSword(){
   const add=(arr,src)=>{ const im=new Image();
     im.onload=()=>{ SWDSPR.aspect=im.naturalWidth/im.naturalHeight;
-                    if(++SWDSPR.n>=SWDSPR.need) SWDSPR.ok=true; };
+                    // 先解碼:瀏覽器預設把解碼延到「第一次真的畫出來」。
+                    // 出鞘用的 atk 六幀平常完全不會畫,所以每次出劍都在那一幀現場解碼一張
+                    // 651×260 的 PNG —— 這就是手機「一出劍就頓一下」。
+                    if(im.decode) im.decode().catch(()=>{});
+                    if(++SWDSPR.n>=SWDSPR.need){ SWDSPR.ok=true; warmSwordTint(); } };
     im.onerror=()=>{ SWDSPR.ok=false; }; im.src=src; arr.push(im); };
   const pad=i=>String(i).padStart(2,'0');
   for(let i=1;i<=8;i++) add(SWDSPR.idle,'assets/sword/SWORD_idle_'+pad(i)+'.png');
   for(let i=1;i<=6;i++) add(SWDSPR.atk,'assets/sword/SWORD_atk_'+pad(i)+'.png');
 })();
+// 低血量的紅色劍環會用到上色版貼圖。等到掉血當下才烘,那一幀要一次烘八張,
+// 剛好落在「受擊」的瞬間 —— 所以趁閒置時先烘好。
+function warmSwordTint(){
+  const run=()=>{ try{ for(const im of SWDSPR.idle)
+    if(im && im.complete && im.naturalWidth) tintFrame(im,'#a2422b'); }catch(_){} };
+  if(typeof requestIdleCallback==='function') requestIdleCallback(run,{timeout:3000});
+  else setTimeout(run,600);
+}
 // 敵人/Boss sprite 載入器:偵測到真透明 PNG 就用,否則回退程序化墨團(見敵人繪製)。
 // 檔名對應 docs/ch1-asset-library.md;放進對應資料夾即自動生效,無需改碼。
 const ENESPR = { inkling:{frames:[],ok:false}, blade:{frames:[],ok:false},
@@ -2759,15 +2771,24 @@ function drawHero(P){
 }
 // Sprite 版:呼吸(整體微縮放 + 上下浮動)、轉身、待機 9 幀慢速交叉淡入、受擊 4 幀連播。
 // 受擊紅光:把 sprite 幀畫進離屏、source-atop 填紅,回貼主畫布(不需為每幀預烘)
-const _tintCv=document.createElement('canvas'), _tintCtx=_tintCv.getContext('2d');
+// 上色後的貼圖要快取。原本每呼叫一次就重畫一張離屏畫布(clearRect + drawImage + fillRect),
+// 而低血量時腳下的劍環每幀要上色 6 把 —— 劍的原圖是 651×260,等於每幀重繪
+// 約 100 萬像素三遍。實測(6 倍 CPU 節流)血滿 2.4ms/幀、血低於四成 37.4ms/幀,差 15.6 倍,
+// 這就是「受擊之後開始卡」的真正原因(受擊 → 掉到四成以下 → 劍環開始每幀重新上色)。
+const _tintCache=new WeakMap();
 function tintFrame(im,col){
+  let byCol=_tintCache.get(im);
+  if(!byCol){ byCol=new Map(); _tintCache.set(im,byCol); }
+  let cv=byCol.get(col);
+  if(cv) return cv;
   const W=im.naturalWidth, H=im.naturalHeight;
-  if(_tintCv.width!==W||_tintCv.height!==H){ _tintCv.width=W; _tintCv.height=H; }
-  _tintCtx.globalCompositeOperation='source-over'; _tintCtx.clearRect(0,0,W,H);
-  _tintCtx.drawImage(im,0,0);
-  _tintCtx.globalCompositeOperation='source-atop'; _tintCtx.fillStyle=col; _tintCtx.fillRect(0,0,W,H);
-  _tintCtx.globalCompositeOperation='source-over';
-  return _tintCv;
+  cv=document.createElement('canvas'); cv.width=W; cv.height=H;
+  const g=cv.getContext('2d');
+  g.drawImage(im,0,0);
+  g.globalCompositeOperation='source-atop'; g.fillStyle=col; g.fillRect(0,0,W,H);
+  g.globalCompositeOperation='source-over';
+  byCol.set(col,cv);
+  return cv;
 }
 function drawHeroSprite(P){
   const S=heroSet();
