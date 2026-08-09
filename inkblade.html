@@ -646,7 +646,10 @@
       <div class="pane" data-pane="video">
         <div id="settings2">
         <div class="sethead">墨 形</div>
-        <div class="setbtn" id="herobtn" style="min-height:38px;margin-bottom:12px;display:flex;align-items:center;justify-content:center;">墨形：劍客</div>
+        <div class="segrow" id="herochoices" role="radiogroup" aria-label="角色墨形">
+          <div class="seg" data-hero="m" role="radio" aria-checked="false">劍 客</div>
+          <div class="seg" data-hero="f" role="radio" aria-checked="false">女 修</div>
+        </div>
         <div class="sethead" style="margin-top:14px;">震 動</div>
         <div class="segrow" id="shakerow">
           <div class="seg" data-shake="n">無</div><div class="seg" data-shake="s">小</div><div class="seg" data-shake="m">中</div><div class="seg" data-shake="l">大</div>
@@ -1236,13 +1239,13 @@ function onScreen(en){ return en.x>=-en.r && en.x<=W+en.r && en.y>=-en.r && en.y
 // 第 1～59 境敵群。六種既有敵人加上兩套獨立生成素材，共八種輪廓與玩法。
 // weight 可隨波次增加，避免後期仍大量抽到只會直走的入門怪。
 const ENEMY_KINDS=[
-  {id:'wisp',    name:'游墨', unlock:1,  type:'inkling',tier:0,hp:13,r:14,sp:.88,dmg:6,xp:1,c:'#51433f',ai:'seek',visualScale:1.42,animRate:.075,
+  {id:'wisp',    name:'游墨', unlock:1,  type:'inkling',tier:0,hp:13,r:14,sp:.88,dmg:6,xp:1,c:'#51433f',ai:'seek',visualHeight:44,animRate:.075,
     weight:w=>Math.max(10,62-w*.85)},
-  {id:'weaver',  name:'織影', unlock:5,  type:'inkling',tier:0,hp:10,r:12,sp:1.22,dmg:6,xp:1,c:'#3f4b50',ai:'weave',visualScale:1.38,animRate:.105,
+  {id:'weaver',  name:'織影', unlock:5,  type:'inkling',tier:0,hp:10,r:12,sp:1.22,dmg:6,xp:1,c:'#3f4b50',ai:'weave',visualHeight:44,animRate:.105,
     weight:w=>18+Math.min(18,(w-5)*.55)},
   {id:'bulwark', name:'墨甲', unlock:10, type:'blade',   tier:1,hp:46,r:23,sp:.57,dmg:12,xp:2,c:'#352f43',ai:'seek',visualScale:1.42,visualHeight:72,animRate:.055,
     weight:w=>12+Math.min(22,(w-10)*.58)},
-  {id:'orbiter', name:'環煞', unlock:17, type:'inkling',tier:1,hp:27,r:17,sp:.96,dmg:10,xp:2,c:'#334842',ai:'orbit',visualScale:1.35,animRate:.085,
+  {id:'orbiter', name:'環煞', unlock:17, type:'inkling',tier:1,hp:27,r:17,sp:.96,dmg:10,xp:2,c:'#334842',ai:'orbit',visualHeight:44,animRate:.085,
     weight:w=>11+Math.min(20,(w-17)*.62)},
   {id:'raven',   name:'墨羽妖',unlock:22, type:'raven',   tier:1,hp:24,r:16,sp:1.02,dmg:11,xp:2,c:'#3f2828',ai:'swoop',visualScale:1,visualHeight:58,animRate:.08,
     weight:w=>9+Math.min(20,(w-22)*.68)},
@@ -1567,11 +1570,14 @@ function formationOffset(formation, i, n, spacing, spread){
   // 原本是「以中心對稱」,結果前半列在出鞘瞬間就站在玩家前方一兩百 px,
   // 那段近距離永遠沒有劍經過,近身的墨獸就少挨好幾刀(#68 的近身空區)。
   if(formation==='inline')   return {along:-i*inlineGap(), side:0};
-  // 散鋒:扇面。原本只是「帶一點 V 形的平行」,跟齊鋒幾乎看不出差別 ——
-  // 改成隨飛行時間**逐漸張開**,才對得起「散」字:齊鋒是固定間距的密集柱,
-  // 散鋒是越飛越寬的錐面(覆蓋面換密度)。
-  const open = 1 + Math.min(2.2, (spread||0)/70);
-  return {along:-Math.abs(t)*spacing*0.55, side:t*spacing*1.15*open};
+  // 散鋒:真正的錐面。
+  // 前兩版都只是「側向偏移」—— 所有劍的朝向仍是 c.ang,劍一多就變成一道越來越寬的牆,
+  // 跟齊鋒還是很像。真的錐要用**極座標**:每把劍從出鞘點沿自己的角度射出去,
+  // 側向距離隨飛行距離線性成長,而且**劍身朝向也跟著轉**,外側劍自然落後成弧。
+  const PHI=0.52;                                   // 半錐角(約 30°,整錐 60°)
+  const L=spacing*1.4 + Math.min(spread||0, Math.min(320, W*0.30));   // 張開距離(上限避免錐寬到失控)
+  const a=t*PHI;
+  return { along:L*Math.cos(a)-L, side:L*Math.sin(a), ang:a };
 }
 // 線段 (ax,ay)-(bx,by) 到點 (px,py) 的最短距離。掃掠命中判定用。
 function segCircleDist(ax, ay, bx, by, px, py){
@@ -1626,11 +1632,11 @@ function swordDissolve(sw){
 function spawnCmdSword(c, slot, delay){
   // 出鞘就直接站到陣型位置。原本一律生在 c.x/c.y(筆尖),
   // 第一次被排位時整把劍瞬移一兩百 px 過去,那段距離沒有任何命中判定。
-  const _o=formationOffset(c.formation, slot, c.slots, c.spacing, c.age);
+  const _o=formationOffset(c.formation, slot, c.slots, c.spacing, c.age*(stat.flySpeed||stat.speed||14));
   const _ca=Math.cos(c.ang), _sa=Math.sin(c.ang);
   const _x=c.x + _ca*_o.along - _sa*_o.side;
   const _y=c.y + _sa*_o.along + _ca*_o.side;
-  const sw={ cmd:c, slot:slot, x:_x, y:_y, px:_x, py:_y, ang:c.ang, vx:0, vy:0,
+  const sw={ cmd:c, slot:slot, x:_x, y:_y, px:_x, py:_y, ang:c.ang+(_o.ang||0), vx:0, vy:0,
              trail:[], age:0,
              // 聚形要看起來是一把劍,連貼圖動畫幀都得對齊,所以整道劍令共用一個 seed
              seed:(c.formation==='merge' && c.seed!=null) ? c.seed : Math.random()*8,
@@ -2798,7 +2804,7 @@ function update(){
       // 接力關掉後這裡不再有延遲可調 —— 開匣·大成已改成直接加劍速。
       if(!sw) sw=spawnCmdSword(c,k,0);
       if(sw.delay>0){ sw.delay--; sw.trail.length=0; continue; }
-      const off=formationOffset(c.formation, k, c.slots, c.spacing, c.age);
+      const off=formationOffset(c.formation, k, c.slots, c.spacing, c.age*(stat.flySpeed||stat.speed||14));
       let oa=off.along, os=off.side;
       // 分裂出生動畫:從母劍的局部位置平滑張開到自己的陣位。
       // 用局部座標插值(而不是世界座標),子劍才會跟著劍令中心一起前進,不會被留在原地。
@@ -2815,7 +2821,7 @@ function update(){
       if(sw.snap){ sw.px=nx; sw.py=ny; sw.snap=false; }
       else { sw.px=sw.x; sw.py=sw.y; }
       sw.vx=nx-sw.x; sw.vy=ny-sw.y;
-      sw.x=nx; sw.y=ny; sw.ang=c.ang; sw.age++;
+      sw.x=nx; sw.y=ny; sw.ang=c.ang+(off.ang||0); sw.age++;
       if(!c.free&&c.passAt) sw.passId=c.passAt[Math.max(0,Math.min(c.passAt.length-1,c.seg))]||0;
       if(FX.trail){
         sw.trail.push({x:sw.x,y:sw.y});
@@ -3944,10 +3950,6 @@ function draw(){
         ctx.scale(en.facing||1,1);
         ctx.translate(-en.x,0);
         if(en.type==='raven') ctx.translate(0,Math.sin(en.aiT*.14+en.aiSeed)*2.2);
-      } else if(en.species==='weaver'||en.species==='orbiter'){
-        // 同一墨靈素材用輪廓比例區分：織影扁長、環煞略厚；碰撞尺寸不變。
-        const sx=en.species==='weaver'?1.10:1.04,sy=en.species==='weaver'?.88:1.04;
-        ctx.translate(en.x,en.y);ctx.scale(sx,sy);ctx.translate(-en.x,-en.y);
       }
       if(bossAtk){
         const fi=Math.max(0,Math.min(5,Math.floor(en.bossT/58*6)));
@@ -4858,7 +4860,7 @@ function togglePause(force){
   // 暫停:背景樂完全停止;繼續:重新起奏
   if(now) SND.stopMusic(0.25); else SND.startMusic();
   document.getElementById('pause').classList.toggle('show',now);
-  if(now){ renderVol(); renderHeroBtn(); renderShakeBtns(); renderTierList(); respecArmed=false; renderRespec(); }
+  if(now){ renderVol(); renderHeroChoices(); renderShakeBtns(); renderTierList(); respecArmed=false; renderRespec(); }
   if(!now) tryLevelUp();          // 暫停期間累積的升級,繼續後補選
 }
 // 隕落:有專屬 death 幀 → 播 7 幀;否則(女修)→ 程式化墨消散(sprite 淡出 + 潑墨爆散)。
@@ -5057,14 +5059,16 @@ function toggleAuto(){
 }
 // ---------- 音量設定 ----------
 const VOLS=[['volMaster','master'],['volMusic','music'],['volSfx','sfx']];
-function renderHeroBtn(){
-  const b=document.getElementById('herobtn'); if(!b) return;
-  b.textContent='墨形：'+(meta.heroSkin==='f'?'女修':'劍客');
-  b.classList.toggle('on', meta.heroSkin==='f');
+function renderHeroChoices(){
+  document.querySelectorAll('#herochoices [data-hero]').forEach(b=>{
+    const on=b.dataset.hero===meta.heroSkin;
+    b.classList.toggle('on',on); b.setAttribute('aria-checked',String(on));
+  });
 }
-function toggleHeroSkin(){
-  meta.heroSkin = (meta.heroSkin==='f') ? 'm' : 'f';
-  saveMeta(); SND.ui(); renderHeroBtn();
+function setHeroSkin(skin){
+  if(skin!=='m'&&skin!=='f') return;
+  meta.heroSkin=skin;
+  saveMeta(); SND.ui(); renderHeroChoices();
 }
 function renderVol(){
   for(const [id,key] of VOLS){
@@ -5214,7 +5218,9 @@ renderSndBtn(); bindVol(); renderVol();
 })();
 document.getElementById('resumebtn').onclick=()=>togglePause(false);
 document.getElementById('respecbtn').onclick=()=>doRespec();
-document.getElementById('herobtn').onclick=()=>toggleHeroSkin();
+document.querySelectorAll('#herochoices [data-hero]').forEach(b=>{
+  b.onclick=()=>setHeroSkin(b.dataset.hero);
+});
 // 劍訣精進:列出已滿階的悟道與三層進度。滿階那一刻才開始累計,所以沒滿階的不列。
 function renderTierList(){
   const box=document.getElementById('tierlist'); if(!box) return;
