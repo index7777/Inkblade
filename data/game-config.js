@@ -91,7 +91,7 @@
       'flags.pierceRamp', 'flags.pierceBreak', 'flags.pierceRecoil',
       'flags.guideExtend', 'flags.guideRetarget', 'flags.guideNeverMiss',
       'flags.returnFaster', 'flags.returnSeek', 'flags.returnKeep', 'flags.returnHaste',
-      'flags.noSplit', 'flags.mergeHeavy', 'flags.scatterQuad',
+      'flags.noSplit', 'flags.mergeHeavy', 'flags.scatterQuad', 'flags.whiteCutTwin',
       'flags.afterimageSolid'],
     status: ['erosion', 'suppression'],
     unlock: ['runUnlocks', 'permanentUnlocks'],
@@ -126,6 +126,8 @@
   const GROWTH = Object.freeze({ hpPerLevel: 6, manaPerLevel: 5, damagePerLevel: 1.0, armorPerLevel: 0.3 });
   // 耐久抵免 = 1 + 護甲 × ARMOR_PER_POINT。護甲 10 → 每擊只扣一半。
   const ARMOR_MODEL = Object.freeze({ perPoint: 0.10 });
+  // 劍速轉傷害:與主檔 speedMul() 同一組數字,卡面才算得出來
+  const SPEED_MODEL = Object.freeze({ baseSpeed: 14, damagePerSpeed: 0.6 });
   // ── 劍寬的第二層意義 ──────────────────────────────────────────
   // 寬 → 護甲高(厚重不易崩)、飛得慢;細 → 護甲低、飛得快。
   // 兩者**都不影響傷害** —— 傷害只由劍傷本身與「劍速卡片」決定。
@@ -173,14 +175,14 @@
     insight({ id: 'form_merge', category: CATEGORY.FORM, rarity: RARITY.CLARITY, name: '聚鋒式', rune: '聚', maxRank: 5, description: '眾鋒合一;增一劍,同出同歸,聚而不分。', tradeoff: '聚形不參與分裂,威力集中於一點。', effects: [op('add', 'stats.swordCount', 1), op('set', 'formation', 'merge')], tiers: [tier(0, '合鋒益粗,命中範圍增加。', [op('add', 'mechanics.hitPadding', 5)]), tier(1, '眾鋒同落,暴擊機會提高。', [op('add', 'stats.critChance', 0.1)]), tier(2, '合鋒愈沉:每折返一趟傷害提高三成。', [op('flag', 'flags.mergeHeavy', true)])], fx: { trail: fx.WHITE_CUT, hit: fx.BREAK_INK } }),
     // ── 劍勢:改變飛劍運動。 ───────────────────────────────────────
     insight({ id: 'momentum_swift', category: CATEGORY.MOMENTUM, rarity: RARITY.AWAKENING, name: '疾影', rune: '疾', maxRank: 5, description: '劍影先於墨痕而至,飛行更快、更遠。', tiers: [tier(0, '飛劍身後留下殘影。', [op('flag', 'flags.afterimage', true)]), tier(1, '殘影造成兩成半傷害。', [op('flag', 'flags.afterimageHits', true)]), tier(2, '殘影可獨立命中墨獸。', [op('flag', 'flags.afterimageSolid', true)])], effects: [op('add', 'stats.swordSpeed', 3.6)], fx: { trail: fx.DRY_BRUSH } }),
-    insight({ id: 'momentum_pierce', category: CATEGORY.MOMENTUM, rarity: RARITY.CLARITY, name: '析鋒', rune: '析', maxRank: 5, description: '鋒可析:折返時多裂兩分,威力均攤。', effects: [op('add', 'stats.pierce', 2)], fx: { trail: fx.WHITE_CUT, hit: fx.BREAK_INK } }),
+    insight({ id: 'momentum_pierce', category: CATEGORY.MOMENTUM, rarity: RARITY.CLARITY, name: '析鋒', rune: '析', maxRank: 5, requires: ['momentum_return'], description: '鋒可析:折返時多裂兩分,威力均攤。', effects: [op('add', 'stats.pierce', 2)], fx: { trail: fx.WHITE_CUT, hit: fx.BREAK_INK } }),
     insight({ id: 'momentum_guide', category: CATEGORY.MOMENTUM, rarity: RARITY.PENETRATION, name: '引鋒', rune: '引', maxRank: 5, description: '劍意感知墨氣,於飛行中自行修正鋒向。', tradeoff: '每次領悟令直擊傷害降低 12%,引鋒本身不能暴擊。', requires: ['inherit_guide'], tiers: [tier(0, '劍令末端的延伸更長。', [op('flag', 'flags.guideExtend', true)]), tier(1, '擊殺後立即再向下一目標延伸。', [op('flag', 'flags.guideRetarget', true)]), tier(2, '劍令絕不空走,必尋得墨獸。', [op('flag', 'flags.guideNeverMiss', true)])], effects: [op('add', 'mechanics.homingStrength', 0.055), op('mul', 'stats.damage', 0.88), op('set', 'mechanics.homingCanCrit', false)], fx: { trail: fx.DRY_BRUSH } }),
     insight({ id: 'momentum_return', category: CATEGORY.MOMENTUM, rarity: RARITY.PENETRATION, name: '歸鋒', rune: '歸', maxRank: 5, description: '每階令飛劍沿劍令多倒走一趟全程。', tiers: [tier(0, '回程速度提高三成。', [op('flag', 'flags.returnFaster', true)]), tier(1, '回程末端自行探向最近墨獸。', [op('flag', 'flags.returnSeek', true)]), tier(2, '歸而不竭:每次折返保留三成耐久。', [op('flag', 'flags.returnKeep', true)])], effects: [op('set', 'mechanics.returnEnabled', true), op('add', 'mechanics.returnHits', 1)], fx: { trail: fx.DRY_BRUSH, hit: fx.WHITE_CUT } }),
     insight({ id: 'momentum_break', category: CATEGORY.MOMENTUM, rarity: RARITY.PENETRATION, name: '破墨', rune: '破', maxRank: 5, description: '劍鋒入墨時震散墨身,波及近旁墨獸。', tradeoff: '潑墨只在命中時出現,不改變飛劍本體。', tiers: [tier(0, '潑墨範圍內留下墨滴。', [op('flag', 'flags.inkDropOnSplash', true)]), tier(1, '墨滴可再次炸開。', [op('flag', 'flags.inkDropExplode', true)]), tier(2, '潑墨可連鎖引動。', [op('add', 'mechanics.splashChain', 1)])], effects: [op('add', 'mechanics.splashRadius', 38), op('mul', 'mechanics.splashDamage', 1.12)], fx: { hit: fx.SPLASH } }),
     // ── 劍意:命中後留在墨獸身上的狀態。 ──────────────────────────
     insight({ id: 'intent_erosion', category: CATEGORY.INTENT, rarity: RARITY.CLARITY, name: '蝕痕', rune: '蝕', maxRank: 5, description: '劍痕入墨身,每息蝕四點,續三息餘。', tiers: [tier(0, '蝕痕可被重新刷新。', [op('flag', 'flags.dotRefresh', true)]), tier(1, '蝕痕向鄰近墨獸擴散。', [op('flag', 'flags.dotSpread', true)]), tier(2, '墨獸潰散時爆出剩餘蝕傷。', [op('flag', 'flags.dotBurst', true)])], effects: [status('erosion', { stacks: 1, damagePerSecond: 4, duration: 3.2, maxStacks: 6 })], fx: { hit: fx.WHITE_CUT, status: fx.ERODING_INK } }),
     insight({ id: 'intent_suppress', category: CATEGORY.INTENT, rarity: RARITY.CLARITY, name: '鎮痕', rune: '鎮', maxRank: 5, description: '鎮住墨流;墨獸行速降一成二並受蝕。', tiers: [tier(0, '鎮痕緩速幅度提高。', [op('mul', 'mechanics.statusDuration', 1.25)]), tier(1, '鎮痕額外定身三分之一息。', [op('flag', 'flags.rootOnSuppress', true)]), tier(2, '定身結束時炸開一道留白斬。', [op('flag', 'flags.rootWhiteCut', true)])], effects: [status('suppression', { stacks: 1, slow: 0.12, damagePerSecond: 1.5, duration: 2.6, maxStacks: 4 })], fx: { hit: fx.NEGATIVE_SPACE, status: fx.SUPPRESSED_INK } }),
-    insight({ id: 'intent_sever', category: CATEGORY.INTENT, rarity: RARITY.CLARITY, name: '斷意', rune: '斷', maxRank: 5, description: '一線留白斷開墨身,暴擊機會提高。', tiers: [tier(0, '暴擊必定留下飛白。', [op('flag', 'flags.whiteCutOnCrit', true)]), tier(1, '飛白自行斬出一擊。', [op('flag', 'flags.whiteCutSlash', true)]), tier(2, '飛白滯留兩息不散。', [op('flag', 'flags.whiteCutLingers', true)])], effects: [op('add', 'stats.critChance', 0.12), op('flag', 'flags.whiteCutOnCrit', true)], fx: { hit: fx.WHITE_CUT } }),
+    insight({ id: 'intent_sever', category: CATEGORY.INTENT, rarity: RARITY.CLARITY, name: '斷意', rune: '斷', maxRank: 5, description: '一線留白斷開墨身,暴擊機會提高。', tiers: [tier(0, '暴擊改留兩道飛白。', [op('flag', 'flags.whiteCutTwin', true)]), tier(1, '飛白斬得更深(三成→七成)。', [op('flag', 'flags.whiteCutSlash', true)]), tier(2, '飛白滯留兩息不散。', [op('flag', 'flags.whiteCutLingers', true)])], effects: [op('add', 'stats.critChance', 0.12), op('flag', 'flags.whiteCutOnCrit', true)], fx: { hit: fx.WHITE_CUT } }),
     insight({ id: 'intent_restore', category: CATEGORY.INTENT, rarity: RARITY.AWAKENING, name: '回元', rune: '元', maxRank: 5, description: '墨獸潰散時,殘留劍意回歸靈府。', tiers: [tier(0, '斬妖回收更多劍意。', [op('add', 'stats.manaOnKill', 2)]), tier(1, '劍意滿盈後轉而回補神識。', [op('flag', 'flags.healOnFullMana', true)]), tier(2, '劍意滿盈時自行召出一把飛劍。', [op('flag', 'flags.summonOnFullMana', true)])], effects: [op('add', 'stats.manaOnKill', 0.78)], fx: { hit: fx.INK_DROP } }),
     // ── 修持:當局基礎能力。 ───────────────────────────────────────
     insight({ id: 'cultivate_edge', category: CATEGORY.CULTIVATION, rarity: RARITY.AWAKENING, name: '養鋒', rune: '鋒', maxRank: 5, description: '凝養劍鋒,使每次入墨更深。', tiers: [tier(0, '飛劍模型變長,鋒芒更顯。', [op('flag', 'flags.longBlade', true)]), tier(1, '劍氣拖尾轉為飛白乾筆。', [op('flag', 'flags.dryBrushTrail', true)]), tier(2, '每隔數息入「鋒芒」,下一擊必暴。', [op('flag', 'flags.edgeMoment', true)])], effects: [op('add', 'stats.damage', 18)] }),
@@ -188,7 +190,7 @@
     insight({ id: 'cultivate_breath', category: CATEGORY.CULTIVATION, rarity: RARITY.AWAKENING, name: '納息', rune: '息', maxRank: 5, description: '納劍意入靈府;上限愈高,劍令愈長愈耐久。', tiers: [tier(0, '周天更暢,劍意回復加快。', [op('add', 'stats.manaRegen', 0.5)]), tier(1, '每次御劍返還部分劍意。', [op('add', 'mechanics.manaRefund', 0.2)]), tier(2, '劍意滿盈時,定息免費御劍一次。', [op('flag', 'flags.freeCastAtFull', true)])], effects: [op('add', 'stats.manaMax', 38), op('add', 'stats.manaRegen', 0.16), op('max', 'stats.mana', 'stats.manaMax')] }),
     insight({ id: 'cultivate_sheath', category: CATEGORY.CULTIVATION, rarity: RARITY.CLARITY, name: '開匣', rune: '匣', maxRank: 5, description: '劍匣再開;同一道劍令多派一把飛劍。', tiers: [tier(0, '劍匣再開,同道劍令並行增一劍。', [op('add', 'stats.swordCount', 1)]), tier(1, '劍出鞘更捷,劍速提高二。', [op('add', 'stats.swordSpeed', 2)]), tier(2, '每隔數息,劍匣存下一把免費飛劍。', [op('flag', 'flags.autoRefill', true)])], effects: [op('add', 'stats.swordCount', 1)] }),
     insight({ id: 'cultivate_temper', category: CATEGORY.CULTIVATION, rarity: RARITY.AWAKENING, name: '斂鋒', rune: '斂', maxRank: 5, description: '收鋒入微;劍痕轉細,劍意大省。', tradeoff: '劍痕變細,擦邊命中的機會下降。', tiers: [tier(0, '鋒再收細,劍意更省。', [op('add', 'stats.swordWidth', -3), op('mul', 'stats.costMultiplier', 0.9)]), tier(1, '鋒細阻力小,劍速提高三。', [op('add', 'stats.swordSpeed', 3)]), tier(2, '運鋒如絲,劍意成本再減兩成。', [op('mul', 'stats.costMultiplier', 0.8)])], effects: [op('add', 'stats.swordWidth', -1.6), op('mul', 'stats.costMultiplier', 0.92)], fx: { trail: fx.DRY_BRUSH } }),
-    insight({ id: 'cultivate_focus', category: CATEGORY.CULTIVATION, rarity: RARITY.CLARITY, name: '凝神', rune: '凝', maxRank: 5, description: '心念專一,暴擊劍痕更深。', tiers: [tier(0, '心念更專,暴擊機率提高。', [op('add', 'stats.critChance', 0.08)]), tier(1, '連續命中累積專注層數。', [op('flag', 'flags.focusStacks', true)]), tier(2, '專注滿層,下一道劍令為凝神一劍。', [op('flag', 'flags.focusStrike', true)])], effects: [op('add', 'stats.critMultiplier', 0.2), op('mul', 'mechanics.trailOpacity', 1.05)] }),
+    insight({ id: 'cultivate_focus', category: CATEGORY.CULTIVATION, rarity: RARITY.CLARITY, name: '凝神', rune: '凝', maxRank: 5, description: '心念專一,暴擊劍痕更深。', tiers: [tier(0, '心念更專,暴擊機率提高。', [op('add', 'stats.critChance', 0.08)]), tier(1, '連續命中累積專注層數。', [op('flag', 'flags.focusStacks', true)]), tier(2, '專注滿層,下一道劍令為凝神一劍。', [op('flag', 'flags.focusStrike', true)])], effects: [op('add', 'stats.critMultiplier', 0.2), op('add', 'stats.critChance', 0.04)] }),
     // ── 真意:改變流派;一局只能啟用一種。 ─────────────────────────
     insight({ id: 'truth_ten_thousand', category: CATEGORY.TRUTH, rarity: RARITY.TRUTH, name: '萬劍歸宗', rune: '萬', maxRank: 1, description: '增四劍同赴一令;單劍傷害略降。', requires: ['inherit_ten_thousand'], effects: [op('truth', 'activeTruth', 'truth_ten_thousand'), op('add', 'stats.swordCount', 4), op('mul', 'stats.damage', 0.82)], fx: { trail: fx.DRY_BRUSH, hit: fx.BREAK_INK } }),
     insight({ id: 'truth_single_stroke', category: CATEGORY.TRUTH, rarity: RARITY.TRUTH, name: '一筆開天', rune: '一', maxRank: 1, description: '萬念歸於一鋒:只留一劍,厚重不分,傷害大增。', requires: ['inherit_single_stroke'], effects: [op('truth', 'activeTruth', 'truth_single_stroke'), op('set', 'stats.swordCount', 1), op('mul', 'stats.damage', 2.35), op('mul', 'stats.swordWidth', 1.45), op('flag', 'flags.noSplit', true)], fx: { trail: fx.WHITE_CUT, hit: fx.BREAK_INK } }),
@@ -623,7 +625,6 @@
   // 沒列在這裡的旗標 = 主檔還沒接線,寧可不顯示也不要寫一個假的數字。
   const FLAG_LABEL = Object.freeze({
     'flags.splashOnKill':      '斬殺潑墨 波及28%',
-    'flags.whiteCutOnCrit':    '暴擊留下飛白',
     'flags.autoRefill':        '每8息存一把免費劍',
     'flags.scatterEcho':       '兩側各分一殘鋒',
     'flags.scatterEchoIntent': '殘鋒也能上墨痕',
@@ -641,7 +642,31 @@
     'flags.returnKeep':        '每次折返保留三成耐久',
     'flags.returnHaste':       '每折返劍速 ×1.35',
     'flags.noSplit':           '不參與分裂',
-    'flags.mergeHeavy':        '每折返一趟傷害 +30%'
+    'flags.mergeHeavy':        '每折返一趟傷害 +30%',
+    'flags.volleyTighten':     '陣型間距 ×0.6 集火',
+    'flags.afterimage':        '身後留下兩道殘影',
+    'flags.afterimageHits':    '殘影補 25% 傷害',
+    'flags.afterimageSolid':   '殘影自行找目標',
+    'flags.inkDropOnSplash':   '潑墨留墨滴 35% 傷',
+    'flags.inkDropExplode':    '墨滴化開再炸一次',
+    'flags.dotRefresh':        '蝕痕命中可續期',
+    'flags.dotSpread':         '蝕痕傳染鄰近墨獸',
+    'flags.dotBurst':          '潰散爆出剩餘蝕傷',
+    'flags.rootOnSuppress':    '滿層定身三分之一息',
+    'flags.rootWhiteCut':      '定身結束炸留白斬',
+    'flags.whiteCutTwin':      '暴擊改留兩道飛白',
+    'flags.whiteCutSlash':     '飛白傷害 30%→70%',
+    'flags.whiteCutLingers':   '飛白滯留兩息不散',
+    'flags.healOnFullMana':    '滿劍意後回氣轉神識',
+    'flags.summonOnFullMana':  '滿劍意每三息召劍',
+    'flags.longBlade':         '劍身加長 28%',
+    'flags.dryBrushTrail':     '拖尾轉飛白乾筆',
+    'flags.edgeMoment':        '每六息蓄鋒芒 必暴',
+    'flags.strokeLingers':     '劍痕滯留 再傷 50%',
+    'flags.freeCastAtFull':    '劍意滿盈時該道免費',
+    'flags.focusStacks':       '連續命中累積專注',
+    'flags.focusStrike':       '專注滿八層 傷害×2.2',
+    'flags.whiteCutOnCrit':    '暴擊留飛白 三成傷'
   });
   // 把一組 ops 轉成白話效果行(卡面與階級表共用)
   function opLines(effects){
@@ -651,7 +676,14 @@
       if(e.op==='flag'){ const t=FLAG_LABEL[e.path]; if(t) out.push(t); }
       else if(e.op==='add' && L){
         const v=Number(e.value)||0, neg=v<0, a=Math.abs(v);
-        out.push(L+' '+(neg?'−':'+')+(EFFECT_PCT.has(e.path)?Math.round(a*100)+'%':fmtNum(a)));
+        let line=L+' '+(neg?'−':'+')+(EFFECT_PCT.has(e.path)?Math.round(a*100)+'%':fmtNum(a));
+        // 劍速會轉成傷害(主檔 speedMul:以 14 為基準,每快一成加 0.6 成傷害)。
+        // 只寫「劍速 +3.6」玩家算不出那是多少輸出,所以直接把換算標在同一行。
+        if(e.path==='stats.swordSpeed'){
+          const d=Math.round(v/SPEED_MODEL.baseSpeed*SPEED_MODEL.damagePerSpeed*100);
+          if(d) line+=' 傷'+(d>0?'+':'−')+Math.abs(d)+'%';
+        }
+        out.push(line);
       } else if(e.op==='mul' && L){
         const d=Math.round((Number(e.value)-1)*100);
         if(d!==0) out.push(L+' '+(d>0?'+':'−')+Math.abs(d)+'%');
@@ -939,6 +971,7 @@
     growth: GROWTH,
     lifeModel: LIFE_MODEL,
     armorModel: ARMOR_MODEL,
+    speedModel: SPEED_MODEL,
     widthModel: WIDTH_MODEL,
     category: CATEGORY,
     rebirthBranch: REBIRTH_BRANCH,

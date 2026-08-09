@@ -1551,7 +1551,7 @@ function bladeLength(){ return 44 + stat.size*0.9; }
 // 10px 的縫會被劍身邊緣與拖尾吃掉，六劍會讀成一根黑桿。
 function inlineGap(){ return bladeLength() + 28; }
 // 陣型:相對於「移動中的中心點」的偏移(along=沿行進方向,side=法線方向)
-function formationOffset(formation, i, n, spacing){
+function formationOffset(formation, i, n, spacing, spread){
   if(n<=1) return {along:0, side:0};
   const mid=(n-1)/2, t=(i-mid)/Math.max(1,mid);
   // 聚形:所有劍完全重疊成一把 —— 偏移恆為 0,靠共用 seed 讓貼圖幀也一致。
@@ -1561,7 +1561,11 @@ function formationOffset(formation, i, n, spacing){
   // 原本是「以中心對稱」,結果前半列在出鞘瞬間就站在玩家前方一兩百 px,
   // 那段近距離永遠沒有劍經過,近身的墨獸就少挨好幾刀(#68 的近身空區)。
   if(formation==='inline')   return {along:-i*inlineGap(), side:0};
-  return {along:-Math.abs(t)*spacing*0.55, side:t*spacing*1.15};                   // 散鋒:扇面
+  // 散鋒:扇面。原本只是「帶一點 V 形的平行」,跟齊鋒幾乎看不出差別 ——
+  // 改成隨飛行時間**逐漸張開**,才對得起「散」字:齊鋒是固定間距的密集柱,
+  // 散鋒是越飛越寬的錐面(覆蓋面換密度)。
+  const open = 1 + Math.min(2.2, (spread||0)/70);
+  return {along:-Math.abs(t)*spacing*0.55, side:t*spacing*1.15*open};
 }
 // 線段 (ax,ay)-(bx,by) 到點 (px,py) 的最短距離。掃掠命中判定用。
 function segCircleDist(ax, ay, bx, by, px, py){
@@ -1616,7 +1620,7 @@ function swordDissolve(sw){
 function spawnCmdSword(c, slot, delay){
   // 出鞘就直接站到陣型位置。原本一律生在 c.x/c.y(筆尖),
   // 第一次被排位時整把劍瞬移一兩百 px 過去,那段距離沒有任何命中判定。
-  const _o=formationOffset(c.formation, slot, c.slots, c.spacing);
+  const _o=formationOffset(c.formation, slot, c.slots, c.spacing, c.age);
   const _ca=Math.cos(c.ang), _sa=Math.sin(c.ang);
   const _x=c.x + _ca*_o.along - _sa*_o.side;
   const _y=c.y + _sa*_o.along + _ca*_o.side;
@@ -2762,7 +2766,7 @@ function update(){
       // 接力關掉後這裡不再有延遲可調 —— 開匣·大成已改成直接加劍速。
       if(!sw) sw=spawnCmdSword(c,k,0);
       if(sw.delay>0){ sw.delay--; sw.trail.length=0; continue; }
-      const off=formationOffset(c.formation, k, c.slots, c.spacing);
+      const off=formationOffset(c.formation, k, c.slots, c.spacing, c.age);
       let oa=off.along, os=off.side;
       // 分裂出生動畫:從母劍的局部位置平滑張開到自己的陣位。
       // 用局部座標插值(而不是世界座標),子劍才會跟著劍令中心一起前進,不會被留在原地。
@@ -3007,7 +3011,11 @@ function update(){
         pendDamage(en, dmg, isCrit);
         splash(s.x,s.y,(ELEM[stat.element]||ELEM.none).hit,1);
         if(isCrit){ SND.crit(); shake(4); hitstop(3); flash(0.12,'240,220,160');
-          if(stat.whiteCut) whiteCut(s.x,s.y,s.ang);
+          if(stat.whiteCut){
+            whiteCut(s.x,s.y,s.ang);
+            // 斷意·小成:暴擊改留兩道飛白(交叉)
+            if(TF.whiteCutTwin) whiteCut(s.x+(Math.random()-.5)*18, s.y+(Math.random()-.5)*18, s.ang+1.1);
+          }
           // 飛白千峰:暴擊生一道殘鋒 —— 給它一段自動生成的短劍令,系統裡不存在沒有劍令的劍
           // 一律走 spawnAutoCommand —— 手寫劍令物件漏欄位會在命中時丟例外
           // (這裡原本自己組物件,少了 hitOrder,只有解鎖飛白千峰才會踩到)
@@ -3049,14 +3057,17 @@ function update(){
   for(let i=G.stains.length-1;i>=0;i--){const st=G.stains[i];st.a-=0.00035;if(st.a<=0)G.stains.splice(i,1);}
   {
     const TFw=stat.tierFlags||{};
-    const decay = TFw.whiteCutLingers ? 0.03 : 0.09;   // 圓滿:飛白滯留兩息不散
+    const decay = TFw.whiteCutLingers ? 0.03 : 0.09;   // 斷意·圓滿:飛白滯留兩息不散
+    // 飛白本身就是一道斬痕,不是裝飾 —— 每道生成後斬一次。
+    // 斷意·大成把它從三成加深到七成。
+    const cutMul = TFw.whiteCutSlash ? 0.70 : 0.30;
     for(let i=G.cuts.length-1;i>=0;i--){
       const c=G.cuts[i]; c.life-=decay;
-      // 大成:飛白自行斬出一擊(每道只斬一次)
-      if(TFw.whiteCutSlash && !c.slashed && c.life<0.72){
+      if(!c.slashed && c.life<0.86){
         c.slashed=true;
         for(const en of G.enemies)
-          if(Math.hypot(en.x-c.x,en.y-c.y) < en.r+c.len*0.8){ dmgTo(en, stat.damage*0.55); en.hit=6; }
+          if(Math.hypot(en.x-c.x,en.y-c.y) < en.r+c.len*0.8){
+            dmgTo(en, stat.damage*cutMul); pendDamage(en, stat.damage*cutMul, false); en.hit=6; }
       }
       if(c.life<=0)G.cuts.splice(i,1);
     }
@@ -3775,29 +3786,6 @@ function enemyVariantFrame(en,img){
   const tone=ENEMY_TONE[en.species];
   return tone?tintFrame(img,tone):img;
 }
-function drawEnemyVariantFx(en,front){
-  if(DRAWLV<5||!en.species)return;
-  const r=en.r,dir=en.moveDir==null?0:en.moveDir;
-  ctx.save();ctx.translate(en.x,en.y);ctx.lineCap='round';ctx.lineJoin='round';
-  if(en.species==='weaver'&&!front){
-    ctx.rotate(dir);ctx.strokeStyle='rgba(66,84,92,.28)';
-    for(const side of [-1,1]){ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(-r*.3,side*r*.22);
-      ctx.quadraticCurveTo(-r*1.2,side*r*.5+Math.sin(G.t*.09+side)*3,-r*2.15,side*r*.12);ctx.stroke();}
-  } else if(en.species==='orbiter'&&front){
-    const spin=(en.orbitDir||1)*G.t*.018;ctx.strokeStyle='rgba(45,101,76,.48)';ctx.lineWidth=1.25;
-    for(let k=0;k<2;k++){ctx.beginPath();ctx.arc(0,0,r*(1.12+k*.22),spin+k*2.6,spin+k*2.6+1.75);ctx.stroke();}
-  } else if(en.species==='bulwark'&&!front){
-    ctx.fillStyle='rgba(31,25,34,.20)';ctx.scale(1,.34);ctx.beginPath();ctx.ellipse(0,r*.9,r*1.15,r*.55,0,0,6.283);ctx.fill();
-  } else if(en.species==='charger'&&front){
-    const t=en.aiT%155;if(t<48){ctx.rotate(dir);ctx.strokeStyle='rgba(151,50,40,'+(t<26?.32:.58)+')';
-      ctx.lineWidth=t<26?1.2:2;ctx.beginPath();ctx.moveTo(r*.25,0);ctx.lineTo(r*(1.15+t/48),0);ctx.stroke();}
-  } else if(en.species==='reaver'&&front){
-    ctx.strokeStyle='rgba(45,58,76,.58)';ctx.lineWidth=2.2;
-    for(const side of [-1,1]){ctx.beginPath();ctx.moveTo(side*r*.18,-r*.62);
-      ctx.lineTo(side*r*.58,-r*.42);ctx.lineTo(side*r*.72,-r*.08);ctx.stroke();}
-  }
-  ctx.restore();
-}
 
 // ---------- 繪製 ----------
 function draw(){
@@ -3912,7 +3900,6 @@ function draw(){
           ctx.drawImage(src,en.x-ww/2,y,ww,hh);
         }
       };
-      drawEnemyVariantFx(en,false);
       ctx.save();
       if(en.isBoss){
         // Boss 浮於畫卷空間，不畫平台式橢圓陰影；左右共用側面素材，左側水平鏡像。
@@ -3947,7 +3934,6 @@ function draw(){
         put(fr[Math.floor(G.t*rate+en.anim)%n],base);
       }
       ctx.restore(); ctx.globalAlpha=1;
-      drawEnemyVariantFx(en,true);
     } else {
       // 回退:程序化墨團 + 眼
       ctx.save(); ctx.translate(en.x,en.y);
