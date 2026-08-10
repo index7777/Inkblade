@@ -1950,6 +1950,15 @@ n=1 → 48   n=2 → 96   n=3 → 144   n=4 → 192   n=5 → 264   n=6 → 312
 **未接**:洗點 UI(費用/免費次數/戰鬥禁止/洗墨丹)、轉世閣改走 `purchaseRebirth`/`getRebirthView` — 下一輪。
 **還原依據**:移除 `applyIntent`/`whiteCut`/`G.cuts`、`syncStat` 的 Slice 2 區塊、敵人迴圈狀態 tick 與收屍行、命中處四段 flag 分支、`killEnemy` 的 splashOnKill 區塊、折返 `bounce()`、`spawnEnemy` 的 `st:{}`、狀態環新增分支。或 git checkout。
 
+## [2026-08-10] #36 修正:引鋒漏擋第三處(guideRetarget)—— 扇型仍吃到引鋒的真正漏洞
+**檔案**:`inkblade.html`
+- #34 只擋了引鋒的兩個運動點(續飛轉向、末端延伸)。**漏了第三處**:引鋒·大成 `guideRetarget`(擊殺後立即向下個目標延伸,約 3391)沒有陣型守門。
+- 重現:玩家在齊鋒陣學到引鋒後切回扇陣。config 的 `recomputeForFormation` 邏輯正確(切陣會跳過 formationLock≠當前陣的劍行),但只要旗標殘留/重算時機落差,`guideRetarget` 在扇型擊殺瞬間仍會 `extendCommand` 把扇型劍令拉向目標 → 動作詭異。
+- 修法:`guideRetarget` 加 `C.formation==='parallel'` 守門。至此引鋒的三個運動點(續飛轉向 3097、末端延伸 3229、擊殺後延伸 3391)全部以「命令自身陣型」硬性守門,**不依賴換陣重算是否清乾淨旗標**;扇型 `c.formation==='fan'` 永不進引鋒分支。對既有存檔即時生效(runState 不入存檔,homing/旗標非持久)。
+- 抽 script `node --check` / vm 解析通過。
+**備註(同類風險)**:其餘劍行(疾影/歸鋒/定鋒)目前僅靠 config `recomputeForFormation` 的 formationLock 隔離;若日後也發現跨陣殘留,採同樣「主檔以 c.formation 硬守門」處理。
+**還原依據**:移除 3391 的 `C.formation==='parallel'` 條件。或 git checkout。
+
 ## [2026-08-10] #35 聚鋒陣改為 A 版:聚合大鋒(破掉變小)+ 速度曲線 + 錯開耐久
 **檔案**:`inkblade.html`
 **設計(使用者定案 A 版)**:保留「N 把重疊、各自獨立傷害/暴擊/耐久」的本質,不加總、不動 durCost/全域 stat 架構;只改視覺與少數接線,讓聚鋒成為「一把會隨耗損縮小的重鋒」。

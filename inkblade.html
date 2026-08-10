@@ -3387,8 +3387,9 @@ function update(){
           }
         }
         // 折返不再由命中觸發 —— 劍完整穿過去,一路飛到戰場邊緣才掉頭(見 update 的邊緣折返)
-        // 引鋒·大成:擊殺後立即再延伸一段去找下一個目標
-        if(TF.guideRetarget && C && !C.auto && en.hp<=0 && C.extended<6){
+        // 引鋒·大成:擊殺後立即再延伸一段去找下一個目標。引鋒為齊鋒陣專屬 → 限 parallel,
+        // 否則「齊陣學到引鋒、切回扇陣」時此處仍會把扇型劍令往目標延伸,造成動作詭異。
+        if(TF.guideRetarget && C && !C.auto && C.formation==='parallel' && en.hp<=0 && C.extended<6){
           const nx=nearestEnemy(en.x,en.y,300);
           if(nx && nx!==en && extendCommand(C,nx.x,nx.y)) C.extended++;
         }
