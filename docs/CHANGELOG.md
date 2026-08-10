@@ -5,6 +5,34 @@
 
 ---
 
+## [2026-08-10] #87 戰鬥 HUD 依水墨參考稿重構；境界改為限時斬妖制；劍令成為濃墨主筆
+
+- 左上狀態改為三列獨立乾筆墨刷：神識朱紅、劍意青藍、道行灰褐，移除人物圓框。
+- 計量條、境界牌與斬妖牌改用依參考圖生成、色鍵去背並依 Alpha 裁切的透明 PNG mask；文字、數值、分隔線與紅三角仍為即時介面層。
+- 中上新增境界墨牌與倒數。普通境限時 45 秒，必須達成本境斬妖目標才會進下一境；時限歸零則本局失敗。
+- 右上舊戰況吊牌改為本境「斬妖數 current / target」，移除境數與遙測展開，右側以朱砂三角標示。
+- 左下新增黑色圓底、雙墨圈「劍訣」按鈕，作為純介面入口，不設朱砂通知、高亮或冷卻；展開後依劍式、劍勢、劍意、修持、真意分類列出已習得項目，顯示一至三階。
+- 劍訣按鈕依放大參考圖補強為「厚黑圓底＋粗偏心乾墨外圈＋細米灰內圈」，明確禁止右上通知紅點。
+- 修正劍訣圈層理解：移除米灰內圈，改為中央黑圓與外墨圈之間真正透明，直接露出背景畫卷。
+- 劍訣中央黑圓與乾墨外圈拆成兩個獨立透明 PNG 素材，CSS 不再繪製或合併兩層。
+- 重新以嚴格色鍵、Alpha 收邊與去綠污染處理兩個劍訣素材，並移除會放大髒邊的外圈亮度濾鏡。
+- 修正 `file://` 直接開啟時 Chrome 阻擋外部 PNG CSS mask、造成計量條／境界牌／斬妖牌全空白；三者改用一般背景圖、寬度裁切及色彩濾鏡，HTTP 與本機檔案模式一致。
+- 劍訣兩張素材升版為 `center-v2`／`ring-v2`，避開瀏覽器沿用舊去背圖的本機快取。
+- 修正 v2 以錯誤相對半徑分割、讓中央素材吃到細外環；v3 改用原圖實際半徑，中央與外圈完全分離，兩者之間保留透明背景縫。
+- 境界牌與斬妖牌升為暖灰淡墨 v2；劍訣外圈 v4 去除錯誤金褐色、改為中性淡墨黑，並縮小「劍訣」字級以保留內圓留白。
+- 劍訣正式改用使用者提供的綠幕母版直接拆件：`center-master` 與 `ring-master` 保留原色、原筆觸與原比例，只做去背及分層，不再沿用生成後調色版本。
+- 縮小劍訣白字至 `2.8cqw`（13–22px），確保完整位於母版中央黑圓內並保留四周留白。
+- 重設悟道三選一卡片：增加分類／稀有度眉標；可升階劍訣顯示「目前 → 下一階」及一至五階刻度，已取得、下一階、未取得分別使用實墨、朱砂菱點與淡墨；單階真意不顯示升階列。
+- 依定案重做卡片角標：左上改為「陣／行／痕／稟／意」單字雙墨圓印，右上直書本次取得的一至五階；移除橫向階級列、稀有度名稱、彩色文字與彩色邊框。
+- 卡片主字改由完整設計名稱自動取首字，中標顯示完整名稱、下方再放說明；劍陣顯示名稱由「式」統一轉為「陣」（例：齊／齊鋒陣）。
+- 三選一卡片改用生成後去背的三件獨立材質：無框線不規則宣紙底、透明雙墨類別圓印、無框線直式階級紙籤；移除原 CSS 紙色、圓框與直籤框線。
+- 淘汰偏圓角立體的羊皮紙版本；卡片底與階級籤改用扁平舊書頁素材，近方角、纖維磨損、墨灰髒痕且無任何繪製框線。
+- 校正 HUD 基準：左量表／境界牌／右操作鈕上緣共線，斬妖牌寬度對齊操作鈕組；卡片內文縮回類別圓印左界，重鑄改用卡片舊書頁材質，劍意帳改為無框黑色乾筆底。
+- 新增 `docs/HUD-design-spec.md` 1.1：規定示意圖拆件、無字底材生成／描摹、去背裁切、動態層分離及實機截圖自證流程；未查看或未通過比對不得交付。
+- 即時劍令改成濃墨主筆、滲墨外緣與斷續乾筆絲；超出劍意的截斷區仍保留金色警示。
+
+**怎麼推回去**：移除 `realmHUD`、`artsPanel` 與新 HUD 覆寫樣式；恢復 `scorewrap` 的 DPS 事件；把波次更新改回每 14 秒自動 `G.wave++`；當前畫痕恢復逐段單線 `stroke()`。
+
 ## [2026-08-09] #86 散鋒改為「每把劍各走一份旋轉過的劍令」;長劍令加側向上限
 
 **使用者**:「你的散鋒作法很奇怪,不是三把劍獨立飛行,畫面像這三把被綁定一塊。」
@@ -1922,6 +1950,65 @@ n=1 → 48   n=2 → 96   n=3 → 144   n=4 → 192   n=5 → 264   n=6 → 312
 **未接**:洗點 UI(費用/免費次數/戰鬥禁止/洗墨丹)、轉世閣改走 `purchaseRebirth`/`getRebirthView` — 下一輪。
 **還原依據**:移除 `applyIntent`/`whiteCut`/`G.cuts`、`syncStat` 的 Slice 2 區塊、敵人迴圈狀態 tick 與收屍行、命中處四段 flag 分支、`killEnemy` 的 splashOnKill 區塊、折返 `bounce()`、`spawnEnemy` 的 `st:{}`、狀態環新增分支。或 git checkout。
 
+## [2026-08-10] #30 交接文件 HANDOFF.md
+- 新建 docs/HANDOFF.md:記錄已完成(#27–#29)、待辦順序(定鋒→轉世閣前置→真意)、
+  定鋒/真意的精確 hook 點與行為規格、關鍵行號速查、config 與規範,供新對話無縫接手。
+## [2026-08-08] #29 主檔玩法層:滿貫(貫鋒陣圓滿)
+**檔案**:`inkblade.html`
+- 命中處理加入 fullPierce:每道劍令對每敵記錄命中槽位集合,湊齊全 N 把(C.slots)命中同一敵 → 觸發滿貫:額外傷 = 0.5 × 基礎單劍傷 × N(≈全 N 把總傷一半),彈「滿貫」+傷害、潑墨。gate:formation==='inline' 且 slots>1。
+- 語法通過。
+## [2026-08-08] #28 主檔玩法層:斷痕白痕(易傷)+ 鎮痕 slowBonus 接線
+**檔案**:`inkblade.html`
+- 斷痕 whitecut:命中掛狀態走既有通用 applyIntent;`dmgTo(en,v)` 依 en.st.whitecut 層數 ×(1+vuln*stk) 放大受傷;計時消退走既有通用結算。補回 #23 config 改動造成的懸空。
+- 鎮痕 slowBonus:syncStat 帶出 `stat.slowBonus`;suppression 緩速加計 slowBonus(小成 +0.06)。
+- 語法通過。換陣重算 hook(#27)亦已在位。
+**仍待(大項,建議逐一專攻)**:滿貫(fullPierce,需每劍令對每敵的全中偵測)、定鋒(串珠插樁/墨域/墨鏈/引爆,大型子系統)、真意主動四式(按鈕施放+解鎖鏈+config 由被動改主動,耦合最大)。
+## [2026-08-08] #27 主檔:換陣重算 hook(玩法層,孤立)
+**檔案**:`inkblade.html`
+- 選卡套用後,若選到劍式(category==='form')→ 呼叫 `runtime.recomputeForFormation(runState)` + `syncStat()`,停用不屬當前劍陣的劍行加成(切回自動恢復)。
+- grep 確認全檔僅此一處呼叫,不與既有戰鬥碼重疊。語法通過。
+**發現(重要)**:另一台已實作大量 flag 行為(蝕/鎮狀態、dotRefresh/dotSpread、rootOnSuppress/WhiteCut、volleyTighten、afterimageHits/Solid、autoRefill…)。→ 主檔玩法層進度超前,避免重複/衝突,後續玩法層改動需先對齊。
+**需對齊的缺口/風險**:
+- 斷痕(#23 我把 config 改成 whitecut 易傷狀態、移除暴擊率)→ 戰鬥碼尚無 whitecut 套用,且不再給暴擊率;目前斷痕功能懸空,需接 whitecut 或回退。
+- 鎮痕小成(#23 改 slowBonus)→ 戰鬥是否讀 slowBonus 待確認。
+- 尚未見於戰鬥碼:fullPierce(滿貫)、定鋒 anchors/beadSlow、真意主動四式。
+## [2026-08-08] #26 定鋒取捨入資料 + 文件依 config 重生
+**檔案**:`data/game-config.js`、`docs/taxonomy.md`、`docs/rank-design.md`
+- 定鋒:加 `flags.beadSlow`(串珠移速×0.92 取捨,玩法層讀取);OP_SCHEMA 追加該旗標。validateConfig 通過。
+- `taxonomy.md`/`rank-design.md` 改為由 config 直接匯出(新分類名 劍陣/劍行/劍痕/劍稟/真意、綁陣、稀有階、境界門檻、問道分支)。
+**注意**:重生文件反映**目前 config**——真意仍是舊 6 式被動版;「真意改主動 4 式」是尚未實作的規格(見 truths-active-redesign.md),待玩法層那輪一起改 config+主檔後再重生。
+## [2026-08-08] #25 純化正規化收尾(暴擊率/劍速)
+**檔案**:`data/game-config.js`
+- 聚鋒陣·大成:`add critChance 0.1`(FORM 夾帶暴擊率)→ `add swordCount 1`(眾鋒再聚,純排列)。
+- 審查結果:暴擊率來源僅剩 凝神(劍稟,正確)+ 飛白千峰(真意,允許跨類);劍速來源僅剩 疾影。純化正規化完成。
+**待你裁決(未改)**:聚鋒陣·圓滿 mergeHeavy「每折返+30%傷」引用折返——屬聚陣↔歸鋒協同,灰色地帶;保留或改「眾鋒歸一」(form-purity 提案)由你定。
+## [2026-08-08] #24 換陣重算(runtime,config 層)
+**檔案**:`data/game-config.js`
+- `BASE_RUN_STATE` 新增 `history`(領悟順序記錄)。
+- 抽出 `applyInsightEffects(state,item)`(FORM/TRUTH/一般分支),供 applyInsight 與重放共用;`applyInsight` 於 ranks++ 後推入 history。
+- 新增 `recomputeForFormation(state)`:以 history 重放,跳過 `formationLock` 與「當前劍陣(歷史最後一個劍式)」不符的劍行 → 停用其加成;投入階數(ranks)保留,切回該陣自動恢復。境界進度(tierKills/tierLevel)、洗點次數、永久快照皆保留。已匯出 runtime。
+**驗證**:散鋒+疾影(速17.6)→換齊鋒重算→疾影停用(速回14、ranks 仍記1)→換回散鋒重算→疾影恢復(17.6);validateConfig 通過。
+**待主檔(1 行,等卡片樣式那批 push 後再接,避免同檔衝突)**:於「換陣(領悟改變 formation 的劍式)後」呼叫 `INK_CONFIG.runtime.recomputeForFormation(runState); syncStat();`。
+## [2026-08-08] #23 Stage 3 config 層:定鋒/鎮痕/斷痕
+**檔案**:`data/game-config.js`
+- **定鋒(新劍行,貫鋒 inline 專用)**:formationLock:'inline';每階 +0.25 anchorDuration、+0.08 anchorDamageMult;tiers 小成 anchorField/大成 anchorLink/圓滿 anchorDetonate(旗標)。OP_SCHEMA 追加 anchorDuration/anchorDamageMult/slowBonus 與 anchorField/Link/Detonate 旗標、whitecut 狀態。gating 實測:非 inline 不出、inline 才出。
+- **鎮痕·小成**:描述與效果不符修正 → `mul statusDuration 1.25` 改 `add slowBonus 0.06`。
+- **斷痕·重設計**:移除 `add critChance`(暴擊統一歸凝神),rank 改為 `status whitecut {vuln:0.06,dur:3,max:5}`(命中留白痕使易傷);tiers 順移。
+**驗證**:validateConfig 通過(定鋒說明縮至18字符合上限);gating/effect 正確。
+**仍屬玩法層/主檔(未做)**:①換陣後已投入劍行加成停用(需 runtime 依歷史重算 + 主檔於換陣時呼叫);②所有 flag 的實際戰鬥行為(滿貫實傷、殘影命中、定鋒劍樁/墨域/墨鏈/引爆、斷痕易傷與鎮痕緩速套到敵人)。註:SPEC-劍令.md §10 這些底層行為本就標 pending。
+## [2026-08-08] #22 依文件開工 · 類別/劍陣純化 config 落地(Stage 1+2)
+**檔案**:`data/game-config.js`(僅 config 資料/邏輯層;主檔玩法層未動)
+**Stage 1 結構**
+- 改名:散/齊/貫/聚鋒**式→陣**;斷意→**斷痕**;破墨→**墨痕**並移入劍痕(intent);回元移入劍稟(cultivation)。
+- 劍行綁劍陣:`formationLock` — 疾影=fan、引鋒=parallel、歸鋒=merge;`canOfferInsight` 加入陣型 gating(未學該陣或已換陣 → 該劍行不入池)。實測:single 時劍行不出、學 fan 後疾影可選、parallel 後引鋒可選。
+**Stage 2 純化數值**
+- 開匣·大成:劍速+2 → 劍數+1(移除跨類劍速)。
+- 斂鋒·大成:劍速+3 → 耗魔×0.9(移除跨類劍速)。
+- 展鋒·圓滿:strokeLingers(劍痕滯留)→ 命中判定+6(純幾何)。
+- 養鋒·圓滿:edgeMoment(必暴,踩凝神)→ 劍傷×1.1(純傷)。
+- 貫鋒·圓滿:回刺 → **滿貫**旗標 fullPierce(全劍命中同敵額外總傷50%);加入 OP_SCHEMA 與顯示表。
+**驗證**:validateConfig 通過;createRunState→學散鋒陣→疾影可選並套用→開匣+1劍,各修正 effect 正確。
+**Stage 3 待辦(玩法層/劍令,尚未做)**:定鋒(新劍行,需玩法層+會注入暫無作用招故延後)、滿貫/afterimage/定鋒等 flag 實際行為、鎮痕小成「緩速+0.06」(狀態 payload)、斷痕去暴擊率(crit 只留凝神,需重設計)、換陣後已投入劍行加成停用(runtime 重算)、卡片改「類型」顯示(主檔)。
 ## [2026-08-07] #21 LOGO 重切(去殘框)+ 開場改兩段式(zoom→拉開)
 **檔案**:`assets/ui/logo.png`(+cn/en)、`inkblade.html`
 1. **LOGO 沒拆好修正**:原亮度鍵殘留中階木頭 → 首頁 logo 後有深色方塊。改為亮度 smoothstep(120→185)+ 把「暖色木頭(R-B>22 且暗)」判為背景去除,消除殘框;紅印章一併去除。木色底檢查無殘留。
@@ -2155,6 +2242,12 @@ if(FX.trail) for(let k=1;k<s.trail.length;k++){
 - 折返門檻:把 `canReturn(stat.formation) &&` 從 `returnsLeft` 拿掉即可全劍式恢復。
 - 分裂:見 git `1523b29` 之前的 `doReturn`。
 - 齊鋒追跡:刪掉 `cmdReachedEnd` 的 parallel 區塊與劍迴圈開頭的 `if(s.solo)` 區塊。
+
+## #90 手機安全邊界、斬妖數比例與紅三角互動
+- 左側計量條由畫卷邊緣內縮 `max(3cqw, 14px)`；三選一卡片容器左右安全距離統一為 `max(4cqw, 18px)`。
+- 斬妖數改為獨立置中，字級降為 `clamp(13px, 2.6cqw, 20px)`；紅三角絕對定位在數字右側，不再把數字推離中心。
+- 紅三角由裝飾性 `i` 改為 28×28 px 實際按鈕，收合朝下、展開朝上；DPS 面板放大至斬妖墨底 135% 並維持右緣對齊，可展開／收合本境的尚餘妖數與剩餘時間，並同步 `aria-expanded`。
+- 驗收要求：525×923 手機尺寸實機截圖，並實際點擊紅三角確認兩種狀態。
 
 ## #89 引鋒的追蹤本體從來沒接線(修)
 - `stat.homing=m.homingStrength` 只有被賦值,**全檔沒有任何地方讀取** —— 引鋒 1~4 階等於只吃了 `傷害×0.88` 與「不能暴擊」,零收益。使用者回報「現在的引鋒看起來沒效果」,屬實。

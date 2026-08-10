@@ -64,7 +64,7 @@
   #hud { z-index:5; }
 
   /* 直向 HUD：左上狀態、右上暫停、其下為戰況。中央全留給畫劍。 */
-  #hud { position:absolute; top:0; left:var(--paper-inset); right:var(--paper-inset); pointer-events:none; color:#3a332a;
+  #hud { position:absolute; top:0; bottom:0; left:var(--paper-inset); right:var(--paper-inset); pointer-events:none; color:#3a332a;
     padding:calc(var(--scroll-top-safe) + env(safe-area-inset-top)) 3.9cqw 0;
     container-type:inline-size;
     /* 右上兩顆墨圈鈕與斬妖吊牌共用同一組寬度 —— 吊牌寬 = 兩顆鈕 + 中間空隙,
@@ -133,8 +133,9 @@
     background:none; border:none; border-radius:50%; box-shadow:none;
     transition:transform .12s; }
   /* 墨圈外框獨立成一層 —— 這樣可以只轉圈、不轉字。底下不鋪白,直接透出宣紙。 */
-  .inkbtn::before { content:''; position:absolute; inset:0; border-radius:50%;
-    background:var(--inkring) center/contain no-repeat; }
+  .inkbtn::before,.inkbtn::after { content:''; position:absolute; inset:3%; border-radius:46% 54% 51% 49%;
+    background:none; border:2px solid rgba(41,36,30,.85); transform:rotate(-9deg); }
+  .inkbtn::after { inset:9%; border-width:1px; transform:rotate(8deg); opacity:.7; }
   .inkbtn .vt { position:relative; z-index:1; }
   .inkbtn .vt { display:flex; flex-direction:column; align-items:center; line-height:1.08; }
   .inkbtn .vt b { display:block; font-weight:600; font-size:clamp(13px,2.6cqw,26px); color:#241f1a;
@@ -156,18 +157,17 @@
   .ctl:hover { color:#7a2b2b; }
   /* 毛筆刷痕:兩端收鋒、腰身略粗,軌道與填色共用同一個遮罩 */
   .bar { --p:0; --ink:#302b27;
-    --hud-brush:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 18' preserveAspectRatio='none'%3E%3Cpath d='M2 9C2 5 6 3 12 4C35 2 62 4 89 3C119 2 149 3 177 4C187 4 195 5 203 7C196 8 190 9 181 10C164 12 145 12 123 13C88 14 54 13 16 15C9 15 4 13 2 9Z' fill='black'/%3E%3Cpath d='M145 4C164 3 180 2 202 3L231 2L205 5L179 7L151 7ZM157 6L187 5L224 6L238 7L209 8L176 8ZM151 9L178 8L218 9L232 10L203 11L166 11ZM139 12L169 10L204 12L229 14L199 14L167 13ZM154 14L183 13L217 16L229 17L194 16L166 15Z' fill='black' opacity='.9'/%3E%3Cpath d='M177 4L217 1L224 1L199 5ZM183 8L229 8L238 9L207 10ZM172 12L213 14L238 17L213 16Z' fill='black' opacity='.55'/%3E%3C/svg%3E");
+    --hud-brush:url("assets/ui/hud-meter-brush.png");
     position:relative; height:1.72cqw; min-height:8px; margin-top:1.05cqw;
     border-radius:0; overflow:visible; background:none; isolation:isolate; }
   /* 淡墨底痕保留整筆輪廓；有色墨跡自己再套一次毛刷遮罩，收筆就會跟著進度走。 */
   .bar::before { content:''; position:absolute; inset:0; z-index:-1; background:rgba(66,52,38,.18);
-    -webkit-mask:var(--hud-brush) no-repeat 0 0/100% 100%;
-            mask:var(--hud-brush) no-repeat 0 0/100% 100%; }
+    background-image:var(--hud-brush); background-repeat:no-repeat; background-position:left center; background-size:100% 100%; }
   .bar > i { position:relative; display:block; height:100%; width:0%; min-width:0;
-    background:var(--ink); transform-origin:left center;
+    background-color:transparent; background-image:var(--hud-brush); background-repeat:no-repeat;
+    background-position:left center; background-size:35.5cqw 100%; transform-origin:left center;
     transition:width .32s cubic-bezier(.2,.72,.24,1), filter .2s;
-    -webkit-mask:var(--hud-brush) no-repeat 0 0/100% 100%;
-            mask:var(--hud-brush) no-repeat 0 0/100% 100%; }
+    overflow:hidden; }
   /* 收筆處的半乾筆絲：跟著目前百分比移動，讓中途進度也不會是直切口。 */
   /* 道行:細一階,左端一顆墨珠隨進度走 */
   .barrow { position:relative; }
@@ -175,11 +175,11 @@
   .bar:has(#hpfill) { --ink:#7f2721; }
   .bar:has(#mpfill) { --ink:#294f58; }
   .bar:has(#xpfill) { --ink:#55574b; }
-  #hpfill { background:linear-gradient(90deg,#55211e,#8e2b24 58%,#69231f); }
-  #mpfill { background:linear-gradient(90deg,#203d43,#315e68 58%,#294f58); }
-  #xpfill { background:linear-gradient(90deg,#3e4138,#626456 62%,#4e5045); }
+  #hpfill { filter:brightness(0) saturate(100%) invert(22%) sepia(64%) saturate(1615%) hue-rotate(337deg) brightness(91%) contrast(92%); }
+  #mpfill { filter:brightness(0) saturate(100%) invert(58%) sepia(22%) saturate(952%) hue-rotate(148deg) brightness(91%) contrast(89%); }
+  #xpfill { filter:brightness(0) saturate(100%) invert(62%) sepia(10%) saturate(624%) hue-rotate(4deg) brightness(91%) contrast(84%); }
   .bar:has(#mpfill.low) { --ink:#8a5a2b; }
-  #mpfill.low { background:linear-gradient(90deg,#67441f,#9b682f 58%,#7c5126); }
+  #mpfill.low { filter:brightness(0) saturate(100%) invert(40%) sepia(41%) saturate(798%) hue-rotate(356deg) brightness(91%) contrast(91%); }
   @media (prefers-reduced-motion:reduce){ .bar>i{transition:none;} }
   .label { font-size:clamp(11px,2.4cqw,24px); letter-spacing:.18em; color:#241f1a; font-weight:600; line-height:1.25; }
   /* 行距用比例制 —— 左右兩組要切齊在同一條下緣,行距是唯一可調的餘裕 */
@@ -188,11 +188,102 @@
   .big { font-size:clamp(20px,4.5cqw,46px); font-weight:700; letter-spacing:.08em; line-height:1; color:#241f1a; }
   .sub { font-size:clamp(10px,2.35cqw,23px); color:#4f4436; letter-spacing:.12em; }
 
+  /* 參考戰鬥稿 HUD：半透明煙墨底板、乾筆破邊與緊密三列計量。 */
+  #barwrap { position:absolute; top:var(--btntop); left:max(3cqw,14px); width:35.5cqw; padding:0; background:none; clip-path:none;
+    text-shadow:0 1px 2px #171512; }
+  #barwrap::after { display:none; }
+  #barwrap .label { position:relative; z-index:2; padding-left:1.3cqw; color:#f0e8d7;
+    font-size:clamp(14px,2.9cqw,21px); line-height:1.05; letter-spacing:.08em; }
+  #barwrap .label .sub { color:#f0e8d7; font-size:inherit; letter-spacing:.03em; }
+  #barwrap .label.gap { margin-top:1.4cqw; }
+  #barwrap .bar { width:100%; margin-top:-1.7cqw; height:2.7cqw; min-height:11px; }
+  #barwrap .barrow .bar { height:2.55cqw; min-height:10px; }
+  #barwrap .bar:has(#hpfill)::before { background-color:transparent; filter:brightness(0) saturate(100%) invert(15%) sepia(31%) saturate(1224%) hue-rotate(323deg) brightness(70%) contrast(99%); }
+  #barwrap .bar:has(#mpfill)::before { background-color:transparent; filter:brightness(0) saturate(100%) invert(24%) sepia(19%) saturate(914%) hue-rotate(147deg) brightness(74%) contrast(92%); }
+  #barwrap .bar:has(#xpfill)::before { background-color:transparent; filter:brightness(0) saturate(100%) invert(30%) sepia(7%) saturate(541%) hue-rotate(4deg) brightness(77%) contrast(88%); }
+  #hpfill { background-color:transparent; }
+  #mpfill { background-color:transparent; }
+  #xpfill { background-color:transparent; }
+  #realmHUD { position:absolute; top:var(--btntop);
+    left:52%; transform:translateX(-50%); width:31cqw; text-align:center; color:#f4eddd;
+    text-shadow:0 2px 3px rgba(0,0,0,.8); }
+  #realmHUD .realm-brush { --realm-brush:url("assets/ui/hud-realm-brush-v2.png");
+    position:relative; padding:1.8cqw 2cqw 2.1cqw; font-weight:700;
+    font-size:clamp(17px,4cqw,32px); letter-spacing:.12em;
+    background-color:transparent; background-image:var(--realm-brush);
+    background-position:center; background-size:100% 100%; background-repeat:no-repeat; }
+  #realmHUD .realm-brush::before { display:none; }
+  #realmclock { display:flex; align-items:center; justify-content:center; gap:1.5cqw; margin-top:.2cqw;
+    color:#29241e; font-size:clamp(16px,4cqw,34px);
+    font-variant-numeric:tabular-nums; letter-spacing:.08em; text-shadow:0 1px 5px rgba(247,239,222,.95); }
+  #realmclock::before,#realmclock::after { content:''; width:6.5cqw; height:7px;
+    background:rgba(49,43,35,.62);
+    clip-path:polygon(0 43%,88% 43%,88% 25%,100% 50%,88% 75%,88% 57%,0 57%); }
+  #realmclock::after { transform:scaleX(-1); }
+  #realmclock.danger { color:#8b2924; animation:clockPulse .7s ease-in-out infinite; }
+  @keyframes clockPulse{50%{transform:scale(1.07)}}
+  #scorewrap { --score-brush:url("assets/ui/hud-score-brush-v2.png");
+    top:calc(var(--btntop) + var(--btn) + 3.2cqw); width:var(--grp); min-height:15cqw;
+    padding:2.4cqw 2cqw; color:#f2ead8;
+    background-color:transparent; background-image:var(--score-brush);
+    background-position:center; background-size:110% 100%; background-repeat:no-repeat;
+    border:0; border-radius:0;
+    box-shadow:none; text-shadow:0 2px 3px rgba(0,0,0,.85); }
+  #scorewrap::before,#scorewrap::after,#scorewrap .divider,#scorewrap .caret { display:none!important; }
+  #scorewrap .scorelabel { padding-bottom:.7cqw; border-bottom:1px solid rgba(226,215,194,.34);
+    font-size:clamp(10px,2.1cqw,18px); color:#e9e0cf; letter-spacing:.18em; }
+  #scorewrap .scoreline { position:relative; min-height:3.8cqw; margin-top:.8cqw; text-align:center; }
+  #scorewrap .big { color:#fff8e9; font-size:clamp(13px,2.6cqw,20px); letter-spacing:.04em; line-height:1.12; white-space:nowrap; }
+  #scorewrap .scoretri { position:absolute; left:calc(50% + 5.8cqw); top:50%; transform:translateY(-50%);
+    width:28px; height:28px; padding:0; border:0; background:transparent; cursor:pointer; pointer-events:auto; }
+  #scorewrap .scoretri::before { content:''; position:absolute; left:12px; top:10px; width:0; height:0;
+    border-left:6px solid transparent; border-right:6px solid transparent; border-top:10px solid #b83a30;
+    filter:drop-shadow(0 1px 1px #1a1714); transition:transform .18s ease; transform-origin:50% 45%; }
+  #scorewrap.open .scoretri::before { transform:rotate(180deg); }
+  #scorewrap #dpsbox { display:none; position:absolute; top:86%; left:auto; right:0; width:135%; min-height:9.5cqw; box-sizing:border-box;
+    margin:0; padding:2.6cqw 2.2cqw 1.8cqw; border:0; color:#eee4cf; text-align:center;
+    background:var(--score-brush) center/100% 100% no-repeat; text-shadow:0 2px 3px rgba(0,0,0,.85); }
+  #scorewrap.open #dpsbox { display:block; }
+  #scorewrap #dpsbox .drow { color:#eee4cf; font-size:clamp(10px,2cqw,15px); margin:0 0 .7cqw; }
+  #scorewrap #dpsbox .drow b { color:#fff8e9; font-size:inherit; }
+  #swordartsbtn { position:absolute; top:auto; right:auto;
+    left:3.8cqw; bottom:calc(var(--scroll-bottom-safe) + env(safe-area-inset-bottom) + 2.5cqw);
+    width:13cqw; height:13cqw; min-width:56px; min-height:56px; max-width:70px; max-height:70px;
+    pointer-events:auto; cursor:pointer; color:#f2ead8; border:0;
+    border-radius:50%; overflow:visible;
+    /* 中央黑圓與外圈是兩個獨立 PNG；兩者之間不畫任何東西。 */
+    background:url("assets/ui/hud-swordarts-center-master.png") center/100% 100% no-repeat;
+    box-shadow:none;
+    font:700 clamp(13px,2.8cqw,22px) "Noto Serif TC","STKaiti",serif; letter-spacing:.04em;
+    color:#f2ead8; text-shadow:0 2px 3px rgba(0,0,0,.9); transition:transform .12s,filter .12s; }
+  #swordartsbtn:active { transform:scale(.94); filter:brightness(.82); }
+  #swordartsbtn:focus,#swordartsbtn:focus-visible { outline:none; }
+  #swordartsbtn::before { content:''; position:absolute; inset:0; pointer-events:none;
+    background:url("assets/ui/hud-swordarts-ring-master.png") center/100% 100% no-repeat; }
+  #swordartsbtn::after { display:none; }
+  #swordartsbtn { -webkit-text-stroke:0; }
+  #artsPanel { position:absolute; inset:0; z-index:24; display:none; padding:15cqw 5cqw 8cqw;
+    background:rgba(24,21,17,.66); pointer-events:auto; }
+  #artsPanel.show { display:block; }
+  #artsSheet { position:relative; max-height:100%; overflow:auto; padding:5cqw 4cqw; color:#2a241d;
+    background:rgba(242,234,216,.97); box-shadow:0 8px 30px rgba(0,0,0,.45);
+    clip-path:polygon(1% 1%,98% 0,100% 4%,99% 97%,96% 100%,3% 99%,0 96%,1% 49%,0 5%); }
+  #artsSheet h2 { text-align:center; font-size:clamp(20px,5cqw,35px); letter-spacing:.28em; margin-bottom:3cqw; }
+  #artsclose { position:absolute; right:3cqw; top:2cqw; border:0; background:none; font-size:26px; color:#4a3d30; }
+  .artgroup { margin:0 0 3.2cqw; }
+  .artgroup h3 { padding-bottom:.7cqw; border-bottom:1px solid rgba(58,48,37,.35); color:#7f2a25;
+    font-size:clamp(13px,3cqw,22px); letter-spacing:.16em; }
+  .artrow { display:grid; grid-template-columns:1fr auto; gap:1cqw; padding:1.5cqw .5cqw 1.2cqw;
+    border-bottom:1px dashed rgba(58,48,37,.18); }
+  .artrow b { font-size:clamp(13px,3cqw,21px); }
+  .artrow span { color:#675b4c; font-size:clamp(11px,2.5cqw,18px); }
+  .artempty { padding:7cqw 0; text-align:center; color:#756a5b; letter-spacing:.12em; }
+
   /* 詞條選單 */
   #overlay { position:absolute; inset:0; display:none; align-items:flex-end; justify-content:center;
     background:rgba(25,22,18,.58); z-index:20; }
   #overlay.show { display:flex; }
-  #cardbox { text-align:center; width:100%; padding:20px clamp(10px,3vw,20px) calc(var(--scroll-bottom-safe) + 20px + env(safe-area-inset-bottom));
+  #cardbox { text-align:center; width:100%; padding:20px max(4cqw,18px) calc(var(--scroll-bottom-safe) + 20px + env(safe-area-inset-bottom));
     max-height:72dvh; overflow-y:auto; color:#f3ecd8;
     background:linear-gradient(180deg,rgba(24,21,17,0),rgba(24,21,17,.72) 15%,rgba(24,21,17,.9)); }
   #cardbox h2 { color:#f3ecd8; font-size:clamp(21px,4.4vw,30px); letter-spacing:clamp(4px,1.2vw,8px);
@@ -204,8 +295,8 @@
   /* 劍意帳:三選一時常駐,把「暗的」耗劍意規則攤在檯面上 */
   #manabill { display:flex; flex-wrap:wrap; justify-content:center; align-items:baseline;
     gap:4px 14px; width:min(100%,620px); margin:0 auto clamp(10px,2vw,16px);
-    padding:7px 12px; box-sizing:border-box; border-radius:5px;
-    background:rgba(243,236,216,.09); border:1px solid rgba(201,191,166,.26); }
+    padding:10px 22px; box-sizing:border-box; border-radius:0;
+    background:url("assets/ui/hud-realm-brush-v2.png") center/100% 100% no-repeat; border:0; }
   #manabill span { font-size:clamp(10.5px,1.5vw,12.5px); letter-spacing:1px; color:#c9bfa6; white-space:nowrap; }
   #manabill span b { font-weight:700; color:#e8dcbc; margin-left:4px; letter-spacing:.5px; }
   #manabill span.key b { color:#d8b65a; }
@@ -214,17 +305,32 @@
   #cards { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:clamp(8px,1.8vw,16px);
     width:min(100%,620px); margin:0 auto; }
   /* 卡片固定高度、內容置頂對齊 —— 字數不同也不會造成格子縮放或標題上下位移 */
-  .card { width:100%; height:clamp(172px,27vw,194px); box-sizing:border-box; background:#f3ecdb;
-    border:1px solid #aa9a7c; border-radius:5px; padding:clamp(11px,2vw,18px) clamp(9px,1.6vw,14px);
+  .card { --card-text-left:14px; width:100%; height:clamp(210px,32vw,224px); box-sizing:border-box;
+    background:url("assets/ui/insight-card-bookpage.png") center/100% 100% no-repeat;
+    border:0; border-radius:0; padding:14px var(--card-text-left) 16px;
     cursor:pointer;
     display:flex; flex-direction:column; align-items:stretch; justify-content:flex-start;
     transition:transform .15s, box-shadow .15s;
-    box-shadow:0 6px 14px rgba(0,0,0,.34); position:relative; overflow:hidden; }
+    box-shadow:none; position:relative; overflow:hidden; }
+  .card::before { display:none; }
   .card:hover { transform:translateY(-5px); box-shadow:0 11px 24px rgba(0,0,0,.48); }
-  .card .rune { color:#17130f; font-size:clamp(34px,6vw,48px); margin:0 0 5px; line-height:1.05; text-align:center; }
+  .cardcategory { position:absolute; left:10px; top:10px; z-index:2; width:26px; height:26px;
+    display:flex; align-items:center; justify-content:center; border:0; transform:rotate(-4deg);
+    color:#25211c; background:url("assets/ui/insight-category-ring.png") center/100% 100% no-repeat;
+    font:700 14px/1 "Noto Serif TC","STKaiti","KaiTi",serif; }
+  .cardcategory::after { display:none; }
+  .cardrank { position:absolute; right:10px; top:9px; z-index:2; width:20px; height:42px; padding:6px 4px;
+    box-sizing:border-box; display:flex; align-items:center; justify-content:center;
+    writing-mode:vertical-rl; text-orientation:upright; color:#302a23;
+    border:0; background:url("assets/ui/insight-rank-bookpage.png") center/100% 100% no-repeat;
+    font:600 10px/1.05 "Noto Serif TC","STKaiti","KaiTi",serif; letter-spacing:1px; }
+  .card .rune { color:#17130f; font-size:clamp(38px,6.3vw,52px); margin:7px 0 7px; line-height:1; text-align:center;
+    font-family:"Noto Serif TC","STKaiti","KaiTi",serif; text-shadow:1px 1px 0 rgba(45,38,30,.16); }
   /* 中標名稱:置中、套品階色(納息紫/透墨藍/…),固定行高不隨字數位移 */
-  .card .cname { font-size:clamp(15px,2.4vw,20px); font-weight:700; letter-spacing:clamp(1px,.5vw,3px);
-    margin:0 0 8px; text-align:center; min-height:1.4em; line-height:1.4; }
+  .card .cname { color:#27221c; font-size:clamp(15px,2.4vw,20px); font-weight:700; letter-spacing:clamp(1px,.5vw,3px);
+    margin:0 0 7px; text-align:center; min-height:1.3em; line-height:1.3; }
+  .card .cname::before,.card .cname::after { content:'◇'; margin:0 5px; color:#80735f;
+    font-size:.55em; vertical-align:middle; }
   /* 功能說明:靠左對齊,佔滿剩餘空間 */
   /* 劍訣註解「效果」模式:一行一句、數值靠對齊,比散文好掃 */
   .card .cfx { display:flex; flex-direction:column; gap:4px; align-items:center; margin-top:2px; }
@@ -235,17 +341,19 @@
   .card .cfx.n3 span { font-size:clamp(10.5px,1.55vw,13px); }
   .card .cfx.n4 { gap:2px; }
   .card .cfx.n4 span { font-size:clamp(9.5px,1.4vw,12px); letter-spacing:0; }
-  .card .cdesc { font-size:clamp(10px,1.45vw,13px); line-height:1.55; color:#4a4033; letter-spacing:.3px;
+  .card .cdesc { padding-top:7px; border-top:1px solid rgba(82,68,49,.13);
+    font-size:clamp(10px,1.45vw,13px); line-height:1.55; color:#4a4033; letter-spacing:.3px;
     text-align:left; align-self:stretch; flex:1 1 auto; overflow:hidden; }
-  #rerollbtn { margin:12px auto 3px; min-height:38px; padding:7px 16px; display:inline-flex;
-    align-items:center; justify-content:center; gap:7px; color:#2e2820; background:#eee6d4;
-    border:1px solid #95866d; border-radius:5px; box-shadow:0 3px 9px rgba(0,0,0,.28);
+  #rerollbtn { margin:12px auto 3px; min-height:42px; min-width:94px; padding:8px 18px; display:inline-flex;
+    align-items:center; justify-content:center; gap:7px; color:#2e2820;
+    background:url("assets/ui/insight-card-bookpage.png") center/100% 100% no-repeat;
+    border:0; border-radius:0; box-shadow:none;
     font:600 13px/1.2 "Noto Serif TC","STKaiti","KaiTi",serif; letter-spacing:2px; cursor:pointer; }
   #rerollbtn::before { content:"◉"; font-family:serif; font-size:12px; }
   #rerollbtn[disabled] { opacity:.42; cursor:default; }
   #rerollleft { color:#c9bfa6; font-size:11px; letter-spacing:2px; min-height:17px; }
-  .rar-n { color:#6b7a55; } .rar-r { color:#3f6ea5; } .rar-e { color:#8a5bb0; } .rar-l { color:#c08a2e; }
-  .card.lv-r { border-color:#3f6ea5; } .card.lv-e { border-color:#8a5bb0; } .card.lv-l { border-color:#c08a2e; }
+  .rar-n,.rar-r,.rar-e,.rar-l { color:#302a23; }
+  .card.lv-r,.card.lv-e,.card.lv-l { border-color:rgba(112,94,67,.62); }
 
   /* 開始 / 結束 */
   #sndbtn.off { color:#9a8f7a; }
@@ -499,11 +607,13 @@
   /* 手機直向直接使用完整可視高度；桌面仍維持 9:16 畫卷。 */
   @media (max-width: 640px) and (orientation: portrait){
     #wrap { width:100vw; height:100dvh; box-shadow:none; }
-    #cardbox { padding:16px 10px calc(var(--scroll-bottom-safe) + 18px + env(safe-area-inset-bottom)); max-height:74dvh; }
+    #cardbox { padding:16px max(4cqw,18px) calc(var(--scroll-bottom-safe) + 18px + env(safe-area-inset-bottom)); max-height:74dvh; }
     #cards { grid-template-columns:repeat(3,minmax(0,1fr)); gap:7px; }
-    .card { height:172px; padding:11px 8px 10px; }
-    .card .rune { margin:0 0 5px; font-size:38px; }
-    .card .cname { margin:0 0 6px; font-size:15px; letter-spacing:1px; }
+    .card { height:220px; padding:12px 10px 14px; }
+    .card .rune { margin:6px 0 5px; font-size:40px; }
+    .card .cname { margin:0 0 4px; font-size:14px; letter-spacing:1px; }
+    .cardcategory { left:8px; top:8px; width:24px; height:24px; font-size:13px; }
+    .cardrank { right:8px; top:7px; width:19px; height:40px; font-size:9px; }
     .card .cdesc { font-size:10px; line-height:1.5; }
     #cardbox h2 { font-size:21px; margin-bottom:4px; }
     #cardbox p.tip { margin-bottom:10px; font-size:11px; }
@@ -523,8 +633,11 @@
     .panel { padding:4px 8px; }
     #cardbox h2 { font-size:19px; margin-bottom:2px; }
     #cardbox p.tip { margin-bottom:8px; }
-    .card { height:150px; padding:8px 10px; }
-    .card .rune { font-size:26px; margin-bottom:4px; }
+    .card { height:176px; padding:8px 9px; }
+    .card .rune { font-size:31px; margin:3px 0; }
+    .card .cname { margin-bottom:3px; }
+    .cardcategory { width:21px; height:21px; font-size:12px; }
+    .cardrank { width:17px; height:34px; font-size:8px; }
     .title { font-size:34px; }
     .stitle { margin:8px 0 14px; }
   }
@@ -556,24 +669,29 @@
       <div class="label gap">道行 · <span id="lvtxt">一</span> 重</div>
       <div class="barrow"><div class="bar"><i id="xpfill"></i></div></div>
     </div>
+    <div id="realmHUD">
+      <div class="realm-brush" id="wavetxt">第 一 境</div>
+      <span id="realmclock">00:45</span>
+    </div>
     <div id="ctrls">
       <button class="ctl inkbtn" id="autobtn" type="button" aria-label="自動御劍" aria-pressed="false"><span class="vt"><b>御</b><b>劍</b></span></button>
       <button class="ctl inkbtn" id="pausebtn" type="button" aria-label="靜觀(暫停)"><span class="vt"><b>靜</b><b>觀</b></span><span class="pause-label">暫停</span></button>
     </div>
-    <div class="panel" id="scorewrap">
-      <div class="big" id="killtxt">0</div>
-      <div class="sub">斬妖數</div>
-      <div class="divider"></div>
-      <div class="sub" id="wavetxt">第 一 波</div>
-      <div class="caret" id="dpscaret" aria-hidden="true">▾</div>
-      <div id="dpsbox">
-        <div class="drow"><span>秒　傷</span><b id="dps_d">—</b></div>
-        <div class="drow"><span>每秒劍意</span><b id="dps_m">—</b></div>
-        <div class="drow"><span>每秒斬妖</span><b id="dps_k">—</b></div>
-        <div class="dfoot" id="dps_f">近十息</div>
+    <div id="scorewrap">
+      <div class="scorelabel">斬妖數</div>
+      <div class="scoreline"><div class="big" id="killtxt">0 / 0</div><button class="scoretri" id="scoretribtn" type="button" aria-label="展開本境進度" aria-expanded="false"></button></div>
+      <div id="dpsbox" aria-hidden="true">
+        <div class="drow"><span>尚餘</span><b id="remainkilltxt">0 妖</b></div>
+        <div class="drow"><span>限時</span><b id="scoreclocktxt">00:45</b></div>
       </div>
     </div>
+    <button id="swordartsbtn" type="button" aria-label="查看已習得劍訣">劍訣</button>
   </div>
+
+  <div id="artsPanel" aria-hidden="true"><div id="artsSheet">
+    <button id="artsclose" type="button" aria-label="關閉">×</button>
+    <h2>劍訣</h2><div id="artslist"></div>
+  </div></div>
 
   <div id="overlay"><div id="cardbox">
     <h2>悟 · 選一道劍訣</h2>
@@ -1387,7 +1505,7 @@ function beginBossWave(){
   // 第 59 境殘留墨靈退場，不帶進章末王戰，也不算斬妖與經驗。
   for(const en of G.enemies) if(!en.isBoss) mistDissolve(en.x,en.y,0.72,'58,54,49');
   G.enemies.length=0; G.bossShots.length=0; G.spawnAcc=0; G.waveTimer=0;
-  G.wave=60; G.bossEntered=true;
+  G.wave=60; G.waveKills=0; G.bossEntered=true;
   if(G.player) G.player.y=H*BOSS_PLAYER_Y_RATIO;
   spawnXuanmingBoss(false);
   // 巨大本體本身就是章末入場，不再用波次大字壓在 Boss 臉上。
@@ -2118,6 +2236,7 @@ function syncStat(){
   stat.homing=m.homingStrength; stat.homingCanCrit=(m.homingCanCrit!==false);
   stat.explode=m.splashRadius; stat.splashDamage=m.splashDamage;
   stat.ret=m.returnEnabled?1:0; stat.returnHits=m.returnHits;
+  stat.slowBonus=m.slowBonus||0;   // 鎮痕·小成:額外緩速幅度
   // 道行成長:每重額外加成(config.growth)。加在 syncStat 的最後,不寫回 runState —— 
   // 寫回去的話每次 syncStat 都會再疊一次。
   const GW=INK_CONFIG.growth||{hpPerLevel:0,manaPerLevel:0}, lvUp=Math.max(0,(G.level||1)-1);
@@ -2415,6 +2534,16 @@ function cardBody(item){
   if(!lines.length) return '<div class="cdesc">'+item.description+'</div>';   // 純機制型:回退文字
   return '<div class="cfx n'+lines.length+'">'+lines.map(t=>'<span>'+t+'</span>').join('')+'</div>';
 }
+const CARD_CATEGORY_NAME={form:'陣',momentum:'行',intent:'痕',cultivation:'稟',truth:'意'};
+const CARD_RANK_CN=['','一','二','三','四','五'];
+function cardOfferedRank(item){
+  const cur=Math.max(0,Math.min(5,runState.ranks[item.id]||0));
+  return CARD_RANK_CN[Math.min(item.maxRank||1,cur+1)]+'階';
+}
+function cardDisplayName(item){
+  const name=String(item.name||'劍訣');
+  return item.category==='form'?name.replace(/式$/,'陣'):name;
+}
 function drawCards(isReroll=false){
   if(!G.running) return;
   if(!isReroll) levelRerolls=2;
@@ -2425,10 +2554,14 @@ function drawCards(isReroll=false){
   const box=document.getElementById('cards'); box.innerHTML='';
   pick.forEach(a=>{
     const leg = RAR2LEG[a.rarity] || 'n';               // 稀有度→舊字母,供卡片配色/邊框樣式
+    const displayName=cardDisplayName(a);
+    const displayRune=Array.from(displayName)[0]||'劍';
     const el=document.createElement('div');
-    el.className='card lv-'+leg;
-    el.innerHTML=`<div class="rune">${a.rune}</div>
-      <div class="cname rar-${leg}">${a.name}</div>
+    el.className='card';
+    el.innerHTML=`<div class="cardcategory" aria-label="類別：${CARD_CATEGORY_NAME[a.category]||'訣'}">${CARD_CATEGORY_NAME[a.category]||'訣'}</div>
+      <div class="cardrank" aria-label="選擇後為${cardOfferedRank(a)}">${cardOfferedRank(a)}</div>
+      <div class="rune">${displayRune}</div>
+      <div class="cname">${displayName}</div>
       ${cardBody(a)}`;
     el.onclick=()=>{
       if(levelChoiceLocked || !G.running) return;
@@ -2436,6 +2569,8 @@ function drawCards(isReroll=false){
       const rkBefore=runState.ranks[a.id]||0;
       INK_CONFIG.runtime.applyInsight(runState, a.id);  // 真意/劍式互斥回滾由 runtime 處理
       syncStat();
+      // 換陣:選到劍式(FORM)可能改變 formation → 重算,停用不屬當前劍陣的劍行加成(切回自動恢復)
+      if(a.category==='form'){ INK_CONFIG.runtime.recomputeForFormation(runState); syncStat(); }
       // 「補滿劍意」(op max stats.mana)之前是空的 —— 遊戲用的是 G.mana,
       // 而那個 op 改的是 runState.stats.mana,從來沒有人讀回來。這裡補上實際生效。
       if(a.effects.some(e=>e.op==='max' && e.path==='stats.mana')){
@@ -2592,7 +2727,17 @@ function dpsRate(k){
 }
 function dpsAvg(k){ return DPS.secs>0 ? (k==='d'?DPS.totD:k==='m'?DPS.totM:DPS.totK)/DPS.secs : 0; }
 // 統一的扣血入口 —— 原本 7 個地方各自 en.hp-=,遙測抓不到
-function dmgTo(en, v){ if(v>0){ en.hp-=v; dpsAdd('d',v); } }
+function dmgTo(en, v){
+  if(v>0){
+    // 斷痕·白痕:目標易傷 → 受到的傷害提高(每層 vuln,取自 stat.statuses.whitecut)
+    const wc = en.st && en.st.whitecut;
+    if(wc && wc.t>0 && wc.stk>0){
+      const cfg = stat.statuses && stat.statuses.whitecut;
+      if(cfg && cfg.vuln) v *= (1 + cfg.vuln * wc.stk);
+    }
+    en.hp-=v; dpsAdd('d',v);
+  }
+}
 
 function update(){
   G.t++;
@@ -2682,14 +2827,13 @@ function update(){
       }
     }
   }
-  // 波次與生成：第 60 境鎖定為章末王戰，擊破前不再計時或生成普通墨靈。
+  // 境界以本境斬妖目標推進；倒數歸零仍未完成即失敗。
   if(!G.bossTest && G.wave<60){
     G.waveTimer++;
-    if(G.waveTimer>60*14){
-      if(G.wave===59) beginBossWave();
-      else { G.waveTimer=0; G.wave++; updateHUD();
-        SND.wave(); SND.intensity(G.wave); flash(0.14,'250,244,226');
-        G.banner={txt:'第 '+num2cn(G.wave)+' 境', life:1}; }
+    if(G.waveKills>=realmKillTarget(G.wave)){
+      if(G.wave===59) beginBossWave(); else advanceRealm();
+    } else if(G.waveTimer>=realmTimeFrames(G.wave)){
+      G.banner={txt:'時限已盡',life:1}; gameOver();
     }
   }
   if(!G.bossTest && G.wave<60){
@@ -2717,7 +2861,7 @@ function update(){
         const cfg = stat.statuses && stat.statuses[key];
         if(!cfg){ e.t=0; e.stk=0; continue; }            // 洗點後劍意消失 → 場上狀態一併失效
         e.t--;
-        if(cfg.slow) slow = Math.max(slow, cfg.slow * e.stk);
+        if(cfg.slow) slow = Math.max(slow, cfg.slow * e.stk + (key==='suppression'?(stat.slowBonus||0):0));
         if(cfg.damagePerSecond){
           e.acc += cfg.damagePerSecond * e.stk / 60;
           if(e.acc>=1){
@@ -3102,6 +3246,20 @@ function update(){
         dmgTo(en,dmg); en.hit=6; s.hitSet.add(en); s.hitPass.set(en,s.passId||0);
         if(G.bossTest&&en.isBoss) en.testHits=(en.testHits||0)+1;
         if(C){ C.anyHit=true; if(!C.hitOrder.includes(en)) C.hitOrder.push(en); }
+        // 貫鋒陣·圓滿 滿貫:一道劍令的全部 N 把劍都命中同一敵 → 額外總傷 50%
+        if(TF.fullPierce && C && C.slots>1 && C.formation==='inline'){
+          if(!C.mgHit) C.mgHit=new Map();
+          let mset=C.mgHit.get(en); if(!mset){ mset=new Set(); C.mgHit.set(en,mset); }
+          mset.add(s.slot);
+          if(mset.size>=C.slots){
+            mset.clear();
+            const bonus = 0.5 * dmgForDur * C.slots;    // 全 N 把單劍傷總和的一半
+            dmgTo(en, bonus); en.hit=6;
+            splash(en.x,en.y,'#c08a2e',2.0);
+            floatText(en.x,en.y-en.r-30,'滿貫','#c08a2e');
+            floatText(en.x,en.y-en.r-12,'-'+Math.round(bonus),'#f1d18a');
+          }
+        }
         // 散鋒式·大成:殘鋒也能觸發墨痕(否則自動劍令不上狀態)
         if(!(C && C.noIntent) || TF.scatterEchoIntent) applyIntent(en);   // 墨痕:蝕 / 鎮
         // 貫鋒式·大成:被這道劍令斬到的最後一名墨獸受破甲
@@ -3305,7 +3463,7 @@ function killEnemy(idx){
       for(const e2 of G.enemies) if(e2!==en && Math.hypot(e2.x-en.x,e2.y-en.y)<86){ dmgTo(e2,left); e2.hit=6; }
       floatText(en.x,en.y-en.r-30,'蝕爆','#7a6a58'); }
   }
-  G.kills++; dpsAdd('k',1); G.player.hp=Math.min(G.player.max,G.player.hp+stat.regen);
+  G.kills++; G.waveKills=(G.waveKills||0)+1; dpsAdd('k',1); G.player.hp=Math.min(G.player.max,G.player.hp+stat.regen);
   // 階級推進:每個滿階技能各自累計局內擊殺,達 300/500/1000 進小成/大成/圓滿
   if(runState){
     const gained=INK_CONFIG.runtime.noteKill(runState,1);
@@ -4206,16 +4364,9 @@ function draw(){
   }
   // 當前畫痕
   if(DRAWLV>=6 && drawing&&path.length>1){
-    ctx.lineCap='round'; ctx.lineJoin='round';
     // 分段上色:累計長度在可負擔範圍內 → 墨色;超出 → 金色(收筆時這段會被截掉)
     const totalBudget=allowedLen(), lead=leadInLen(path), budget=Math.max(0,totalBudget-lead);
-    let run=0;
-    for(let k=1;k<path.length;k++){
-      run+=Math.hypot(path[k].x-path[k-1].x, path[k].y-path[k-1].y);
-      ctx.strokeStyle = run>budget ? 'rgba(192,138,46,.85)' : 'rgba(43,38,32,.75)';
-      ctx.lineWidth = 2 + (k/path.length)*(stat.size+4);
-      ctx.beginPath(); ctx.moveTo(path[k-1].x,path[k-1].y); ctx.lineTo(path[k].x,path[k].y); ctx.stroke();
-    }
+    drawLiveCommandInk(path,budget);
     // 箭頭指示
     const a=path[Math.max(0,path.length-4)],b=path[path.length-1];
     const ang=Math.atan2(b.y-a.y,b.x-a.x);
@@ -4333,6 +4484,22 @@ function drawStrokeCost(x, y, chargedLen, lifeLen){
   ctx.shadowColor = 'transparent';
   ctx.restore();
 }
+function drawLiveCommandInk(pts,budget){
+  let run=0; ctx.save(); ctx.lineCap='round'; ctx.lineJoin='round';
+  for(let k=1;k<pts.length;k++){
+    const a=pts[k-1],b=pts[k],seg=Math.hypot(b.x-a.x,b.y-a.y); run+=seg;
+    const over=run>budget,t=k/Math.max(1,pts.length-1),base=5.8+stat.size*.48+t*3.8,ink=over?'192,138,46':'30,28,25';
+    ctx.strokeStyle='rgba('+ink+',.18)'; ctx.lineWidth=base*1.75; ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+    ctx.strokeStyle='rgba('+ink+','+(over?.82:.9)+')'; ctx.lineWidth=base*(.82+.13*Math.sin(k*1.73));
+    ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+    if(k%3!==0&&seg>1){ const nx=-(b.y-a.y)/seg,ny=(b.x-a.x)/seg;
+      for(let j=-1;j<=1;j+=2){ const off=j*base*(.31+.08*Math.sin(k*2.31+j));
+        ctx.strokeStyle='rgba('+ink+','+(over?.35:.43)+')'; ctx.lineWidth=Math.max(.7,base*.105);
+        ctx.beginPath(); ctx.moveTo(a.x+nx*off,a.y+ny*off); ctx.lineTo(b.x+nx*off*.72,b.y+ny*off*.72); ctx.stroke(); }
+    }
+  }
+  ctx.restore();
+}
 // 劍匣存量指示:用飛劍 sprite 轉 -90° 朝上畫。沒有 sprite 就退回一個簡單的墨劍形。
 function drawReserve(){
   const n=G.reserve, show=Math.min(n,3);
@@ -4376,6 +4543,17 @@ function setTxt(id,v){ if(hudCache[id]!==v){ const e=document.getElementById(id)
 function setW(id,v){ if(hudCache['w'+id]!==v){ const e=document.getElementById(id); if(!e) return;
   hudCache['w'+id]=v; e.style.width=v;
   const bar=e.parentElement; if(bar) bar.style.setProperty('--p',parseFloat(v)||0); } }
+function realmKillTarget(w){ return w>=60?1:Math.min(60,10+Math.floor((w-1)*.72)+(w%10===0?5:0)); }
+function realmTimeFrames(w){ return (w>=60?180:45)*60; }
+function realmClockText(){
+  const left=Math.max(0,Math.ceil((realmTimeFrames(G.wave)-G.waveTimer)/60));
+  return String(Math.floor(left/60)).padStart(2,'0')+':'+String(left%60).padStart(2,'0');
+}
+function advanceRealm(){
+  G.waveTimer=0; G.waveKills=0; G.wave++;
+  SND.wave(); SND.intensity(G.wave); flash(.14,'250,244,226');
+  G.banner={txt:'第 '+num2cn(G.wave)+' 境',life:1}; updateHUD();
+}
 function updateHUD(){
   const P=G.player;
   updatePaperPhase();
@@ -4387,8 +4565,13 @@ function updateHUD(){
   setTxt('mptxt',Math.round(G.mana)+' / '+stat.manaMax);
   setW('xpfill',Math.max(0,Math.min(100,G.xp/G.xpNeed*100)).toFixed(1)+'%');
   setTxt('lvtxt',num2cn(G.level));
-  setTxt('killtxt',String(G.kills));
+  const realmTarget=realmKillTarget(G.wave), realmKills=G.waveKills||0;
+  setTxt('killtxt',String(realmKills)+' / '+realmTarget);
+  setTxt('remainkilltxt',Math.max(0,realmTarget-realmKills)+' 妖');
+  setTxt('scoreclocktxt',realmClockText());
   setTxt('wavetxt','第 '+num2cn(G.wave)+' 境');
+  setTxt('realmclock',realmClockText());
+  { const clock=document.getElementById('realmclock'); if(clock) clock.classList.toggle('danger',realmTimeFrames(G.wave)-G.waveTimer<=600); }
   if(G.bossTest){
     const boss=G.enemies.find(en=>en.isBoss&&!en.showcaseGhost), out=document.getElementById('bosstestreadout');
     const dist=boss&&G.player?Math.round(Math.hypot(boss.x-G.player.x,boss.y-G.player.y)):0;
@@ -4851,7 +5034,7 @@ function start(mode){
   // 新局不可繼承上一局/開場期間累積的邏輯與繪圖計時。
   logicAcc=0; renderAcc=0; lastFrameTs=performance.now();
   Object.assign(G,{running:true,paused:false,t:0,enemies:[],bossShots:[],swords:[],particles:[],inks:[],texts:[],stains:[],splashes:[],mists:[],commands:[],
-    kills:0,wave:bossTest?60:1,waveTimer:0,spawnAcc:0,eliteSpawned:{},webT:0,bossTest,bossShowcase:false,bossEntered:bossTest,chapterComplete:false,
+    kills:0,waveKills:0,wave:bossTest?60:1,waveTimer:0,spawnAcc:0,eliteSpawned:{},webT:0,bossTest,bossShowcase:false,bossEntered:bossTest,chapterComplete:false,
     bossPreset60:false,bossFightFrames:0,bossKillSecs:null,hpLocked:false,xp:0,xpNeed:6,level:1,pendingLevels:0,mana:100,
     reserve:0,reserveT:0,reserveFlash:0,strokeAvg:0,strokeN:0,
     drops:[],lingers:[],edgeT:0,edgeReady:false,focus:0,focusIdle:0,focusReady:false,summonT:0,
@@ -5343,12 +5526,33 @@ document.getElementById('metabtn').onclick=openMeta;
 document.getElementById('splashmetabtn').onclick=openMeta;
 document.getElementById('metaplaybtn').onclick=start;
 document.getElementById('metaclosebtn').onclick=closeMeta;
-// 斬妖吊牌:點一下展開戰況遙測(秒傷 / 每秒劍意 / 每秒斬妖)
-document.getElementById('scorewrap').onclick=()=>{
-  DPS.open=!DPS.open;
-  document.getElementById('scorewrap').classList.toggle('open', DPS.open);
-  if(DPS.open) renderDps(); else requestAnimationFrame(alignHud);
+const ART_CATEGORY_NAME={form:'劍式',momentum:'劍勢',intent:'劍意',cultivation:'修持',truth:'真意'};
+function artTierName(rank){ return rank<=1?'一階':rank===2?'二階':'三階'; }
+function renderSwordArts(){
+  const list=document.getElementById('artslist'); if(!list) return;
+  const learned=INK_CONFIG.insights.filter(a=>runState&&Number(runState.ranks[a.id]||0)>0);
+  if(!learned.length){ list.innerHTML='<div class="artempty">尚未習得劍訣</div>'; return; }
+  const groups={}; for(const a of learned) (groups[a.category]||(groups[a.category]=[])).push(a);
+  list.innerHTML=Object.keys(groups).map(cat=>'<section class="artgroup"><h3>'+ART_CATEGORY_NAME[cat]+'</h3>'+
+    groups[cat].map(a=>{ const raw=Number(runState.ranks[a.id]||0), stage=Math.min(3,Math.max(1,Math.ceil(raw/Math.max(1,a.maxRank||1)*3)));
+      return '<div class="artrow"><b>'+a.name+'</b><span>'+artTierName(stage)+'</span></div>'; }).join('')+'</section>').join('');
+}
+function toggleSwordArts(force){
+  const panel=document.getElementById('artsPanel'), open=force==null?!panel.classList.contains('show'):!!force;
+  if(open) renderSwordArts(); panel.classList.toggle('show',open); panel.setAttribute('aria-hidden',String(!open));
+  if(G.running) G.paused=open||pausedByUser;
   if(!meta.mute) SND.ui();
+}
+document.getElementById('swordartsbtn').onclick=()=>toggleSwordArts(true);
+document.getElementById('artsclose').onclick=()=>toggleSwordArts(false);
+document.getElementById('artsPanel').onclick=e=>{ if(e.target.id==='artsPanel') toggleSwordArts(false); };
+document.getElementById('scoretribtn').onclick=e=>{
+  e.stopPropagation();
+  const wrap=document.getElementById('scorewrap'), panel=document.getElementById('dpsbox');
+  const open=wrap.classList.toggle('open');
+  e.currentTarget.setAttribute('aria-expanded',String(open));
+  e.currentTarget.setAttribute('aria-label',open?'收合本境進度':'展開本境進度');
+  panel.setAttribute('aria-hidden',String(!open));
 };
 document.getElementById('pausebtn').onclick=()=>togglePause();
 document.getElementById('autobtn').onclick=toggleAuto;
@@ -5417,16 +5621,7 @@ function renderTierList(){
 // 那些不隨 cqw 縮放,所以純比例在窄螢幕一定會有落差(實測 941 寬差 28px、360 寬差 41px)。
 // 改成量完版面再把差額平均補到兩個行距上,任何寬度都會對齊。
 function alignHud(){
-  const b=document.getElementById('barwrap'), s=document.getElementById('scorewrap');
-  if(!b||!s||s.classList.contains('open')) return;
-  const gaps=b.querySelectorAll('.label.gap');
-  if(!gaps.length) return;
-  gaps.forEach(g=>{ g.style.marginTop=''; });                 // 先還原成 CSS 值再量,避免逐次累加
-  const base=parseFloat(getComputedStyle(gaps[0]).marginTop)||0;
-  const d=s.getBoundingClientRect().bottom - b.getBoundingClientRect().bottom;
-  if(Math.abs(d)<1) return;
-  const px=Math.max(0, base + d/gaps.length);
-  gaps.forEach(g=>{ g.style.marginTop=px+'px'; });
+  /* 新 HUD 各區依參考稿獨立定位，不再強迫左右下緣對齊。 */
 }
 function renderShakeBtns(){
   document.querySelectorAll('#shakerow .seg').forEach(el=>
