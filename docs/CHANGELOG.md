@@ -1950,6 +1950,65 @@ n=1 → 48   n=2 → 96   n=3 → 144   n=4 → 192   n=5 → 264   n=6 → 312
 **未接**:洗點 UI(費用/免費次數/戰鬥禁止/洗墨丹)、轉世閣改走 `purchaseRebirth`/`getRebirthView` — 下一輪。
 **還原依據**:移除 `applyIntent`/`whiteCut`/`G.cuts`、`syncStat` 的 Slice 2 區塊、敵人迴圈狀態 tick 與收屍行、命中處四段 flag 分支、`killEnemy` 的 splashOnKill 區塊、折返 `bounce()`、`spawnEnemy` 的 `st:{}`、狀態環新增分支。或 git checkout。
 
+## [2026-08-10] #35 聚鋒陣改為 A 版:聚合大鋒(破掉變小)+ 速度曲線 + 錯開耐久
+**檔案**:`inkblade.html`
+**設計(使用者定案 A 版)**:保留「N 把重疊、各自獨立傷害/暴擊/耐久」的本質,不加總、不動 durCost/全域 stat 架構;只改視覺與少數接線,讓聚鋒成為「一把會隨耗損縮小的重鋒」。
+- 錯開耐久:`spawnCmdSword` merge 的第 k 把 `pierceLeft=(c.life)+k` → 重疊劍一把一把剝落(平滑「破掉變小」),不再同幀同耗一次全消。
+- 速度曲線(重則飛慢):新增 `MERGE_SPEED_K=0.18`;命令推進 budget 對 merge ×`1/(1+K·(N-1))`(N=存活飛劍數,每幀由 `c.swords` 計)。**只作用 flySpeed,不進 speedMul**,避免對傷害雙重懲罰。存活減少 → 回速。
+- 聚合視覺(破掉變小):新增 `MERGE_WIDTH_K=0.14`;每幀標記 merge 領頭存活劍 `mergeScale=1+K·(N-1)`、其餘 `mergeHidden`;繪製迴圈跳過 hidden、`swMul` 讓領頭劍身/拖尾依存活數縮放。存活減少 → 大鋒縮小。
+- 墨痕單層:merge 同幀同敵只 `applyIntent` 一次(`c.mergeIntentFrame`),不吃 N 把疊層流(符合「就是快疊/慢疊差別、不玩疊層」)。
+- 成本照 N:沿用既有 COST_MODEL(`count^exp`),聚鋒已按 N 把收費,合理不動。
+- 抽 script `node --check` / vm 解析通過。
+**未動/待議**:B 版(真·單一實體、屬性全加總、單次暴擊)未採用;真意「一筆開天」改必殺後,規劃為聚鋒極致版(聚合尺寸再 ×N×1.45×1.5 + 劍切餘波),待真意那輪實作。
+**還原依據**:移除 `MERGE_SPEED_K/MERGE_WIDTH_K`、budget 的 merge 係數、spawnCmdSword 的 merge 錯開耐久、命令迴圈的 mLive/merge 旗標段、`swMul` 的 mergeScale 分支、繪製迴圈 `if(s.mergeHidden)continue`、命中處 merge 單層 intent 包裹、`c.mergeIntentFrame` 重置。或 git checkout。
+
+## [2026-08-10] #34 修正:HUD 頂部安全區(#2)、引鋒限齊鋒(#3 真因)、角色縮放(#4)
+**檔案**:`inkblade.html`
+- #2 HUD 蓋怪物:新增 `PLAY_TOP` + `computePlayTop()` —— 量測頂部 HUD(barwrap/realmHUD/ctrls/scorewrap)底邊(canvas 座標),於 resize/alignHud/開局各量一次。`spawnEnemy` 頂部與側邊生成用 `PLAY_TOP` 當上界;敵移動每幀把「非 BOSS」墨獸 `en.y` 夾在 `PLAY_TOP+r` 下方;netherSpider 初始 y 亦對齊。BOSS 不受限(需固定高位)。
+- #3 散鋒動作詭異的**真因**:引鋒(homing)被套到散鋒上。規範:引鋒為齊鋒陣(parallel)專屬。
+  - 續飛段 homing 轉向 `if(stat.homing>0 && !c.auto && c.formation==='parallel')`;`cmdReachedEnd` 的引鋒末端延伸(guideExtend/guideNeverMiss)同加 `c.formation==='parallel'` 守門。散鋒不再被掰彎。
+  - (先前 #33 所述「扇型碼正確」仍成立;剛體不是問題,問題是引鋒污染 → 本次直接在主檔硬性守門,不單靠 config 換陣重算。)
+- #4 角色立繪:`HERO_BODY_SCALE` 由 `HERO_VISUAL_SCALE*.85` 改 `*.72`(使用者指定,再縮約 15%;不動碰撞與環繞)。
+- 抽 script `node --check` / vm 解析通過。
+**還原依據**:移除 `PLAY_TOP`/`computePlayTop` 及其呼叫、spawnEnemy 的 top 上界、敵移動夾制行;引鋒兩處守門去掉 `c.formation==='parallel'`;`HERO_BODY_SCALE` 改回 `*.85`。或 git checkout。
+
+## [2026-08-10] #33 修正:手機音量條解鎖 + 卡片中標菱形移除/防跳行
+**檔案**:`inkblade.html`
+- #1 音量(部分):`bindVol` 的 input handler 先呼叫 `SND.unlock()` —— 手機直接進靜觀拖音量條時 AudioContext 可能尚未建立,master/sg gain 不存在 → applyVol 靜靜跳過、拉桿看似無效。解鎖後 gain 立即套用。
+  - **仍有平台限制**:iOS Safari 忽略 `HTMLAudioElement.volume`,而 BGM 為配合 `file://` 直接開檔改用 HTMLAudioElement(不走 WebAudio,見程式註解)→ iOS 上「音樂」音量條無法控制,需以 http 提供或改播放架構,非本次可解。
+- 卡片:移除 `.cname::before/::after` 的 `◇` 菱形(使用者要求);`.cname` 加 `white-space:nowrap` 防「聚鋒陣」等三字名跳行。**注意**:卡片 UI 由另一台機器維護,此改動需切機器前 pull/push 對齊避免衝突。
+- 抽 script `node --check` / vm 解析通過。
+**未做**:#2 HUD 蓋怪物(需先與使用者確認做法:保留頂部安全區把怪物擋在 HUD 下方 vs 縮小/移位 HUD)。#3 扇型經查證目前碼正確、無退回,不動。#4 角色縮放待使用者給數值。
+
+## [2026-08-10] #32 主檔玩法層:定鋒 刀B(anchorLink 墨鏈 + anchorDetonate 引爆)
+**檔案**:`inkblade.html`
+- `G` 新增 `anchorLinks:[]`(定義處、開新局、Boss 場景重置均補上)。
+- `detonateAnchor(A)`:中等半徑(R=88)水墨爆擊,傷害 `A.dmg×1.4`(基於原飛劍屬性);觸發墨痕(有 inkDropOnSplash 則灑墨滴、inkDropExplode 再炸);彈「鋒碎」。只做效果,splice 由呼叫端負責。
+- 大成 anchorLink:
+  - 劍樁 update 後建墨鏈——相鄰劍樁距離 <170px 連線,上限 24 條(不無限擴散)。
+  - 墨鏈路徑上的敵每 18 幀(相位 +9,錯開劍樁斬割)受切傷 `劍傷×0.4×(1+anchorDmgMul)`。
+  - 命中處:inline 串珠當幀位置貼近任一墨鏈 → 本擊 ×1.22(瞬間小爆),放在 dmgForDur 之後不吃耐久。
+  - draw:深灰靜態連線 `rgba(26,23,19,0.32)`,分圖層、位於劍樁下方。
+- 圓滿 anchorDetonate:
+  - 劍樁 `t<=0` 到期時,若旗標開 → `detonateAnchor` 引爆(不默默消失)。
+  - 手動引爆:仍在描筆跡(`!c.free && !c.auto`)的劍令中心進入劍樁 `r×0.7` 範圍 → 提前引爆。
+- 抽 script `node --check` / vm 解析通過;符號 present 檢查通過。
+**未接(圓滿其餘 tier 差異)**:依 `momentum-formation-and-anchor.md` 對齊細節(如爆炸連鎖墨痕全套細項)。
+**還原依據**:移除 `detonateAnchor`、命中處 anchorLink +22% 分支、anchor update 的 detonate(到期/手動)與 anchorLink 建鏈+切傷區塊、draw 的墨鏈區塊、`G.anchorLinks` 各處。或 git checkout。
+
+## [2026-08-10] #31 主檔玩法層:定鋒 刀A(串珠劍樁核心 + 墨域 + beadSlow)
+**檔案**:`inkblade.html`(#30 已為 HANDOFF 文件佔用,玩法切片順延至 #31)
+- `syncStat`:帶出 `stat.beadSlow=!!flags.beadSlow`、`stat.anchorDur=mechanics.anchorDuration`、`stat.anchorDmgMul=mechanics.anchorDamageMult`。
+- `G` 新增 `anchors:[]`(定義處、開新局 Object.assign、Boss 場景重置均補上;洗點/切陣不清,舊樁自然跑完——符合規格)。
+- beadSlow:劍令推進 budget 於 `formation==='inline'` 時 ×0.92(串珠鏈內移速取捨)。
+- 插樁:飛劍 `pierceLeft<=0` 且 `inline + anchorField` 時不消散,改 `spawnAnchor(s)` 生劍樁進 `G.anchors`(存活 300幀×(1+anchorDur),含插地墨塵視覺)。
+- 劍樁 update(飛劍迴圈後):遞減 t;每 18 幀對範圍內敵斬割 `dmg×0.5`(dmg=劍傷×(1+anchorDmgMul));串珠飛劍經過劍樁範圍每樁回補 +1 pierceLeft(每顆每樁一次)。
+- 墨域緩速:敵移動計算加入「在任一劍樁範圍內 → sp×0.82(−18%)」。
+- draw(飛行劍下層):淡墨圓暈墨域(緩慢翻滾、半透明)+ 直立劍樁劍身,將盡淡出。
+- 抽 script `node --check` / vm 解析通過。
+**未接(刀B/後續)**:tier1 `anchorLink` 墨鏈連線切傷、tier2 `anchorDetonate` 到期引爆、手動引爆、墨痕觸發。
+**還原依據**:移除 `spawnAnchor`、命中處插樁分支、飛劍迴圈後的劍樁 update 區塊、敵移動的墨域緩速分支、draw 的劍樁區塊、`syncStat` 三行、budget 的 beadSlow 係數、`G.anchors` 各處。或 git checkout。
+
 ## [2026-08-10] #30 交接文件 HANDOFF.md
 - 新建 docs/HANDOFF.md:記錄已完成(#27–#29)、待辦順序(定鋒→轉世閣前置→真意)、
   定鋒/真意的精確 hook 點與行為規格、關鍵行號速查、config 與規範,供新對話無縫接手。

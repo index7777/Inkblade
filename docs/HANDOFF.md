@@ -7,6 +7,20 @@
 
 ---
 
+## 〇、待修問題(使用者回報 2026-08-10)
+
+1. **手機音量控制**(音效已修 #33;音樂**決定不改**):音量條 input 先 `SND.unlock()`,音效(WebAudio)手機可作用。
+   - 音樂在 iOS+`file://` 無法控(iOS 忽略 HTMLAudio 音量,且 file:// 不能走 WebAudio)。屬平台限制,與「單檔雙擊即跑」原則衝突。
+   - **使用者決定:此項不改(音樂問題都不改)。** 未來勿再自動回頭處理;除非改為 http 提供才有解。
+
+2. **常駐 HUD 蓋怪物 ✅ 已修(#34)**:`PLAY_TOP`/`computePlayTop` 量測頂部 HUD 底邊;非 BOSS 墨獸生成/移動皆擋在其下方。
+
+3. **散鋒動作詭異 ✅ 已修(#34)**:真因為**引鋒被套到散鋒**(homing 掰彎)。引鋒為齊鋒陣專屬 → 續飛轉向與末端延伸都加 `c.formation==='parallel'` 守門。(扇型 `fanPose`/`ox` 碼本身正確,非剛體問題。)
+
+4. **角色立繪大小 ✅ 已修(#34)**:`HERO_BODY_SCALE` 改 `HERO_VISUAL_SCALE*.72`(使用者指定)。
+
+---
+
 ## 一、已完成(對照 CHANGELOG)
 
 - **#27** 換陣重算 hook:選卡 pick handler 內,若 `a.category==='form'` → `recomputeForFormation(runState)+syncStat()`。
@@ -24,7 +38,10 @@
 
 ## 二、待辦(嚴格照此順序,使用者指定)
 
-### 1) 定鋒(下一個要做,大子系統)——串珠陣(inline)專屬劍行
+### 1) 定鋒 ✅ 已完成(刀A #31 + 刀B #32)——串珠陣(inline)專屬劍行
+> 已落地:beadSlow 移速、anchorField 劍樁+墨域+回補穿透、anchorLink 墨鏈(切傷+穿鏈+22%+渲染)、
+> anchorDetonate 引爆(到期+手動)。syncStat 已帶 beadSlow/anchorDur/anchorDmgMul。
+> **下一個要做:2) 轉世閣前置**。以下定鋒原始規格保留備查。
 **設計來源**:`docs/momentum-formation-and-anchor.md`;config 已建 `momentum_anchor`(id)。
 **config 已就緒的旗標/機制**(在 OP_SCHEMA 允許清單內,已驗證):
 - flags:`anchorField`(tier0 墨域)、`anchorLink`(tier1 墨鏈)、`anchorDetonate`(tier2 引爆)、`beadSlow`(effects)。
@@ -58,6 +75,9 @@
 - `node --check` 兩檔 + CHANGELOG。
 
 ### 3) 真意 主動四式(最後,耦合最大)
+> **卡片後續(真意做完後再做)**:卡片 UI 已完成(另一台機器)。真意主動四式落地後,需把卡片文字改成正確內容(對齊新的主動真意規格),且文字大小要可閱讀。
+> 更新卡片文字時,一併檢查「為什麼有字被掉/被隱藏」(部分文字未顯示的成因)。
+
 **設計來源**:`docs/truths-active-redesign.md`(完整規格)。四式:萬劍歸宗 / 一筆開天 / 歸藏無痕 / 環月歸墟。
 - 施放:**按鈕**;劍意 200 / CD 30s / 持續 10s;受加成影響。
 - 當局:劍陣滿 5 階時 **N 選 1**(N=已在轉世閣解鎖數);**當局選定不可切換**。
