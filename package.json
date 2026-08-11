@@ -1,0 +1,17 @@
+{
+  "name": "inkblade",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "墨劍訣 Inkblade — 水墨飛劍 roguelite",
+  "scripts": {
+    "build": "esbuild src/main.js --bundle --format=iife --outfile=game.js --charset=utf8",
+    "watch": "esbuild src/main.js --bundle --format=iife --outfile=game.js --charset=utf8 --sourcemap=inline --watch",
+    "serve": "npx -y serve -l 8080 .",
+    "check": "node --check game.js",
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "esbuild": "^0.23.0"
+  }
+}

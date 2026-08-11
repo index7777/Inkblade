@@ -1,0 +1,6 @@
+{
+  "schemaVersion": 1,
+  "workflows": [],
+  "status": "blocked",
+  "blockers": ["comfyui_not_installed", "no_validated_local_workflow"]
+}

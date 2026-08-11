@@ -1,0 +1,14 @@
+# Dependency and tool-generated state.
+node_modules/**
+.serena/**
+graphify-out/**
+# Confirmed bundle output: package.json builds src/main.js to game.js.
+game.js
+# Confirmed temporary/generated work roots.
+tmp/**
+_to_delete/**
+art/generated/**
+art/review/**
+art/cache/**
+*.map
+*.bak

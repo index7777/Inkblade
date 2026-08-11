@@ -1950,6 +1950,56 @@ n=1 → 48   n=2 → 96   n=3 → 144   n=4 → 192   n=5 → 264   n=6 → 312
 **未接**:洗點 UI(費用/免費次數/戰鬥禁止/洗墨丹)、轉世閣改走 `purchaseRebirth`/`getRebirthView` — 下一輪。
 **還原依據**:移除 `applyIntent`/`whiteCut`/`G.cuts`、`syncStat` 的 Slice 2 區塊、敵人迴圈狀態 tick 與收屍行、命中處四段 flag 分支、`killEnemy` 的 splashOnKill 區塊、折返 `bounce()`、`spawnEnemy` 的 `st:{}`、狀態環新增分支。或 git checkout。
 
+## [2026-08-11] #41 架構遷移 Stage 2b·增量2:抽出 src/core.js(G/stat)+ src/constants.js
+**檔案**:新增 `src/core.js`、`src/constants.js`、`docs/MIGRATION-STATUS.md`;`src/main.js` 改用 import
+- `core.js`:export `G`(執行期狀態)、`stat`(詞條)。兩者為 const 物件、只改屬性不重賦值 → 可安全跨模組。main.js `import { G, stat }`。
+- `constants.js`:export 純數值常數 `HERO_VISUAL_SCALE / HERO_BODY_SCALE / FAN_PHI / BASE_SPEED / MERGE_SPEED_K / MERGE_WIDTH_K / SOLO_TURN / HOMING_RANGE`。
+- **驗證**:build 成功、`node --check` 通過;main.js 這些定義數=0、每個搬走識別字都在 import 覆蓋內(G 用 688 次、stat 219 次…全部 resolve);`game.js` 無 import/export 殘留(自足 iife)。初始化順序安全(core/constants 先建,原本載入時序無人在其前引用)。
+- 新增 `docs/MIGRATION-STATUS.md`:遷移進度、抽模組標準流程與驗證清單、下一批共享可變 `let` 的處理原則(寫入者與宣告同模組),供無縫接軌。
+**待使用者驗收**:`dev.bat` → 6/4 跑一局確認一致。
+**還原依據**:把 core.js/constants.js 定義貼回 main.js、移除 import。或 git checkout。
+
+## [2026-08-11] #40 架構遷移 Stage 2b·增量1:抽出純函式模組 src/geom.js(證明 ES module 管線)
+**檔案**:新增 `src/geom.js`;`src/main.js` 改用 import;`index.html`、`dev.bat` 於前一步加入(serve 首頁/一鍵選單)
+- 抽出 5 個無全域相依的純幾何/數學函式到 `src/geom.js`(export):`offsetPath / rotatePath / truncatePath / segCircleDist / supHash`。`main.js` 改 `import { truncatePath, segCircleDist, supHash } from './geom.js'`(只匯入實際用到的 3 個)。
+- **安全性**:esbuild 打包回單一 iife(`game.js` 無 import/export 殘留、收尾 `})();`);純函式邏輯未改。`offsetPath`/`rotatePath` 在主檔呼叫 0 次(死碼)→ 被 tree-shake 移出 bundle,行為中性。build 成功、`node --check` 通過。
+- 目的:**端到端驗證 ES module → esbuild → iife bundle 管線**,作為後續較大抽取的地基。ES module 的「匯入變數不可重賦值」會在**建置期**擋下最大宗錯誤,利於無法實跑瀏覽器時安全推進。
+- `dev.bat` 選單(UTF-8/CRLF/chcp 65001)、`index.html`(serve 根路徑轉址)、`.gitignore`(node_modules/*.map/*.bak/*-bak)。
+**待使用者驗收**:`dev.bat` → 6(建置並開離線)或 4(線上),跑一局確認與先前一致。確認後續抽 constants / core 共享狀態 / 各領域模組。
+**還原依據**:把 geom.js 的函式貼回 main.js、移除 import 與 geom.js。或 git checkout。
+
+## [2026-08-11] #39 架構遷移 Stage 2a:導入 esbuild(src/main.js → game.js,iife 打包)
+**檔案**:新增 `src/main.js`、`package.json`、`.gitignore`、`docs/DEV.md`;`game.js` 改為建置產物
+**目的**:地基第二步(Stage 1+2 合併走 esbuild,避開傳統多 script 的 hoisting 風險)。
+- `game.js`(Stage 0 抽出的原碼)複製為 `src/main.js` 當打包入口;esbuild `--bundle --format=iife --charset=utf8` 產出 `game.js`。`inkblade.html` 載入不變(仍 `<script src="game.js">`)。
+- **零行為變更之依據**:原內聯碼本身就是 `(function(){ 'use strict'; … })()` 的自封閉 strict iife → 頂層宣告從來非全域、外部零依賴(已稽核:HTML 無內聯事件、sound-system 不引用遊戲全域、只 `window.getInkAudioSettings` 明確曝露)。esbuild 再包一層 iife 等於 no-op;全域 `SND`/`INK_CONFIG` 原樣保留為自由變數;關鍵函式全在;`node --check` 通過。
+- 建置腳本:`build`(乾淨產物,committed)、`watch`(inline sourcemap)、`serve`(本機 http 線上測)、`check`。`node_modules`/`*.map` gitignore;`game.js` 仍 commit(離線雙擊免 build)。
+- 開發流程見 `docs/DEV.md`。
+**待使用者驗收**:`npm install` → `npm run build` → (a) 雙擊 `inkblade.html` 離線、(b) `npm run serve` 線上,各跑一局確認與先前一致。**確認後**再進 Stage 2b(把 src/main.js 拆成 ES module)。
+**還原依據**:`inkblade.html` 改回載入 Stage 0 的 game.js(即 src/main.js 內容),移除 esbuild/package.json/src。或 git checkout。
+
+## [2026-08-11] #38 架構遷移 Stage 0:抽離內聯 script → 外部 game.js(零行為變更)
+**檔案**:`inkblade.html`(內聯 `<script>` 移出)、新增 `game.js`
+**目的**:架構遷移地基第一步(見 `docs/architecture-migration-plan.md`)。把主檔那段 5085 行的內聯 `<script>` 整段搬到外部 `game.js`,HTML 改 `<script src="game.js"></script>`,順序仍接在 `data/game-config.js`、`data/sound-system.js` 之後。
+- **零行為變更**:`game.js` 內容與原內聯 script **逐位元組完全一致**(diff IDENTICAL);仍是單一 script → hoisting/作用域完全相同;載入位置/順序不變(仍在 `</body>` 前、DOM 之後執行)。
+- 好處:立刻拿回 IDE 跳轉 / AST / eslint / graphify,行號穩定。離線雙擊與線上都照跑(外部傳統 script 在 file:// 正常載入,與既有 config/sound 同機制)。
+- `node --check game.js` 通過。
+**待使用者驗收**:雙擊 `inkblade.html` 與線上各跑一局,確認與先前一模一樣;確認後再進 Stage 1(依領域切模組)。
+**備註**:遷移期間留有 `inkblade.html.bak`(沙盒暫時刪不掉,無害;git 為真正回滾依據)。
+**還原依據**:把 `game.js` 內容貼回 `inkblade.html` 的 `<script>…</script>`、移除 `<script src="game.js">`。或 git checkout。
+
+## [2026-08-10] #37 修正:定鋒「沒實裝」—— 核心劍樁誤掛在小成 anchorField 下,改回基礎
+**檔案**:`inkblade.html`
+- 病因(#31 實作 bug):把定鋒的**核心劍樁**(插地 + 週期斬割)錯誤地 gate 在 `anchorField`(小成)。而 tier 旗標需**滿階(rank5)+ 300 斬**才啟用(見 config `applyInsight`/`noteKill`,TIER_KILLS=[300,500,1000])→ 一般玩家學了定鋒完全看不到劍樁,誤以為沒實裝。
+- 依設計(`momentum-formation-and-anchor.md`)重新分層:
+  - **基礎(學了即有,隨階 anchorDuration/DamageMult 成長)**:串珠耐久耗盡插地成劍樁 + 小半徑週期斬割。核心 spawn 改 gate 在 `stat.beadSlow`(定鋒的基礎旗標=已學訊號),不再需要 anchorField。
+  - **小成 anchorField**:墨域 −18% 減速 + 串珠回補穿透 + 圓暈視覺(三者各自加 `anchorField` 守門)。
+  - 大成 anchorLink、圓滿 anchorDetonate 維持原樣(已各自 gate)。
+- 週期斬割改用小半徑 `A.sr=26`(基礎「小半徑」語意);墨域範圍 `A.r=44` 僅供小成減速/回補/圓暈使用。
+- 抽 script `node --check` / vm 解析通過。
+**測試建議**:貫鋒陣 + 學定鋒(1 階即可)→ 串珠打穿數敵、耐久耗盡處應立起劍樁並持續小範圍斬割。滿階+300 斬後才出現墨域減速圈與回補。
+**還原依據**:核心 spawn gate 改回 `TF.anchorField`;移除 anchorField/beadSlow 的分層守門與 `A.sr`。或 git checkout。
+
 ## [2026-08-10] #36 修正:引鋒漏擋第三處(guideRetarget)—— 扇型仍吃到引鋒的真正漏洞
 **檔案**:`inkblade.html`
 - #34 只擋了引鋒的兩個運動點(續飛轉向、末端延伸)。**漏了第三處**:引鋒·大成 `guideRetarget`(擊殺後立即向下個目標延伸,約 3391)沒有陣型守門。

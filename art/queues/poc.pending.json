@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "queueId": "inkblade.poc_001",
+  "recipes": [],
+  "priority": "high",
+  "status": "blocked",
+  "blockers": ["art_direction_not_frozen", "local_generation_unavailable", "model_license_unverified"]
+}

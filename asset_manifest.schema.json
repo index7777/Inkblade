@@ -1,0 +1,319 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://inkblade.local/schemas/asset_manifest.schema.json",
+  "title": "Generic Asset Manifest Schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "manifestVersion",
+    "assets"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "manifestVersion": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "assets": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/assetEntry"
+      }
+    }
+  },
+  "$defs": {
+    "assetId": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]+(?:\\.[a-z0-9_]+)+$"
+    },
+    "assetType": {
+      "type": "string",
+      "enum": [
+        "character_sprite",
+        "character_portrait",
+        "weapon_sprite",
+        "armor_sprite",
+        "item_icon",
+        "environment_prop",
+        "building",
+        "tileset",
+        "ground_tile",
+        "vfx_sprite",
+        "ui_icon",
+        "ui_ornament",
+        "world_effect",
+        "audio",
+        "music"
+      ]
+    },
+    "sourceType": {
+      "type": "string",
+      "enum": [
+        "generated",
+        "hand_authored",
+        "licensed_external",
+        "procedural",
+        "hybrid"
+      ]
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "approved_prototype",
+        "approved_final",
+        "deprecated",
+        "disabled"
+      ]
+    },
+    "runtimeResource": {
+      "type": "string",
+      "pattern": "^runtime://.+"
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "workflowId": {
+          "$ref": "#/$defs/assetId"
+        },
+        "modelProfileId": {
+          "$ref": "#/$defs/assetId"
+        },
+        "seed": {
+          "type": "integer"
+        },
+        "generatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "humanEdited": {
+          "type": "boolean"
+        }
+      }
+    },
+    "license": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sourceLicenseId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "commercialUseAllowed": {
+          "type": "boolean"
+        },
+        "attributionRequired": {
+          "type": "boolean"
+        },
+        "attributionText": {
+          "type": "string"
+        }
+      }
+    },
+    "review": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "approvedBy": {
+          "type": "string",
+          "enum": [
+            "human",
+            "rule_based",
+            "migration"
+          ]
+        },
+        "approvedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "scale": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "pivot": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "x",
+            "y"
+          ],
+          "properties": {
+            "x": {
+              "type": "number"
+            },
+            "y": {
+              "type": "number"
+            }
+          }
+        }
+      }
+    },
+    "assetEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "assetId",
+        "assetType",
+        "sourceType",
+        "runtimeResource",
+        "status",
+        "version"
+      ],
+      "properties": {
+        "assetId": {
+          "$ref": "#/$defs/assetId"
+        },
+        "assetType": {
+          "$ref": "#/$defs/assetType"
+        },
+        "sourceType": {
+          "$ref": "#/$defs/sourceType"
+        },
+        "sourceRecipeId": {
+          "$ref": "#/$defs/assetId"
+        },
+        "runtimeResource": {
+          "$ref": "#/$defs/runtimeResource"
+        },
+        "status": {
+          "$ref": "#/$defs/status"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "animationContractId": {
+          "$ref": "#/$defs/assetId"
+        },
+        "outputProfileId": {
+          "$ref": "#/$defs/assetId"
+        },
+        "packageId": {
+          "type": "string",
+          "pattern": "^[a-z0-9_]+$"
+        },
+        "replacementAssetId": {
+          "$ref": "#/$defs/assetId"
+        },
+        "tags": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9_]+$"
+          }
+        },
+        "sourceFiles": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "provenance": {
+          "$ref": "#/$defs/provenance"
+        },
+        "license": {
+          "$ref": "#/$defs/license"
+        },
+        "review": {
+          "$ref": "#/$defs/review"
+        },
+        "runtime": {
+          "$ref": "#/$defs/runtime"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "sourceType": {
+                "const": "generated"
+              }
+            },
+            "required": [
+              "sourceType"
+            ]
+          },
+          "then": {
+            "required": [
+              "sourceRecipeId",
+              "provenance"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "deprecated"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "replacementAssetId": {
+                "$ref": "#/$defs/assetId"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "assetType": {
+                "const": "character_sprite"
+              }
+            },
+            "required": [
+              "assetType"
+            ]
+          },
+          "then": {
+            "required": [
+              "animationContractId"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "enum": [
+                  "approved_prototype",
+                  "approved_final"
+                ]
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "required": [
+              "review"
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "description": "Project-agnostic schema for validating approved runtime asset manifest entries. Extend asset types and engine-specific fields in the target repository without adding product-specific assumptions to this shared template."
+}

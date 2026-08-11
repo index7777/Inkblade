@@ -1,15 +1,12 @@
-# OS / editor
-Thumbs.db
-Desktop.ini
-.DS_Store
-*.swp
-*~
-
-# Local scratch / backups
-backup/
-*.log
-
-# 本機測試用,不上傳
-local-test.html
+node_modules/
+*.map
+*.bak
+*-bak
+graphify-out/cache/
+.serena/logs/
+art/generated/
+art/review/
+art/cache/
+art/models/checkpoints/
+tmp/
 _to_delete/
-_stage/

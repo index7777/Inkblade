@@ -1,5 +1,60 @@
 # 交接文件 HANDOFF(給下一段對話無縫接手)
 
+> **AUTHORITATIVE HANDOFF — 2026-08-11**
+> 本節是目前唯一有效的接手基準。下方 2026-08-10 舊交接僅供歷史參考，裡面的單檔行號、待辦順序與「卡片 UI 不要動」均已過時。
+
+## Current objective
+
+繼續 Stage 2b 模組拆分。既定五個 subsystem 中，`enemy.js`、`combat.js`、`render.js`、`ui.js` 已完成；下一步只剩 `boot.js`：啟動流程、事件綁定、遊戲迴圈初始化。不要擴大 gameplay scope，也不要順手實作新功能。
+
+## Completed module boundaries
+
+- `src/enemy.js`：普通敵人 AI、移動、接觸傷害、死亡流程、玄冥 Boss 狀態與波次生命週期。
+- `src/combat.js`：飛劍、劍令、劍陣、命中、傷害、定鋒／劍樁相關戰鬥流程。
+- `src/render.js`：角色、敵人、Boss、飛劍、特效、紙張背景與總繪製入口。
+- `src/ui.js`：HUD、選卡、重抽、暫停、設定、音量、轉世閣、重塑確認、角色選擇、商城、劍訣精進列表、面板拖曳捲動。
+- `src/main.js`：目前 2097 行，仍是 gameplay orchestration 與待拆 `boot.js` 的 source。
+- `src/ui.js`：目前 522 行。UI 透過 `configureUI()` hooks 呼叫存檔、runtime、音效與 gameplay mutation；UI 不複製 production domain logic。
+
+## Important ownership decisions
+
+- 轉世購買的 authoritative mutation 仍由 main hook 呼叫 `runtime.purchaseRebirth()` 並保存 permanent state；`ui.js` 只建立／刷新介面。
+- 重塑規則與成本計算仍在 `respecInfo()`；實際清除 insights 的 mutation 仍在 main 的 `doRespec(state)`。二次確認狀態與按鈕呈現在 `ui.js`。
+- 商城 catalog 仍在 main；購買 mutation 經 `purchaseShopItem` hook 執行。`ui.js` 只繪製商品與派送選擇。
+- `game.js` 是 `src/main.js` 的 esbuild bundle，不是 authoritative source。不要直接修改 `game.js`。
+
+## Next task: boot.js
+
+1. 先用 `graphify query` 找出啟動、DOM event bindings、`requestAnimationFrame`／timer、loop 初始化與 splash/menu lifecycle。
+2. 用 Serena 定位 named symbols 與 references；避免整檔讀取 `src/main.js`。
+3. 建立 `src/boot.js`，只抽啟動／事件／loop orchestration；不要搬 gameplay state transitions 或改 gameplay behavior。
+4. 保持重要入口為可被 Serena 定位的 named symbols，避免新的 anonymous mega-IIFE 或無意義 wrappers。
+5. 完成後跑 tests、build、check、`graphify update .`，再做至少 5 個核心 symbol 的 Find Symbol / Find References / Read Symbol Body 驗收。
+
+## Verification baseline
+
+- `npm test`：PASS，15/15。
+- `npm run build`：PASS；產生 `game.js`。
+- `npm run check`：PASS。
+- `graphify update .`：PASS；目前 graph 為 1673 nodes / 2203 edges / 114 communities。
+- UI 是 DOM/browser integration；目前沒有自動化瀏覽器測試，不能宣稱 UI interaction 已被 unit tests 覆蓋。拆 `boot.js` 時應維持此項為明示 testability gap，不要造 placeholder tests。
+
+## Tooling requirements
+
+- `graphify-out/graph.json` 存在；codebase 工作先用 `graphify query/path/explain`，修改後執行 `graphify update .`。
+- Serena authoritative root 是 `src/`；smoke test 使用 exported/named symbols，不使用 bundled `game.js`。
+- tests/build 必須維持 PASS。不要修改 generated `game.js`，只由 build 更新。
+- Asset Pipeline runtime 保持 ON_DEMAND；本階段不要安裝 ComfyUI、Pixelorama、dedup 或模型。
+
+## Working tree / sync warning
+
+- 工作樹目前有大量既有 modified/untracked files，都是本專案既有 Bootstrap 與拆分成果；不要 reset、checkout 或清除。
+- 本對話沒有建立 commit、沒有 push、也沒有執行 sync。使用者會自行 sync；下一個對話開始時先檢查實際 branch/status，不要假設已上傳。
+
+---
+
+## Archived handoff (2026-08-10, obsolete)
+
 > 最後更新:2026-08-10。前一段對話過長,此文件用於接軌。
 > **原則不變**:類別純度(劍陣/劍行/劍痕/劍稟 + 真意);ES-classic 單檔雙擊即跑;
 > 改 config 一律 `node --check` + validateConfig;改主檔 `inkblade.html` 一律抽 script 跑 `node --check`。
@@ -62,6 +117,13 @@
   tier2 `anchorDetonate` 劍樁 t 到期時引爆一次範圍傷(參考 explode 寫法約 3339–3345)。
 - 圓滿等其餘 tier 差異依 `momentum-formation-and-anchor.md` 對齊。
 - 完成後 `node --check` + CHANGELOG #30。
+
+### 1.5) 劍陣改「開局四選一・鎖定一路」(設計已定案,待實作)
+**設計來源**:`docs/formation-draft-redesign.md`(使用者定案 2026-08-11)。
+- 現況 bug:`canOfferInsight` 未限制陣型數 → 可同時學多陣、池子髒、跨陣型污染。
+- 定案:開局強制四選一、鎖定一路整局不換;只有該陣升級卡進正常池,其餘三陣永不出現;陣等級=該陣 rank。
+- 排序:**架構 Stage 2b 收段落後**再做;適合和轉世閣/真意(都動卡池/draft)一起想。
+- 紅利:根絕跨陣型污染整類 bug(引鋒/散鋒那類)。
 
 ### 2) 轉世閣前置(真意之前先把解鎖框架做好)
 **設計來源**:`docs/truths-active-redesign.md`。真意改為「主動大招」,解鎖分兩段:

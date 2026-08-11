@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "modelProfileId": "local.pending_v1",
+  "engine": "comfyui",
+  "modelFamily": "unselected",
+  "source": null,
+  "license": null,
+  "commercialUseAllowed": null,
+  "status": "license_blocked"
+}
