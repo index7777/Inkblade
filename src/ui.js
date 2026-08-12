@@ -110,8 +110,8 @@ export function updateHUD(){
   if(hooks.isDpsOpen?.()) hooks.renderDps?.();
 }
 
-let levelChoiceLocked=false, levelRerolls=2;
-const CARD_CATEGORY_NAME={form:'陣',momentum:'行',intent:'痕',cultivation:'稟',truth:'意'};
+let levelChoiceLocked=false, levelRerolls=2, startingFormationOpen=false, truthSelectionOpen=false;
+const CARD_CATEGORY_NAME={form:'陣',momentum:'行',intent:'痕',cultivation:'稟',blade:'型',truth:'意'};
 const CARD_RANK_CN=['','一','二','三','四','五'];
 
 export function levelChoiceOpen(){
@@ -122,6 +122,8 @@ export function isLevelChoiceLocked(){ return levelChoiceLocked; }
 
 export function resetLevelChoice(){
   levelChoiceLocked=false;
+  startingFormationOpen=false;
+  document.getElementById('cardbox')?.classList.remove('formation-draft','compact-draft','truth-draft');
   document.getElementById('overlay')?.classList.remove('show');
 }
 
@@ -155,6 +157,13 @@ export function drawCards(isReroll=false){
   levelChoiceLocked=false;
   hooks.resetSwordDrawing?.();
   const runtime=hooks.getRuntime?.(), runState=hooks.getRunState?.();
+  if(!runState.activeForm){ drawStartingFormations(); return; }
+  startingFormationOpen=false;
+  document.getElementById('cardbox')?.classList.remove('formation-draft','compact-draft','truth-draft');
+  document.querySelector('#cardbox h2').textContent='悟 · 選一道劍訣';
+  document.querySelector('#cardbox p.tip').textContent='道行精進，天地賜法。點選一張以承其力。';
+  document.getElementById('rerollbtn').hidden=false;
+  document.getElementById('rerollleft').hidden=false;
   const choices=runtime.rollInsights(runState,3);
   const box=document.getElementById('cards'); box.innerHTML='';
   choices.forEach(item=>{
@@ -180,13 +189,73 @@ export function drawCards(isReroll=false){
   applyBattleMode();
 }
 
+function drawTruthChoices(){
+  const runtime=hooks.getRuntime?.(), runState=hooks.getRunState?.();
+  if(!G.running||!runtime||!runState||runState.activeTruth) return false;
+  const choices=runtime.getUnlockedTruths(runState);
+  if(!choices.length) return false;
+  truthSelectionOpen=true; levelChoiceLocked=false;
+  hooks.resetSwordDrawing?.();
+  document.getElementById('cardbox')?.classList.remove('formation-draft');
+  document.getElementById('cardbox')?.classList.add('compact-draft','truth-draft');
+  document.querySelector('#cardbox h2').textContent='真意 · 選一式鎖定';
+  document.querySelector('#cardbox p.tip').textContent='劍陣五階，真意初成。本局選定後不可更換。';
+  document.getElementById('rerollbtn').hidden=true;
+  document.getElementById('rerollleft').hidden=true;
+  document.getElementById('manabill').innerHTML='<b>共通</b><span>消耗 200 劍意 · 冷卻 30 秒</span>';
+  document.getElementById('lvqueue').textContent='';
+  const box=document.getElementById('cards'); box.innerHTML='';
+  choices.forEach(item=>{
+    const element=document.createElement('div'); element.className='card truth-card';
+    element.innerHTML=`<div class="cardcategory">意</div><div class="rune">${item.rune}</div>
+      <div class="cname">${item.name}</div><div class="cdesc">${item.description}</div>
+      <div class="ctrade">${item.active.duration?'持續 '+item.active.duration+' 秒':'瞬發'}</div>`;
+    element.onclick=()=>selectInsightCard(item); box.appendChild(element);
+  });
+  document.getElementById('overlay').classList.add('show'); G.paused=true;
+  return true;
+}
+
+export function drawStartingFormations(){
+  if(!G.running) return;
+  const runtime=hooks.getRuntime?.(), runState=hooks.getRunState?.();
+  if(!runtime||!runState||runState.activeForm) return;
+  startingFormationOpen=true;
+  levelChoiceLocked=false;
+  levelRerolls=0;
+  hooks.resetSwordDrawing?.();
+  const cardbox=document.getElementById('cardbox');
+  cardbox.classList.add('formation-draft','compact-draft');
+  cardbox.querySelector('h2').textContent='定 · 選一座劍陣';
+  cardbox.querySelector('p.tip').textContent='此陣將鎖定本局，選定後不可更換。';
+  const box=document.getElementById('cards'); box.innerHTML='';
+  runtime.getStartingFormations().forEach(item=>{
+    const displayName=cardDisplayName(item), displayRune=Array.from(displayName)[0]||'陣';
+    const element=document.createElement('div'); element.className='card';
+    element.innerHTML=`<div class="cardcategory" aria-label="類別：陣">陣</div>
+      <div class="cardrank" aria-label="選擇後為一階">一階</div>
+      <div class="rune">${displayRune}</div><div class="cname">${displayName}</div>${cardBody(item)}`;
+    element.onclick=()=>selectInsightCard(item);
+    box.appendChild(element);
+  });
+  document.getElementById('lvqueue').textContent='四陣擇一 · 必選';
+  document.getElementById('manabill').innerHTML='';
+  renderReroll();
+  document.getElementById('rerollbtn').hidden=true;
+  document.getElementById('rerollleft').hidden=true;
+  document.getElementById('overlay').classList.add('show');
+  G.paused=true;
+}
+
 export function selectInsightCard(item){
   if(levelChoiceLocked || !G.running) return;
   levelChoiceLocked=true;
   hooks.playPick?.();
   const runtime=hooks.getRuntime?.(), runState=hooks.getRunState?.();
   const rankBefore=runState.ranks[item.id]||0;
-  runtime.applyInsight(runState,item.id);
+  if(startingFormationOpen) runtime.chooseStartingFormation(runState,item.id);
+  else if(truthSelectionOpen) runtime.chooseActiveTruth(runState,item.id);
+  else runtime.applyInsight(runState,item.id);
   hooks.syncStat?.();
   if(item.category==='form'){
     runtime.recomputeForFormation(runState);
@@ -200,7 +269,19 @@ export function selectInsightCard(item){
     G.banner={txt:item.name+' 滿階 · 小成 '+item.tiers[0].kills+' 斬',life:1};
     hooks.floatText?.(G.player.x,G.player.y-56,item.name+' 滿階','#c08a2e');
   }
-  closeLevelUp();
+  if(truthSelectionOpen){
+    truthSelectionOpen=false;
+    document.getElementById('overlay').classList.remove('show');
+    levelChoiceLocked=false; G.banner={txt:'真意 · '+item.name,life:1};
+    hooks.onTruthChosen?.(item);
+    if(G.pendingLevels>0&&G.running) drawCards(); else G.paused=pausedByUser;
+  } else if(startingFormationOpen){
+    startingFormationOpen=false;
+    document.getElementById('cardbox').classList.remove('formation-draft','compact-draft','truth-draft');
+    document.getElementById('overlay').classList.remove('show');
+    levelChoiceLocked=false;
+    hooks.onFormationChosen?.(item);
+  } else closeLevelUp();
 }
 
 export function applyBattleMode(){
@@ -218,6 +299,7 @@ export function rerollCards(){
 
 export function closeLevelUp(){
   if(G.pendingLevels>0) G.pendingLevels--;
+  if(drawTruthChoices()) return;
   if(G.pendingLevels>0&&G.running){ drawCards(); return; }
   document.getElementById('overlay').classList.remove('show');
   levelChoiceLocked=false;

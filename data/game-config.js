@@ -36,6 +36,7 @@
     MOMENTUM: 'momentum',
     INTENT: 'intent',
     CULTIVATION: 'cultivation',
+    BLADE: 'blade',
     TRUTH: 'truth'
   });
 
@@ -154,12 +155,14 @@
     description, effects: Object.freeze(effects || []), pending: pending || null
   });
 
+  const BLADE_INSIGHT_IDS = Object.freeze(['cultivate_edge', 'cultivate_breadth', 'cultivate_temper']);
   const insight = (data) => Object.freeze({
     maxRank: 99,
     requires: Object.freeze([]),
     excludes: Object.freeze([]),
     fx: Object.freeze({ trail: null, hit: null, status: null }),
     ...data,
+    category: BLADE_INSIGHT_IDS.includes(data.id) ? CATEGORY.BLADE : data.category,
     requires: Object.freeze(data.requires || []),
     excludes: Object.freeze(data.excludes || []),
     effects: Object.freeze(data.effects || []),
@@ -167,7 +170,7 @@
     fx: Object.freeze(data.fx || { trail: null, hit: null, status: null })
   });
 
-  const INSIGHTS = Object.freeze([
+  const LEGACY_INSIGHTS = Object.freeze([
     // ── 劍式:同時只能維持一種排列,但可重複領悟增加劍數。 ──────────────
     insight({ id: 'form_scatter', category: CATEGORY.FORM, rarity: RARITY.CLARITY, name: '散鋒陣', rune: '散', maxRank: 5, description: '劍鋒如展卷向兩側散開;增一劍,清掃群墨。', tradeoff: '此式不折返;分散後不易集中斬擊。', tiers: [tier(0, '命中後向兩側分出殘鋒。', [op('flag', 'flags.scatterEcho', true)]), tier(1, '殘鋒亦能觸發墨痕。', [op('flag', 'flags.scatterEchoIntent', true)]), tier(2, '墨濺四方:殘鋒改為向四面分出。', [op('flag', 'flags.scatterQuad', true)])], effects: [op('add', 'stats.swordCount', 1), op('set', 'formation', 'fan')], fx: { trail: fx.DRY_BRUSH, hit: fx.BREAK_INK } }),
     insight({ id: 'form_together', category: CATEGORY.FORM, rarity: RARITY.CLARITY, name: '齊鋒陣', rune: '齊', maxRank: 5, description: '數劍同起同落;增一劍,撲空的劍自行追跡。', tradeoff: '此式不折返;橫向覆蓋佳,轉向遲緩。', tiers: [tier(0, '飛劍間距收窄,自動集火。', [op('flag', 'flags.volleyTighten', true)]), tier(1, '同時命中時,末劍造成齊斬。', [op('flag', 'flags.volleyStrike', true)]), tier(2, '每四次齊斬自行引出一記重斬。', [op('flag', 'flags.volleyHeavy', true)])], effects: [op('add', 'stats.swordCount', 1), op('set', 'formation', 'parallel')], fx: { trail: fx.BREAK_INK, hit: fx.WHITE_CUT } }),
@@ -200,6 +203,15 @@
     insight({ id: 'truth_dry_peaks', category: CATEGORY.TRUTH, rarity: RARITY.TRUTH, name: '飛白千峰', rune: '白', maxRank: 1, description: '劍痕斷續留白;暴擊後再生一道殘鋒。', requires: ['inherit_dry_peaks'], effects: [op('truth', 'activeTruth', 'truth_dry_peaks'), op('add', 'stats.critChance', 0.18), op('flag', 'flags.whiteCutOnCrit', true), op('unlock', 'runUnlocks', 'criticalEcho:1')], fx: { trail: fx.DRY_BRUSH, hit: fx.WHITE_CUT } })
   ]);
 
+  const ACTIVE_TRUTHS = Object.freeze([
+    insight({ id: 'truth_ten_thousand', category: CATEGORY.TRUTH, rarity: RARITY.TRUTH, name: '萬劍歸宗', rune: '萬', maxRank: 1, description: '由人物中心降下劍雨，同心向外擴散至畫境邊緣。', requires: ['inherit_ten_thousand'], active: { manaCost: 200, cooldown: 30, duration: 0 }, effects: [op('truth', 'activeTruth', 'truth_ten_thousand')] }),
+    insight({ id: 'truth_single_stroke', category: CATEGORY.TRUTH, rarity: RARITY.TRUTH, name: '一筆開天', rune: '一', maxRank: 1, description: '巨劍自下貫天，沿途向左右展開持續劍氣。', requires: ['inherit_single_stroke'], active: { manaCost: 200, cooldown: 30, duration: 0 }, effects: [op('truth', 'activeTruth', 'truth_single_stroke')] }),
+    insight({ id: 'truth_return_hidden', category: CATEGORY.TRUTH, rarity: RARITY.TRUTH, name: '歸藏無痕', rune: '藏', maxRank: 1, description: '全劍環射至畫境邊緣，再折返人物中心。', requires: ['inherit_return_hidden'], active: { manaCost: 200, cooldown: 30, duration: 10 }, effects: [op('truth', 'activeTruth', 'truth_return_hidden')] }),
+    insight({ id: 'truth_moon_return', category: CATEGORY.TRUTH, rarity: RARITY.TRUTH, name: '環月歸墟', rune: '月', maxRank: 1, description: '全劍環月疾旋，劍速總和化作斬擊威勢。', requires: ['inherit_moon_return'], active: { manaCost: 200, cooldown: 30, duration: 10 }, effects: [op('truth', 'activeTruth', 'truth_moon_return')] })
+  ]);
+  const REMOVED_INSIGHT_IDS = new Set(['cultivate_sheath', 'truth_ten_thousand', 'truth_single_stroke', 'truth_return_hidden', 'truth_ink_sea', 'truth_fine_rain', 'truth_dry_peaks']);
+  const INSIGHTS = Object.freeze([...LEGACY_INSIGHTS.filter(item => !REMOVED_INSIGHT_IDS.has(item.id)), ...ACTIVE_TRUTHS]);
+
   const rebirthNode = (data) => Object.freeze({
     maxRank: 1,
     costs: Object.freeze([]),
@@ -211,7 +223,7 @@
     effects: Object.freeze(data.effects || [])
   });
 
-  const REBIRTH = Object.freeze([
+  const LEGACY_REBIRTH = Object.freeze([
     // 築基:穩定且有限的永久數值。
     rebirthNode({ id: 'foundation_spirit_house', branch: REBIRTH_BRANCH.FOUNDATION, name: '靈府初成', description: '每階令開局劍意上限提高十五。', maxRank: 10, costs: [30, 65, 125, 220, 340, 490, 680, 910, 1180, 1500], effects: [op('add', 'stats.manaMax', 15), op('max', 'stats.mana', 'stats.manaMax')] }),
     rebirthNode({ id: 'foundation_sea_of_mind', branch: REBIRTH_BRANCH.FOUNDATION, name: '識海初開', description: '每階令開局神識上限提高十五。', maxRank: 10, costs: [30, 65, 125, 220, 340, 490, 680, 910, 1180, 1500], effects: [op('add', 'stats.hpMax', 15)] }),
@@ -233,11 +245,21 @@
     rebirthNode({ id: 'inherit_fine_rain', branch: REBIRTH_BRANCH.INHERITANCE, name: '傳承·細雨如織', description: '真意〈細雨如織〉進入悟道池。', costs: [270], requires: ['foundation_spirit_house:2'], effects: [op('unlock', 'permanentUnlocks', 'inherit_fine_rain')] }),
     rebirthNode({ id: 'inherit_dry_peaks', branch: REBIRTH_BRANCH.INHERITANCE, name: '傳承·飛白千峰', description: '真意〈飛白千峰〉進入悟道池。', costs: [320], requires: ['mind_clear_strike:1'], effects: [op('unlock', 'permanentUnlocks', 'inherit_dry_peaks')] })
   ]);
+  const REMOVED_REBIRTH_IDS = new Set(['foundation_sword_case', 'mind_return_thought', 'mind_listen_ink', 'inherit_ten_thousand', 'inherit_return_hidden', 'inherit_ink_sea', 'inherit_fine_rain', 'inherit_dry_peaks']);
+  const REBIRTH = Object.freeze([
+    ...LEGACY_REBIRTH.filter(node => !REMOVED_REBIRTH_IDS.has(node.id)),
+    rebirthNode({ id: 'inherit_ten_thousand', branch: REBIRTH_BRANCH.INHERITANCE, name: '傳承·萬劍歸宗', description: '永久解鎖真意〈萬劍歸宗〉。', costs: [280], requires: ['foundation_sword_bone:4'], effects: [op('unlock', 'permanentUnlocks', 'inherit_ten_thousand')] }),
+    rebirthNode({ id: 'inherit_return_hidden', branch: REBIRTH_BRANCH.INHERITANCE, name: '傳承·歸藏無痕', description: '永久解鎖真意〈歸藏無痕〉。', costs: [260], requires: ['foundation_flow:4'], effects: [op('unlock', 'permanentUnlocks', 'inherit_return_hidden')] }),
+    rebirthNode({ id: 'inherit_moon_return', branch: REBIRTH_BRANCH.INHERITANCE, name: '傳承·環月歸墟', description: '永久解鎖真意〈環月歸墟〉。', costs: [320], requires: ['foundation_flow:4'], effects: [op('unlock', 'permanentUnlocks', 'inherit_moon_return')] })
+  ]);
 
   const BASE_RUN_STATE = Object.freeze({
     formation: 'single',
     activeTruth: null,
     activeForm: null,
+    activeIntent: null,
+    activeBlade: null,
+    cultivationFocus: null,
     appliedTruthEffects: [],
     appliedFormEffects: [],
     stats: Object.freeze({ hpMax: 100, costMultiplier: 1, damage: 24, swordArmor: 0, swordWidth: 18, swordSpeed: 14, critChance: 0.05, critMultiplier: 2, manaMax: 100, mana: 100, manaRegen: 0.85, manaOnKill: 0, swordCap: 4, swordCount: 1, manaCostBase: 6, manaCostPerPixel: 0.13 }),
@@ -443,16 +465,56 @@
   function canOfferInsight(state, item) {
     const rank = Number(state.ranks[item.id] || 0);
     if (rank >= item.maxRank) return false;
+    // 開局必須先走專用四選一；未定陣前，正常悟道池完全關閉。
+    if (!state.activeForm) return false;
+    // 定陣後只能升級同一陣，其他三陣永不再進卡池。
+    if (item.category === CATEGORY.FORM && item.id !== state.activeForm) return false;
+    if (item.category === CATEGORY.INTENT && state.activeIntent && item.id !== state.activeIntent) return false;
+    if (item.category === CATEGORY.BLADE && state.activeBlade && item.id !== state.activeBlade) return false;
     if (!item.requires.every((requirement) => requirementMet(state, requirement))) return false;
     if (item.excludes.some((id) => Number(state.ranks[id] || 0) > 0)) return false;
     if (item.formationLock && state.formation !== item.formationLock) return false;
     // 真意互斥:局內已有任一真意等級則不刷新其他真意
     if (item.category === CATEGORY.TRUTH) {
+      // 主動真意改由「劍陣滿五階」專用選單取得，不混入一般悟道池。
+      return false;
       const hasAnyTruth = INSIGHTS.some(ins => ins.category === CATEGORY.TRUTH && Number(state.ranks[ins.id] || 0) > 0);
       if (hasAnyTruth) return false;
       if (state.activeTruth && state.activeTruth !== item.id) return false;
     }
     return true;
+  }
+
+  function getStartingFormations() {
+    return INSIGHTS.filter(item => item.category === CATEGORY.FORM);
+  }
+
+  function chooseStartingFormation(state, insightId) {
+    if (state.activeForm) throw new Error(`本局劍陣已鎖定:${state.activeForm}`);
+    const item = insightById[insightId];
+    if (!item || item.category !== CATEGORY.FORM) throw new Error(`不是可選劍陣:${insightId}`);
+    applyInsightEffects(state, item);
+    state.ranks[item.id] = 1;
+    state.history.push(item.id);
+    clampAllStats(state);
+    return state;
+  }
+
+  function getUnlockedTruths(state) {
+    if (!state?.activeForm || Number(state.ranks[state.activeForm] || 0) < 5) return [];
+    return INSIGHTS.filter(item => item.category === CATEGORY.TRUTH
+      && item.requires.every(requirement => requirementMet(state, requirement)));
+  }
+
+  function chooseActiveTruth(state, insightId) {
+    if (state.activeTruth) throw new Error(`本局真意已鎖定:${state.activeTruth}`);
+    const item = insightById[insightId];
+    if (!item || item.category !== CATEGORY.TRUTH) throw new Error(`不是真意:${insightId}`);
+    if (!getUnlockedTruths(state).some(truth => truth.id === insightId)) throw new Error(`真意尚未解鎖:${insightId}`);
+    applyInsightEffects(state, item);
+    state.ranks[item.id] = 1;
+    state.history.push(item.id);
+    return state;
   }
 
   // 動態稀有度衰減權重計算
@@ -465,6 +527,7 @@
   // 真正的價值在手感:你正在堆的那張會更常出現在三選一裡,專精的過程比較不卡。
   // 想關掉就設 1.0。
   const RANK_FOCUS = 1.25;
+  const CULTIVATION_FIRST_FOCUS = 1.75;
   function getDynamicRarityWeight(state, item) {
     let base = rarity.weight[item.rarity];
     const sameRarityCount = INSIGHTS.filter(i => i.rarity === item.rarity && Number(state.ranks[i.id] || 0) > 0).length;
@@ -474,6 +537,7 @@
     // 階數越高,出現率越高(真意 maxRank 1,不適用)
     const rank = Number(state.ranks[item.id] || 0);
     if (rank > 0 && item.category !== CATEGORY.TRUTH) base *= Math.pow(RANK_FOCUS, rank);
+    if (item.category === CATEGORY.CULTIVATION && state.cultivationFocus === item.id) base *= CULTIVATION_FIRST_FOCUS;
     // 已解鎖傳承對應真意,truth權重提升至12
     if (item.category === CATEGORY.TRUTH && state.permanentUnlocks.some(u => item.requires.includes(u))) {
       base = 12;
@@ -516,6 +580,9 @@
 
   // 套用單一悟道的效果(供 applyInsight 與換陣重放共用;不動 ranks/history/tier)
   function applyInsightEffects(state, item) {
+    if (item.category === CATEGORY.INTENT && !state.activeIntent) state.activeIntent = item.id;
+    if (item.category === CATEGORY.BLADE && !state.activeBlade) state.activeBlade = item.id;
+    if (item.category === CATEGORY.CULTIVATION && !state.cultivationFocus) state.cultivationFocus = item.id;
     if (item.category === CATEGORY.FORM) {
       const switching = state.activeForm && state.activeForm !== item.id;
       if (switching) revertFormEffects(state);
@@ -744,8 +811,10 @@
   // 採「重建」而非逐項反向 —— 徹底避免 mul 反向的順序誤差與真意/劍式殘留。保留洗點次數。
   function resetAllInsights(state) {
     const times = Number(state.resetInsightTimes || 0);
+    const lockedForm = state.activeForm;
     const snap = state.permanentSnapshot || { permanentUnlocks: state.permanentUnlocks || [] };
     const fresh = createRunState(snap, state.difficultyScale);
+    if (lockedForm) chooseStartingFormation(fresh, lockedForm);
     fresh.resetInsightTimes = times;
     Object.keys(state).forEach((k) => { delete state[k]; });
     Object.assign(state, fresh);
@@ -1027,6 +1096,10 @@
       createRunState,
       resetRunState,
       canOfferInsight,
+      getStartingFormations,
+      chooseStartingFormation,
+      getUnlockedTruths,
+      chooseActiveTruth,
       rollInsights,
       applyInsight,
       undoInsight,

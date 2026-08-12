@@ -12,8 +12,9 @@
   img { -webkit-user-drag:none; user-select:none; pointer-events:none; }
   html,body { width:100%; height:100%; height:100dvh; overflow:hidden; background:#181511;
     font-family:"Noto Serif TC","STKaiti","KaiTi","LiSu",serif; touch-action:none; user-select:none; }
-  body { display:grid; place-items:center; }
-  #wrap { position:relative; width:min(100vw,56.25dvh); height:min(100dvh,177.778vw);
+  body { position:relative; padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+  #wrap { position:absolute; left:50%; top:50%; width:640px; height:1138px;
+    transform:translate(-50%,-50%) scale(var(--stage-scale,1)); transform-origin:center center;
     container-type:inline-size;
     --paper-inset:0px; --scroll-top-safe:clamp(44px,8cqw,48px);   /* 滿版:不再左右內縮留景深 */
     --scroll-bottom-safe:clamp(38px,6.7cqw,42px); overflow:hidden; background:#27231e;
@@ -306,25 +307,29 @@
   #overlay.show { display:flex; }
   #cardbox { text-align:center; width:100%; padding:20px max(4cqw,18px) calc(var(--scroll-bottom-safe) + 20px + env(safe-area-inset-bottom));
     max-height:72%; overflow-y:auto; color:#f3ecd8;
+    scrollbar-width:none; -ms-overflow-style:none;
     background:linear-gradient(180deg,rgba(24,21,17,0),rgba(24,21,17,.72) 15%,rgba(24,21,17,.9)); }
-  #cardbox h2 { color:#f3ecd8; font-size:clamp(21px,4.4cqw,30px); letter-spacing:clamp(4px,1.2cqw,8px);
+  #cardbox::-webkit-scrollbar { width:0; height:0; display:none; }
+  #cardbox h2 { color:#f3ecd8; font-size:32px; letter-spacing:clamp(4px,1.2cqw,8px);
     margin-bottom:6px; text-shadow:0 2px 8px rgba(0,0,0,.5); }
   #cardbox p.tip { color:#c9bfa6; letter-spacing:2px; margin-bottom:clamp(12px,2.6cqw,26px);
-    font-size:clamp(12px,1.6cqw,14px); }
-  #lvqueue { color:#d8b65a; margin:-8px 0 8px; }
+    font-size:18px; }
+  #lvqueue { color:#d8b65a; margin:-8px 0 8px; font-size:16px; line-height:1.4; }
   #lvqueue:empty { display:none; }
   /* 劍意帳:三選一時常駐,把「暗的」耗劍意規則攤在檯面上 */
   #manabill { display:flex; flex-wrap:wrap; justify-content:center; align-items:baseline;
     gap:4px 14px; width:min(100%,620px); margin:0 auto clamp(10px,2cqw,16px);
     padding:10px 22px; box-sizing:border-box; border-radius:0;
     background:url("assets/ui/hud-realm-brush-v2.png") center/100% 100% no-repeat; border:0; }
-  #manabill span { font-size:clamp(10.5px,1.5cqw,12.5px); letter-spacing:1px; color:#c9bfa6; white-space:nowrap; }
+  #manabill span { font-size:16px; letter-spacing:1px; color:#c9bfa6; white-space:nowrap; }
   #manabill span b { font-weight:700; color:#e8dcbc; margin-left:4px; letter-spacing:.5px; }
   #manabill span.key b { color:#d8b65a; }
   /* 換算依據:整條佔滿一行,免得跟數字擠在一起 */
-  #manabill span.note { flex:0 0 100%; text-align:center; color:#8a8067; font-size:10px; letter-spacing:.5px; }
+  #manabill span.note { flex:0 0 100%; text-align:center; color:#8a8067; font-size:14px; letter-spacing:.5px; }
   #cards { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:clamp(8px,1.8cqw,16px);
     width:min(100%,620px); margin:0 auto; }
+  #cardbox.formation-draft #cards { grid-template-columns:repeat(2,minmax(0,1fr)); width:min(100%,390px); }
+  #cardbox.truth-draft #cards { grid-template-columns:repeat(2,minmax(0,1fr)); width:min(100%,390px); }
   /* 卡片固定高度、內容置頂對齊 —— 字數不同也不會造成格子縮放或標題上下位移 */
   .card { --card-text-left:14px; width:100%; height:clamp(210px,32cqw,224px); box-sizing:border-box;
     background:url("assets/ui/insight-card-bookpage.png") center/100% 100% no-repeat;
@@ -338,45 +343,56 @@
   .cardcategory { position:absolute; left:10px; top:10px; z-index:2; width:26px; height:26px;
     display:flex; align-items:center; justify-content:center; border:0; transform:rotate(-4deg);
     color:#25211c; background:url("assets/ui/insight-category-ring.png") center/100% 100% no-repeat;
-    font:700 14px/1 "Noto Serif TC","STKaiti","KaiTi",serif; }
+    font:700 18px/1 "Noto Serif TC","STKaiti","KaiTi",serif; }
   .cardcategory::after { display:none; }
   .cardrank { position:absolute; right:10px; top:9px; z-index:2; width:20px; height:42px; padding:6px 4px;
     box-sizing:border-box; display:flex; align-items:center; justify-content:center;
     writing-mode:vertical-rl; text-orientation:upright; color:#302a23;
     border:0; background:url("assets/ui/insight-rank-bookpage.png") center/100% 100% no-repeat;
-    font:600 10px/1.05 "Noto Serif TC","STKaiti","KaiTi",serif; letter-spacing:1px; }
-  .card .rune { color:#17130f; font-size:clamp(38px,6.3cqw,52px); margin:7px 0 7px; line-height:1; text-align:center;
+    font:600 14px/1.05 "Noto Serif TC","STKaiti","KaiTi",serif; letter-spacing:1px; }
+  .card .rune { color:#17130f; font-size:52px; margin:7px 0 7px; line-height:1; text-align:center;
     font-family:"Noto Serif TC","STKaiti","KaiTi",serif; text-shadow:1px 1px 0 rgba(45,38,30,.16); }
   /* 中標名稱:置中、套品階色(納息紫/透墨藍/…),固定行高不隨字數位移 */
-  .card .cname { color:#27221c; font-size:clamp(15px,2.4cqw,20px); font-weight:700; letter-spacing:clamp(1px,.5cqw,3px);
+  .card .cname { color:#27221c; font-size:24px; font-weight:700; letter-spacing:clamp(1px,.5cqw,3px);
     margin:0 0 7px; text-align:center; min-height:1.3em; line-height:1.3; white-space:nowrap; }
   /* 中標左右菱形符號已移除(使用者要求);nowrap 防止聚鋒陣等三字名跳行 */
   /* 功能說明:靠左對齊,佔滿剩餘空間 */
   /* 劍訣註解「效果」模式:一行一句、數值靠對齊,比散文好掃 */
   .card .cfx { display:flex; flex-direction:column; gap:4px; align-items:center; margin-top:2px; }
-  .card .cfx span { font-size:clamp(11px,1.7cqw,14px); line-height:1.35; letter-spacing:.5px;
+  .card .cfx span { font-size:18px; line-height:1.35; letter-spacing:.5px;
     color:#3a3227; font-weight:600; white-space:nowrap; max-width:100%;
     overflow:hidden; text-overflow:ellipsis; }
   /* 行數多就自動縮一階,避免撐破固定高度的卡片 */
-  .card .cfx.n3 span { font-size:clamp(10.5px,1.55cqw,13px); }
+  .card .cfx.n3 span { font-size:17px; }
   .card .cfx.n4 { gap:2px; }
-  .card .cfx.n4 span { font-size:clamp(9.5px,1.4cqw,12px); letter-spacing:0; }
+  .card .cfx.n4 span { font-size:16px; letter-spacing:0; }
   .card .cdesc { padding-top:7px; border-top:1px solid rgba(82,68,49,.13);
-    font-size:clamp(10px,1.45cqw,13px); line-height:1.55; color:#4a4033; letter-spacing:.3px;
+    font-size:18px; line-height:1.5; color:#2f2922; letter-spacing:.3px;
     text-align:left; align-self:stretch; flex:1 1 auto; overflow:hidden; }
+  .card .ctrade { font-size:16px; }
   #rerollbtn { margin:12px auto 3px; min-height:42px; min-width:94px; padding:8px 18px; display:inline-flex;
     align-items:center; justify-content:center; gap:7px; color:#2e2820;
     background:url("assets/ui/insight-card-bookpage.png") center/100% 100% no-repeat;
     border:0; border-radius:0; box-shadow:none;
-    font:600 13px/1.2 "Noto Serif TC","STKaiti","KaiTi",serif; letter-spacing:2px; cursor:pointer; }
+    font:600 15px/1.2 "Noto Serif TC","STKaiti","KaiTi",serif; letter-spacing:2px; cursor:pointer; }
   #rerollbtn::before { content:"◉"; font-family:serif; font-size:12px; }
+  #rerollbtn[hidden] { display:none!important; }
   #rerollbtn[disabled] { opacity:.42; cursor:default; }
-  #rerollleft { color:#c9bfa6; font-size:11px; letter-spacing:2px; min-height:17px; }
+  #rerollleft { color:#c9bfa6; font-size:13px; letter-spacing:2px; min-height:17px; }
   .rar-n,.rar-r,.rar-e,.rar-l { color:#302a23; }
   .card.lv-r,.card.lv-e,.card.lv-l { border-color:rgba(112,94,67,.62); }
 
   /* 開始 / 結束 */
   #sndbtn.off { color:#9a8f7a; }
+  #truthbtn { position:absolute; left:50%; bottom:calc(var(--scroll-bottom-safe) + env(safe-area-inset-bottom) + 1.5cqw);
+    transform:translateX(-50%); z-index:18; pointer-events:auto;
+    width:clamp(60px,18cqw,78px); height:clamp(60px,18cqw,78px); border:0; border-radius:50%; color:#f2e7cf; cursor:pointer;
+    background:rgba(31,25,19,.88) url("assets/ui/hud-swordarts-ring-master.png") center/94% 94% no-repeat;
+    font:700 16px/1.1 "Noto Serif TC","STKaiti",serif; letter-spacing:2px;
+    text-shadow:0 1px 3px #000; box-shadow:0 3px 12px rgba(25,18,12,.28); }
+  #truthbtn[hidden] { display:none; }
+  #truthbtn.cooling { opacity:.55; filter:grayscale(.55); }
+  #truthbtn small { display:block; margin-top:4px; font-size:10px; letter-spacing:0; }
   #metaoffline { text-align:center; margin:4px 0 2px; font-size:13.5px; color:#5a4e3c; letter-spacing:1px; }
   #metaoffline .claim { display:inline-block; cursor:pointer; margin-left:8px; padding:4px 12px; border-radius:6px;
     background:linear-gradient(180deg,#f0d68a,#d8b24a); border:1px solid #b8912e; color:#4a3a10; letter-spacing:2px; }
@@ -630,44 +646,12 @@
     font:600 18px/2 "Noto Serif TC","STKaiti","KaiTi",serif; letter-spacing:3px; }
   #sizehint span { display:block; color:#c9bfa6; font-size:13px; letter-spacing:1px; }
 
-  /* 所有視窗尺寸都維持 9:16 畫卷；窄螢幕只壓縮選卡內容，不改畫卷比例。 */
-  @media (max-width: 640px) and (orientation: portrait){
-    #cardbox { padding:16px max(4cqw,18px) calc(var(--scroll-bottom-safe) + 18px + env(safe-area-inset-bottom)); max-height:74%; }
-    #cards { grid-template-columns:repeat(3,minmax(0,1fr)); gap:7px; }
-    .card { height:220px; padding:12px 10px 14px; }
-    .card .rune { margin:6px 0 5px; font-size:40px; }
-    .card .cname { margin:0 0 4px; font-size:14px; letter-spacing:1px; }
-    .cardcategory { left:8px; top:8px; width:24px; height:24px; font-size:13px; }
-    .cardrank { right:8px; top:7px; width:19px; height:40px; font-size:9px; }
-    .card .cdesc { font-size:10px; line-height:1.5; }
-    #cardbox h2 { font-size:21px; margin-bottom:4px; }
-    #cardbox p.tip { margin-bottom:10px; font-size:11px; }
-    #rerollbtn { margin-top:10px; min-height:36px; }
-  }
-  @media (max-width: 520px){
-    .ctl { letter-spacing:1px; padding:5px 8px; }
-    #pausepanel { padding:18px 12px 14px; }
-    #settings { padding:12px; }
-  }
+  /* 手機與桌面共用同一份 640×1138 母版；內部不設響應式尺寸覆寫。 */
   @media (orientation: landscape) and (max-height:600px) and (pointer:coarse){
     #rotatehint { display:flex; }
   }
   @media (max-height:425px), (max-width:239px){
     #sizehint { display:flex; }
-  }
-  /* 手機橫置:高度吃緊,壓縮上方留白與卡片 */
-  @media (max-height: 460px){
-    #hud { padding-top:6px; }
-    .panel { padding:4px 8px; }
-    #cardbox h2 { font-size:19px; margin-bottom:2px; }
-    #cardbox p.tip { margin-bottom:8px; }
-    .card { height:176px; padding:8px 9px; }
-    .card .rune { font-size:31px; margin:3px 0; }
-    .card .cname { margin-bottom:3px; }
-    .cardcategory { width:21px; height:21px; font-size:12px; }
-    .cardrank { width:17px; height:34px; font-size:8px; }
-    .title { font-size:34px; }
-    .stitle { margin:8px 0 14px; }
   }
   /* 觸控裝置不套用 hover 位移,避免點擊後卡在浮起狀態 */
   @media (hover: none){
@@ -714,6 +698,7 @@
       </div>
     </div>
     <button id="swordartsbtn" type="button" aria-label="查看已習得劍訣">劍訣</button>
+    <button id="truthbtn" type="button" hidden aria-label="施放真意"><span>真意</span><small></small></button>
   </div>
 
   <div id="artsPanel" aria-hidden="true"><div id="artsSheet">

@@ -1,16 +1,16 @@
 # Graph Report - Inkblade  (2026-08-11)
 
 ## Corpus Check
-- 68 files · ~9,730,658 words
+- 100 files · ~11,101,304 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 1665 nodes · 2195 edges · 113 communities (99 shown, 14 thin omitted)
-- Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 3 edges (avg confidence: 0.6)
+- 3012 nodes · 5048 edges · 143 communities (129 shown, 14 thin omitted)
+- Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 10 edges (avg confidence: 0.53)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `526945d7`
+- Built from commit: `6804b50f`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -22,7 +22,7 @@
 - ASSET_GENERATION_PIPELINE.md
 - main.js
 - Repository subsystem map
-- game-config.js
+- data/game-config.js
 - 墨劍訣 · Inkblade
 - sound-system.js
 - 墨劍訣 · 劍令(SwordCommand)規格
@@ -31,7 +31,7 @@
 - render.js
 - combat.js
 - 劍稟
-- assetType
+- cfg_v46.js
 - enemy.js
 - 墨劍訣 · 戰鬥 v2 設計(站樁畫劍 × 彈幕抵銷 × 精英/BOSS × 60 波關卡)
 - 劍稟 CULTIVATION(原修持)
@@ -51,13 +51,14 @@
 - ui.js
 - Capability Registry
 - properties
-- runtimeResource
+- $defs
 - 墨劍訣 · HANDOFF（交接說明）
-- replacementAssetId
-- updateHUD
+- cfg_v47.js
+- cfg_v48.js
 - properties
 - package.json
-- update
+- assetType
+- v88/data/game-config.js
 - properties
 - 墨劍訣 · 類別純化(劍陣不夾帶他類)分析與重設計
 - 交接文件 HANDOFF(給下一段對話無縫接手)
@@ -70,24 +71,26 @@
 - 第一章 Boss 母版：玄冥墨蛟
 - 墨劍訣 · 開場畫卷展開(Opening Scroll)規劃
 - 墨劍訣 · 待確認設計筆記
-- runtimeResource
+- cfg_v22.js
 - 墨劍訣 · Inkblade — 背景音樂提詞
-- review
+- enum
 - 劍陣改為「開局四選一・鎖定一路」設計規格
 - 墨劍訣 · 劍行綁定劍陣 + 機制定義 + 定鋒(新)
 - 墨劍訣 · 技能文案規範
+- cfg_v32.js
 - 44. Example Faction Vertical Slice Manifest Minimum
 - enum
 - [2026-08-09] #83 全卡稽核:25 項問題一次修完
 - 架構遷移 · 進度與續作(SEAMLESS HANDOFF)
-- $defs
+- enum
 - 墨劍訣 · 美術規範(Art Spec)
 - 第一關 Boss：玄冥墨蛟（畫卷大型 Boss 重構）
 - 開發說明 DEV(建置流程)
 - 墨劍訣 · 劍行/劍痕/劍稟 類別純化審查
 - 4. Tool Responsibilities
-- enum
+- cfg_v33.js
 - 86. Slice Asset Priority
+- cfg_v34.js
 - [2026-08-08] #34 劍意成本改為「劍大劍多就貴」、新增小劍流派、修好劍式不疊加、震動強度可調
 - [2026-08-08] #59 折返改「邊緣折返」;劍令改預付制(死劍不補);取消飛行壽命
 - 墨劍訣 · 抽卡權重與卡片呈現(設計方向)
@@ -110,6 +113,7 @@
 - 2. Manifest vs Recipe
 - packageId
 - version
+- cfg_v36.js
 - [2026-08-07] #25 開場過場 v2(鏡頭推近畫軸 → 上下拉開 → 邊緣淡出)+ 生成點/射程修正
 - [2026-08-08] #35 小成/大成/圓滿框架上線;御劍啟用改為環繞墨線
 - [2026-08-08] #41 15 層 pending 全部實作;效果註解的版面驗證(卡片不再被裁字)
@@ -119,42 +123,68 @@
 - [2026-08-09] #74 劍改為耐久制;穿透改成分裂數;折返不再補耐久
 - [2026-08-09] #76 分裂劍的可讀性:按威力縮小 + 同幀傷害合併
 - [2026-08-09] #84 移除滑過去的音效;效果文字把「幾成傷」改成看得懂的基準
+- cfg_v37.js
 - vercel.json
 - outputProfileId
+- cfg_v38.js
 - review
+- cfg_v39.js
+- cfg_v40.js
 - sourceRecipeId
 - CODEX_PROJECT_BOOTSTRAP.md
 - [2026-08-09] #80 納息文案講清楚它會加耐久;**更正 #79 的平衡表**
 - [2026-08-09] #86 散鋒改為「每把劍各走一份旋轉過的劍令」;長劍令加側向上限
+- cfg_v41.js
+- cfg_v42.js
+- cfg_v43.js
+- cfg_v44.js
+- cfg_v45.js
+- cfg_v11.js
+- cfg_v15.js
+- cfg_v19.js
+- cfg_v20.js
+- snd_v8.js
+- snd_v9.js
+- v88/data/sound-system.js
+- cfg_v10.js
+- cfg_v8.js
+- snd_v6.js
+- snd_v7.js
+- snd_v5.js
+- properties
+- runtime
+- replacementAssetId
+- runtimeResource
+- 全卡片功能與相容／互斥矩陣
 
 ## God Nodes (most connected - your core abstractions)
 1. `墨劍訣 · 變更記錄(Ink Engine 整合)` - 112 edges
 2. `update()` - 28 edges
 3. `play()` - 21 edges
-4. `updateHUD()` - 18 edges
-5. `墨劍訣 · Inkblade` - 18 edges
-6. `updateCombat()` - 17 edges
-7. `enum` - 16 edges
-8. `draw()` - 16 edges
-9. `Three Kingdoms Online (legacy, not applicable here)` - 16 edges
-10. `drawCards()` - 14 edges
+4. `play()` - 21 edges
+5. `play()` - 21 edges
+6. `play()` - 21 edges
+7. `play()` - 20 edges
+8. `play()` - 20 edges
+9. `play()` - 20 edges
+10. `updateHUD()` - 19 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `start()` --indirect_call--> `computePlayTop()`  [INFERRED]
   src/main.js → src/viewport.js
 - `move()` --calls--> `leadInLen()`  [EXTRACTED]
   src/main.js → src/combat.js
+- `update()` --calls--> `nearestEnemy()`  [EXTRACTED]
+  src/main.js → src/combat.js
 - `update()` --calls--> `spawnAutoCommand()`  [EXTRACTED]
   src/main.js → src/combat.js
 - `up()` --calls--> `launchCommand()`  [EXTRACTED]
-  src/main.js → src/combat.js
-- `update()` --calls--> `launchSword()`  [EXTRACTED]
   src/main.js → src/combat.js
 
 ## Import Cycles
 - None detected.
 
-## Communities (113 total, 14 thin omitted)
+## Communities (143 total, 14 thin omitted)
 
 ### Community 0 - "ASSET_RECIPE_SCHEMA.md"
 Cohesion: 0.02
@@ -177,16 +207,16 @@ Cohesion: 0.03
 Nodes (60): 10. Workflow Registry, 11. Model Profile, 12. Prompt Construction, 13. Candidate Count, 14. Seed Policy, 15. POC First Rule, 16. POC Purpose, 17. POC Animation Minimum (+52 more)
 
 ### Community 5 - "main.js"
-Cohesion: 0.06
-Nodes (44): beginXuanmingWave(), spawnXuanmingBoss(), allowedLen(), applyOpeningVars(), artTierName(), beginBossWave(), beginDeath(), bisect() (+36 more)
+Cohesion: 0.05
+Nodes (76): resetBootClock(), updateBossShots(), advanceRealm(), allowedLen(), applyOpeningVars(), artTierName(), beginDeath(), bisectDraw() (+68 more)
 
 ### Community 6 - "Repository subsystem map"
 Cohesion: 0.20
 Nodes (9): Assets and content, Audit gaps, Enemy and boss, Gameplay source, Geometry, Repository subsystem map, Runtime shell, Tooling (+1 more)
 
-### Community 7 - "game-config.js"
-Cohesion: 0.09
-Nodes (37): applyInsight(), applyInsightEffects(), applyOperation(), canOfferInsight(), canPurchaseRebirth(), clampAllStats(), clearAllStatus(), clone() (+29 more)
+### Community 7 - "data/game-config.js"
+Cohesion: 0.08
+Nodes (40): applyInsight(), applyInsightEffects(), applyOperation(), canOfferInsight(), canPurchaseRebirth(), chooseActiveTruth(), chooseStartingFormation(), clampAllStats() (+32 more)
 
 ### Community 8 - "墨劍訣 · Inkblade"
 Cohesion: 0.05
@@ -209,16 +239,20 @@ Cohesion: 0.09
 Nodes (47): cmdLife(), leadInLen(), supHash(), applyIntent(), warmSwordTint(), bakeHero(), bakeHeroF(), buildCracks() (+39 more)
 
 ### Community 14 - "combat.js"
-Cohesion: 0.11
-Nodes (34): bladeLength(), buildStrokePasses(), canReturn(), configureCombat(), detonateAnchor(), durCost(), extendCommand(), fanPose() (+26 more)
+Cohesion: 0.10
+Nodes (37): bladeLength(), buildStrokePasses(), canReturn(), configureCombat(), detonateAnchor(), durCost(), extendCommand(), fanPose() (+29 more)
 
 ### Community 15 - "劍稟"
 Cohesion: 0.06
 Nodes (31): 一筆開天 (truth_single_stroke) · 真意 · 上限1, 凝神 (cultivate_focus) · 明悟 · 上限5, 劍痕, 劍稟, 劍行, 劍陣, 回元 (intent_restore) · 初悟 · 上限5, 墨劍訣 · 升階與境界(由 config 生成) (+23 more)
 
+### Community 16 - "cfg_v46.js"
+Cohesion: 0.09
+Nodes (35): applyInsight(), applyOperation(), canOfferInsight(), canPurchaseRebirth(), clampAllStats(), clearAllStatus(), clone(), createPermanentState() (+27 more)
+
 ### Community 17 - "enemy.js"
-Cohesion: 0.14
-Nodes (25): BOSS_PLAYER_Y_RATIO, bossDissolveMist(), bossMoveToSide(), bossOrbitRadius(), bossPhase(), bossSafeSide(), bossVisualLift(), completeXuanmingWave() (+17 more)
+Cohesion: 0.12
+Nodes (30): beginXuanmingWave(), BOSS_PLAYER_Y_RATIO, bossDissolveMist(), bossMoveToSide(), bossOrbitRadius(), bossPhase(), bossSafeSide(), bossVisualLift() (+22 more)
 
 ### Community 18 - "墨劍訣 · 戰鬥 v2 設計(站樁畫劍 × 彈幕抵銷 × 精英/BOSS × 60 波關卡)"
 Cohesion: 0.08
@@ -229,12 +263,12 @@ Cohesion: 0.08
 Nodes (23): 凝神, 劍痕 INTENT, 劍稟 CULTIVATION(原修持), 劍行 MOMENTUM, 劍陣 FORM, 回元(建議移入 劍稟), 墨劍訣 · 旗標型里程碑 — 具體化建議(提案), 展鋒 (+15 more)
 
 ### Community 20 - "asset_manifest.schema.json"
-Cohesion: 0.09
-Nodes (21): additionalProperties, items, type, description, $id, $ref, pattern, type (+13 more)
+Cohesion: 0.18
+Nodes (10): additionalProperties, description, $id, required, $schema, title, type, assets (+2 more)
 
 ### Community 21 - "viewport.js"
-Cohesion: 0.11
-Nodes (18): G, stat, alignHud(), ink(), applyQuality(), computePlayTop(), configureViewport(), ctx (+10 more)
+Cohesion: 0.10
+Nodes (27): bindBootEvents(), bindClick(), configureBoot(), gameLoop(), hooks, perfBuf, startBoot(), watchPerf() (+19 more)
 
 ### Community 22 - "三、分階段遷移(每階段可跑・可回滾・可驗收)"
 Cohesion: 0.10
@@ -253,8 +287,8 @@ Cohesion: 0.11
 Nodes (18): M1 · 彈幕地基(最關鍵,其他都疊在上面), M2 · 關卡導演 + 敵人資料層, M3 · 精英(構築測試), M4 · 留白安全區, M5 · BOSS, M6 · 難度梯度與平衡, 一、現況盤點:哪些已經到位、哪些是零, 三、資料結構規劃(進 `data/game-config.js`) (+10 more)
 
 ### Community 28 - "pivot"
-Cohesion: 0.11
-Nodes (18): runtime, additionalProperties, properties, required, type, pivot, scale, x (+10 more)
+Cohesion: 0.18
+Nodes (11): additionalProperties, properties, required, type, pivot, x, y, type (+3 more)
 
 ### Community 29 - "墨劍訣 HUD 設計與落地規劃"
 Cohesion: 0.11
@@ -274,23 +308,27 @@ Nodes (15): 1. 核心決策(推翻舊方案), 2. 三個關鍵洞察, 3. 生產�
 
 ### Community 33 - "ui.js"
 Cohesion: 0.07
-Nodes (50): applyBattleMode(), bindHeroChoices(), bindPauseTabs(), bindSettingGroup(), bindSettingsSegments(), bindVolumeSettings(), CARD_CATEGORY_NAME, CARD_RANK_CN (+42 more)
+Nodes (53): applyBattleMode(), bindHeroChoices(), bindPauseTabs(), bindSettingGroup(), bindSettingsSegments(), bindVolumeSettings(), CARD_CATEGORY_NAME, CARD_RANK_CN (+45 more)
 
 ### Community 35 - "properties"
 Cohesion: 0.13
 Nodes (15): $ref, properties, $ref, $ref, animationContractId, assetId, license, provenance (+7 more)
 
-### Community 36 - "runtimeResource"
-Cohesion: 0.67
-Nodes (3): runtimeResource, pattern, type
+### Community 36 - "$defs"
+Cohesion: 0.22
+Nodes (9): pattern, type, type, $defs, assetId, assetType, runtimeResource, pattern (+1 more)
 
 ### Community 37 - "墨劍訣 · HANDOFF（交接說明）"
 Cohesion: 0.14
 Nodes (13): 0. 三十秒版本, 1. 檔案結構, 2.1 劍令（SwordCommand）, 2.2 劍訣階級（小成／大成／圓滿）, 2.3 劍匣存量（開匣·圓滿）, 2.4 戰況遙測（DPS）, 2.5 HUD（#69 / #70）, 2. 核心系統現況 (+5 more)
 
-### Community 39 - "updateHUD"
-Cohesion: 0.14
-Nodes (24): advanceRealm(), bossTestFang(), bossTestLevel(), bossTestSwordCount(), bossTestWave60Preset(), buildPermanentSave(), doRespec(), dpsReset() (+16 more)
+### Community 38 - "cfg_v47.js"
+Cohesion: 0.09
+Nodes (35): applyInsight(), applyOperation(), canOfferInsight(), canPurchaseRebirth(), clampAllStats(), clearAllStatus(), clone(), createPermanentState() (+27 more)
+
+### Community 39 - "cfg_v48.js"
+Cohesion: 0.09
+Nodes (35): applyInsight(), applyOperation(), canOfferInsight(), canPurchaseRebirth(), clampAllStats(), clearAllStatus(), clone(), createPermanentState() (+27 more)
 
 ### Community 40 - "properties"
 Cohesion: 0.15
@@ -300,9 +338,9 @@ Nodes (13): type, type, type, license, additionalProperties, properties, type, a
 Cohesion: 0.13
 Nodes (14): esbuild, description, devDependencies, esbuild, name, private, scripts, build (+6 more)
 
-### Community 43 - "update"
-Cohesion: 0.23
-Nodes (12): nearestEnemy(), onScreen(), spawnEnemy(), spawnNetherSpider(), waveDifficulty(), waveEnemyKind(), dpsTick(), floatText() (+4 more)
+### Community 43 - "v88/data/game-config.js"
+Cohesion: 0.09
+Nodes (35): applyInsight(), applyOperation(), canOfferInsight(), canPurchaseRebirth(), clampAllStats(), clearAllStatus(), clone(), createPermanentState() (+27 more)
 
 ### Community 44 - "properties"
 Cohesion: 0.13
@@ -313,8 +351,8 @@ Cohesion: 0.17
 Nodes (11): 劍陣純化重設計(只用排列), 墨劍訣 · 類別純化(劍陣不夾帶他類)分析與重設計, 散鋒(扇), 界線, 聚鋒(聚), 貫鋒(貫), 越界與衝突(現況), 連帶處理 (+3 more)
 
 ### Community 46 - "交接文件 HANDOFF(給下一段對話無縫接手)"
-Cohesion: 0.17
-Nodes (11): 1.5) 劍陣改「開局四選一・鎖定一路」(設計已定案,待實作), 1) 定鋒 ✅ 已完成(刀A #31 + 刀B #32)——串珠陣(inline)專屬劍行, 2) 轉世閣前置(真意之前先把解鎖框架做好), 3) 真意 主動四式(最後,耦合最大), 〇、待修問題(使用者回報 2026-08-10), 一、已完成(對照 CHANGELOG), 三、關鍵檔案與位置速查(inkblade.html), 二、待辦(嚴格照此順序,使用者指定) (+3 more)
+Cohesion: 0.10
+Nodes (19): 1.5) 劍陣改「開局四選一・鎖定一路」(設計已定案,待實作), 1) 定鋒 ✅ 已完成(刀A #31 + 刀B #32)——串珠陣(inline)專屬劍行, 2) 轉世閣前置(真意之前先把解鎖框架做好), 3) 真意 主動四式(最後,耦合最大), Archived handoff (2026-08-10, obsolete), Completed module boundaries, Current objective, Important ownership decisions (+11 more)
 
 ### Community 47 - "墨劍訣 · Ink Engine v1 規格審查"
 Cohesion: 0.17
@@ -352,13 +390,17 @@ Nodes (10): 1. 桌面出現, 2. 畫卷開始展開, 3. 遊戲世界浮現, 4. �
 Cohesion: 0.18
 Nodes (10): A. 狀態型技能的「一到五階」總量未定義, B. 斷意命名不符類別(痕), C. 修為類逐階/境界審查(2026-08-08 續), D. 命名與 bug(2026-08-08), E. 劍行結構大改(2026-08-08,先不動工;詳見 momentum-formation-and-anchor.md), F. 定案(2026-08-08), G. 定案(2026-08-08 續), H. 真意改主動大招(2026-08-08;詳見 truths-active-redesign.md) (+2 more)
 
+### Community 56 - "cfg_v22.js"
+Cohesion: 0.09
+Nodes (33): applyInsight(), applyOperation(), canOfferInsight(), canPurchaseRebirth(), clampAllStats(), clearAllStatus(), clone(), createPermanentState() (+25 more)
+
 ### Community 57 - "墨劍訣 · Inkblade — 背景音樂提詞"
 Cohesion: 0.20
 Nodes (9): Boss / 大妖, 主選單 / 標題, 墨劍訣 · Inkblade — 背景音樂提詞, 悟劍訣 / 升級選卡(短 stinger), 戰鬥 / 一般波次, 調校小技巧, 轉世閣 / 商城, 隕落 / 轉世 (+1 more)
 
-### Community 58 - "review"
-Cohesion: 0.22
-Nodes (9): format, type, review, type, approvedAt, notes, additionalProperties, properties (+1 more)
+### Community 58 - "enum"
+Cohesion: 0.13
+Nodes (15): format, type, enum, type, review, type, approvedAt, approvedBy (+7 more)
 
 ### Community 59 - "劍陣改為「開局四選一・鎖定一路」設計規格"
 Cohesion: 0.22
@@ -372,13 +414,17 @@ Nodes (8): 0. 結構變更:劍行=劍陣專屬招, 1. 疾影(散鋒專用), 2. �
 Cohesion: 0.22
 Nodes (8): 一、用語定案(不再變動), 三、其他文案欄位, 二、悟道卡片說明的長度上限, 二之二、「效果」模式的版面上限, 墨劍訣 · 技能文案規範, 現況, 縮短的優先順序, 超標的處理順序
 
+### Community 62 - "cfg_v32.js"
+Cohesion: 0.09
+Nodes (33): applyInsight(), applyOperation(), canOfferInsight(), canPurchaseRebirth(), clampAllStats(), clearAllStatus(), clone(), createPermanentState() (+25 more)
+
 ### Community 63 - "44. Example Faction Vertical Slice Manifest Minimum"
 Cohesion: 0.25
 Nodes (8): 44. Example Faction Vertical Slice Manifest Minimum, Boss, Civilian, Environment, Example Faction, Icons, Player, VFX
 
 ### Community 64 - "enum"
-Cohesion: 0.33
-Nodes (6): enum, generated, hand_authored, hybrid, licensed_external, procedural
+Cohesion: 0.25
+Nodes (8): sourceType, enum, type, generated, hand_authored, hybrid, licensed_external, procedural
 
 ### Community 65 - "[2026-08-09] #83 全卡稽核:25 項問題一次修完"
 Cohesion: 0.25
@@ -388,9 +434,9 @@ Nodes (8): [2026-08-09] #83 全卡稽核:25 項問題一次修完, A. 22 個階�
 Cohesion: 0.25
 Nodes (7): 一、目前進度, 三、抽模組的標準流程(每次一小塊), 二、開發/建置流程(詳見 DEV.md), 五、遷移之後排隊的設計/功能(見 HANDOFF), 六、注意, 四、下一步:共享「可變」狀態(最需小心), 架構遷移 · 進度與續作(SEAMLESS HANDOFF)
 
-### Community 67 - "$defs"
-Cohesion: 0.13
-Nodes (15): pattern, type, type, $defs, assetId, assetType, sourceType, status (+7 more)
+### Community 67 - "enum"
+Cohesion: 0.29
+Nodes (7): status, enum, type, approved_final, approved_prototype, deprecated, disabled
 
 ### Community 68 - "墨劍訣 · 美術規範(Art Spec)"
 Cohesion: 0.29
@@ -412,13 +458,17 @@ Nodes (6): 劍痕 INTENT, 劍稟 CULTIVATION, 劍行 MOMENTUM, 墨劍訣 · 劍�
 Cohesion: 0.33
 Nodes (6): 4. Tool Responsibilities, ComfyUI, imagededup, Local Image Model, Pixelorama, runtime engine
 
-### Community 73 - "enum"
-Cohesion: 0.33
-Nodes (6): enum, type, approvedBy, human, migration, rule_based
+### Community 73 - "cfg_v33.js"
+Cohesion: 0.09
+Nodes (33): applyInsight(), applyOperation(), canOfferInsight(), canPurchaseRebirth(), clampAllStats(), clearAllStatus(), clone(), createPermanentState() (+25 more)
 
 ### Community 74 - "86. Slice Asset Priority"
 Cohesion: 0.33
 Nodes (6): 86. Slice Asset Priority, Boss, Civilian, Environment, NPC, Player
+
+### Community 75 - "cfg_v34.js"
+Cohesion: 0.09
+Nodes (33): applyInsight(), applyOperation(), canOfferInsight(), canPurchaseRebirth(), clampAllStats(), clearAllStatus(), clone(), createPermanentState() (+25 more)
 
 ### Community 76 - "[2026-08-08] #34 劍意成本改為「劍大劍多就貴」、新增小劍流派、修好劍式不疊加、震動強度可調"
 Cohesion: 0.33
@@ -508,6 +558,10 @@ Nodes (3): pattern, type, packageId
 Cohesion: 0.67
 Nodes (3): version, minimum, type
 
+### Community 98 - "cfg_v36.js"
+Cohesion: 0.09
+Nodes (33): applyInsight(), applyOperation(), canOfferInsight(), canPurchaseRebirth(), clampAllStats(), clearAllStatus(), clone(), createPermanentState() (+25 more)
+
 ### Community 99 - "[2026-08-07] #25 開場過場 v2(鏡頭推近畫軸 → 上下拉開 → 邊緣淡出)+ 生成點/射程修正"
 Cohesion: 0.67
 Nodes (3): [2026-08-07] #25 開場過場 v2(鏡頭推近畫軸 → 上下拉開 → 邊緣淡出)+ 生成點/射程修正, A. 開場過場重做(依驗收 4 點), B. 墨獸生成點與射程(驗收回報:怪生在畫面外、自動禦劍朝畫面外出劍)
@@ -544,22 +598,118 @@ Nodes (3): [2026-08-09] #76 分裂劍的可讀性:按威力縮小 + 同幀傷害
 Cohesion: 0.67
 Nodes (3): [2026-08-09] #84 移除滑過去的音效;效果文字把「幾成傷」改成看得懂的基準, A. 滑鼠滑過按鈕不再有聲音, B. 「三成傷」看不懂 —— 全部改成標明基準
 
+### Community 108 - "cfg_v37.js"
+Cohesion: 0.09
+Nodes (33): applyInsight(), applyOperation(), canOfferInsight(), canPurchaseRebirth(), clampAllStats(), clearAllStatus(), clone(), createPermanentState() (+25 more)
+
+### Community 111 - "cfg_v38.js"
+Cohesion: 0.09
+Nodes (33): applyInsight(), applyOperation(), canOfferInsight(), canPurchaseRebirth(), clampAllStats(), clearAllStatus(), clone(), createPermanentState() (+25 more)
+
+### Community 113 - "cfg_v39.js"
+Cohesion: 0.09
+Nodes (33): applyInsight(), applyOperation(), canOfferInsight(), canPurchaseRebirth(), clampAllStats(), clearAllStatus(), clone(), createPermanentState() (+25 more)
+
+### Community 114 - "cfg_v40.js"
+Cohesion: 0.09
+Nodes (33): applyInsight(), applyOperation(), canOfferInsight(), canPurchaseRebirth(), clampAllStats(), clearAllStatus(), clone(), createPermanentState() (+25 more)
+
+### Community 119 - "cfg_v41.js"
+Cohesion: 0.09
+Nodes (33): applyInsight(), applyOperation(), canOfferInsight(), canPurchaseRebirth(), clampAllStats(), clearAllStatus(), clone(), createPermanentState() (+25 more)
+
+### Community 122 - "cfg_v42.js"
+Cohesion: 0.09
+Nodes (33): applyInsight(), applyOperation(), canOfferInsight(), canPurchaseRebirth(), clampAllStats(), clearAllStatus(), clone(), createPermanentState() (+25 more)
+
+### Community 123 - "cfg_v43.js"
+Cohesion: 0.09
+Nodes (33): applyInsight(), applyOperation(), canOfferInsight(), canPurchaseRebirth(), clampAllStats(), clearAllStatus(), clone(), createPermanentState() (+25 more)
+
+### Community 124 - "cfg_v44.js"
+Cohesion: 0.09
+Nodes (33): applyInsight(), applyOperation(), canOfferInsight(), canPurchaseRebirth(), clampAllStats(), clearAllStatus(), clone(), createPermanentState() (+25 more)
+
+### Community 125 - "cfg_v45.js"
+Cohesion: 0.09
+Nodes (33): applyInsight(), applyOperation(), canOfferInsight(), canPurchaseRebirth(), clampAllStats(), clearAllStatus(), clone(), createPermanentState() (+25 more)
+
+### Community 126 - "cfg_v11.js"
+Cohesion: 0.10
+Nodes (29): applyInsight(), applyOperation(), canOfferInsight(), canPurchaseRebirth(), clampAllStats(), clearAllStatus(), clone(), createPermanentState() (+21 more)
+
+### Community 127 - "cfg_v15.js"
+Cohesion: 0.10
+Nodes (29): applyInsight(), applyOperation(), canOfferInsight(), canPurchaseRebirth(), clampAllStats(), clearAllStatus(), clone(), createPermanentState() (+21 more)
+
+### Community 128 - "cfg_v19.js"
+Cohesion: 0.10
+Nodes (29): applyInsight(), applyOperation(), canOfferInsight(), canPurchaseRebirth(), clampAllStats(), clearAllStatus(), clone(), createPermanentState() (+21 more)
+
+### Community 129 - "cfg_v20.js"
+Cohesion: 0.10
+Nodes (29): applyInsight(), applyOperation(), canOfferInsight(), canPurchaseRebirth(), clampAllStats(), clearAllStatus(), clone(), createPermanentState() (+21 more)
+
+### Community 130 - "snd_v8.js"
+Cohesion: 0.11
+Nodes (38): applyVolume(), bandOf(), boom(), cast(), chooseVoice(), crit(), ensureCtx(), ensureMenu() (+30 more)
+
+### Community 131 - "snd_v9.js"
+Cohesion: 0.11
+Nodes (38): applyVolume(), bandOf(), boom(), cast(), chooseVoice(), crit(), ensureCtx(), ensureMenu() (+30 more)
+
+### Community 132 - "v88/data/sound-system.js"
+Cohesion: 0.11
+Nodes (38): applyVolume(), bandOf(), boom(), cast(), chooseVoice(), crit(), ensureCtx(), ensureMenu() (+30 more)
+
+### Community 133 - "cfg_v10.js"
+Cohesion: 0.11
+Nodes (28): applyInsight(), applyOperation(), canOfferInsight(), canPurchaseRebirth(), clampAllStats(), clearAllStatus(), clone(), createPermanentState() (+20 more)
+
+### Community 134 - "cfg_v8.js"
+Cohesion: 0.11
+Nodes (26): applyInsight(), applyOperation(), canOfferInsight(), canPurchaseRebirth(), clampAllStats(), clearAllStatus(), clone(), createPermanentState() (+18 more)
+
+### Community 135 - "snd_v6.js"
+Cohesion: 0.12
+Nodes (35): applyVolume(), bandOf(), boom(), cast(), chooseVoice(), crit(), ensureMenu(), ensureMusic() (+27 more)
+
+### Community 136 - "snd_v7.js"
+Cohesion: 0.12
+Nodes (35): applyVolume(), bandOf(), boom(), cast(), chooseVoice(), crit(), ensureMenu(), ensureMusic() (+27 more)
+
+### Community 137 - "snd_v5.js"
+Cohesion: 0.12
+Nodes (35): applyVolume(), bandOf(), boom(), cast(), chooseVoice(), crit(), ensureMenu(), ensureMusic() (+27 more)
+
+### Community 138 - "properties"
+Cohesion: 0.18
+Nodes (11): items, type, $ref, pattern, type, properties, assets, manifestVersion (+3 more)
+
+### Community 139 - "runtime"
+Cohesion: 0.29
+Nodes (7): runtime, scale, additionalProperties, properties, type, exclusiveMinimum, type
+
+### Community 142 - "全卡片功能與相容／互斥矩陣"
+Cohesion: 0.20
+Nodes (9): 全卡片功能與相容／互斥矩陣, 劍型（擇一鎖路）, 劍痕（擇一鎖路）, 劍稟（不限路線）, 劍行, 劍陣（開局四選一）, 尚待決定的 A／B 關係, 已實裝硬規則 (+1 more)
+
 ## Knowledge Gaps
-- **1056 isolated node(s):** `$schema`, `$id`, `title`, `type`, `additionalProperties` (+1051 more)
+- **1074 isolated node(s):** `$schema`, `$id`, `title`, `type`, `additionalProperties` (+1069 more)
   These have ≤1 connection - possible missing edges or undocumented components.
 - **14 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `$defs` connect `$defs` to `runtimeResource`, `properties`, `properties`, `required`, `asset_manifest.schema.json`, `review`, `pivot`?**
-  _High betweenness centrality (0.010) - this node is a cross-community bridge._
 - **Why does `墨劍訣 · 變更記錄(Ink Engine 整合)` connect `墨劍訣 · 變更記錄(Ink Engine 整合)` to `[2026-08-09] #83 全卡稽核:25 項問題一次修完`, `[2026-08-08] #34 劍意成本改為「劍大劍多就貴」、新增小劍流派、修好劍式不疊加、震動強度可調`, `[2026-08-08] #59 折返改「邊緣折返」;劍令改預付制(死劍不補);取消飛行壽命`, `[2026-08-08] #37 靜觀新增三項:畫質 / 幀數 / 劍訣註解;順帶修好 120Hz 兩倍速`, `[2026-08-08] #46 平衡:神識/劍意隨道行成長、xp 曲線降斜率、maxRank 全壓到 5`, `[2026-08-08] #49 續飛加回、自動御劍射程修正、首頁 logo 換 V2`, `[2026-08-08] #53 折返改為「穿過去再掉頭」;連珠修好重疊並加大轉向距離`, `[2026-08-09] #72 音效改走 WebAudio(每次出劍/受擊都會卡的真正共通點)`, `#88 折返收窄到單式/聚鋒;分裂整個移除;齊鋒撲空自行追跡`, `[2026-08-07] #27 主角 26 幀重製 + 隕落動畫、墨劍 14 幀、開場疊合/停頓修正`, `[2026-08-07] #29 女修士改為程序化演出(拆劍/風動/墨痕旋渦)、HUD 依參考稿重做、鎖右鍵`, `[2026-08-08] #45 鎮痕與蝕痕的視覺語言重做;商城返回鈕修正`, `[2026-08-08] #47 悟道階數加權;**更正 #46 的錯誤推演**`, `[2026-08-08] #68 修好近身傷害空區(連珠最明顯)+ 拔掉死欄位 swordLife`, `[2026-08-09] #75 耐久取消上限;新增護甲(降低耐久消耗),道行成長改為劍意/劍傷/護甲`, `[2026-08-09] #79 九張技能配合耐久/分裂制重做;劍寬新增護甲與速度的第二層意義`, `[2026-08-09] #81 卡片與階級表都改寫實際效果;**查出 22 個空的階級層**`, `[2026-08-09] #82 把 #81 查出的空階級層全部接線(21 個旗標)`, `[2026-08-07] #25 開場過場 v2(鏡頭推近畫軸 → 上下拉開 → 邊緣淡出)+ 生成點/射程修正`, `[2026-08-08] #35 小成/大成/圓滿框架上線;御劍啟用改為環繞墨線`, `[2026-08-08] #41 15 層 pending 全部實作;效果註解的版面驗證(卡片不再被裁字)`, `[2026-08-08] #48 修好飛白千峰的殘鋒 crash;實跑推演出真實存活深度`, `[2026-08-08] #70 HUD 左右兩組切齊同一條下緣;斬殺不再留墨漬`, `[2026-08-09] #71 手機卡幀:低血量時劍環每幀重新上色(15.6 倍代價)`, `[2026-08-09] #74 劍改為耐久制;穿透改成分裂數;折返不再補耐久`, `[2026-08-09] #76 分裂劍的可讀性:按威力縮小 + 同幀傷害合併`, `[2026-08-09] #84 移除滑過去的音效;效果文字把「幾成傷」改成看得懂的基準`, `[2026-08-09] #80 納息文案講清楚它會加耐久;**更正 #79 的平衡表**`, `[2026-08-09] #86 散鋒改為「每把劍各走一份旋轉過的劍令」;長劍令加側向上限`?**
-  _High betweenness centrality (0.007) - this node is a cross-community bridge._
-- **Why does `properties` connect `properties` to `packageId`, `version`, `replacementAssetId`, `outputProfileId`, `assetType`, `review`, `sourceRecipeId`, `sourceFiles`, `required`, `runtimeResource`?**
-  _High betweenness centrality (0.006) - this node is a cross-community bridge._
+  _High betweenness centrality (0.004) - this node is a cross-community bridge._
+- **Why does `$defs` connect `$defs` to `enum`, `enum`, `properties`, `runtime`, `properties`, `required`, `asset_manifest.schema.json`, `enum`?**
+  _High betweenness centrality (0.003) - this node is a cross-community bridge._
+- **Why does `properties` connect `properties` to `packageId`, `version`, `assetType`, `replacementAssetId`, `runtimeResource`, `outputProfileId`, `review`, `sourceRecipeId`, `sourceFiles`, `required`?**
+  _High betweenness centrality (0.002) - this node is a cross-community bridge._
 - **What connects `$schema`, `$id`, `title` to the rest of the system?**
-  _1056 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _1074 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `ASSET_RECIPE_SCHEMA.md` be split into smaller, more focused modules?**
   _Cohesion score 0.017094017094017096 - nodes in this community are weakly interconnected._
 - **Should `墨劍訣 · 變更記錄(Ink Engine 整合)` be split into smaller, more focused modules?**

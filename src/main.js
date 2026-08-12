@@ -5,10 +5,12 @@ import { cv, ctx, W, H, DPR, PLAY_TOP, qual, applyQuality, resize, computePlayTo
 import { onScreen, waveDifficulty, spawnEnemy, spawnNetherSpider, configureEnemy, BOSS_PLAYER_Y_RATIO, spawnXuanmingBoss, beginXuanmingWave, completeXuanmingWave, bossPhase, bossOrbitRadius, bossVisualLift, placeBoss, nextBossManifest, updateBossP1, updateEnemies, killEnemy, spawnSpiderWebShot, updateBossShots, inkCoreDissolve } from './enemy.js';
 import { configureCombat, pathLen, leadInLen, bladeLength, inlineGap, inlineTipLead, fanPose, formationOffset, cmdLife, speedMul, durCost, spawnCmdSword, nearestEnemy, extendCommand, spawnAutoCommand, buildStrokePasses, launchCommand, canReturn, launchSword, updateCombat } from './combat.js';
 import { configureRender, invalidatePaper, drawSplash, drawMistDissolve, swordFxTrail, drawBossShots, enemyVariantFrame, drawSwordSprite, drawInkFlyingSword, swMul, drawJian, drawTassel, heroSet, drawHero, tintFrame, drawEnemies, drawPlayer, draw, ensureSupV, ensureEroV } from './render.js';
-import { configureUI, num2cn, setTxt, setW, resetHudCache, renderManaBill, updateHUD, levelChoiceOpen, drawCards, rerollCards, tryLevelUp, resetLevelChoice, isPausedByUser, resetPauseState, togglePause, renderVolumeSettings, bindVolumeSettings, toggleSound, renderSoundButton, bindSettingsSegments, bindPauseTabs, renderMeta as uiRenderMeta, openMeta as uiOpenMeta, closeMeta as uiCloseMeta, resetRespecConfirmation, renderRespec as uiRenderRespec, requestRespec, renderHeroChoices as uiRenderHeroChoices, bindHeroChoices, renderShop as uiRenderShop, openShop as uiOpenShop, closeShop as uiCloseShop, renderTierList as uiRenderTierList, enableDragScroll as uiEnableDragScroll } from './ui.js';
+import { configureUI, num2cn, setTxt, setW, resetHudCache, renderManaBill, updateHUD, levelChoiceOpen, drawCards, drawStartingFormations, rerollCards, tryLevelUp, resetLevelChoice, isPausedByUser, resetPauseState, togglePause, renderVolumeSettings, bindVolumeSettings, toggleSound, renderSoundButton, bindSettingsSegments, bindPauseTabs, renderMeta as uiRenderMeta, openMeta as uiOpenMeta, closeMeta as uiCloseMeta, resetRespecConfirmation, renderRespec as uiRenderRespec, requestRespec, renderHeroChoices as uiRenderHeroChoices, bindHeroChoices, renderShop as uiRenderShop, openShop as uiOpenShop, closeShop as uiCloseShop, renderTierList as uiRenderTierList, enableDragScroll as uiEnableDragScroll } from './ui.js';
+import { configureBoot, resetBootClock, bindBootEvents, startBoot } from './boot.js';
 (function(){
 'use strict';
 let booted=false;
+let pendingFormationStart=null;
 configureViewport({
   getQuality:()=>meta.quality,
   getFX:()=>FX,
@@ -41,7 +43,7 @@ configureUI({
   applyVolume:()=>SND.applyVol(),
   setSoundEnabled:on=>SND.setOn(on),
   applyQuality:()=>applyQuality(),
-  resetRenderAccumulator:()=>{ renderAcc=0; },
+  resetRenderAccumulator:()=>resetBootClock(),
   renderHeroChoices:()=>uiRenderHeroChoices(),
   renderTierList:()=>uiRenderTierList(),
   resetRespec:()=>resetRespecConfirmation(),
@@ -57,6 +59,8 @@ configureUI({
   performRespec:state=>doRespec(state),
   getShopCatalog:()=>({iap:SHOP_IAP,spend:SHOP_SPEND}),
   purchaseShopItem:(type,item)=>{ if(type==='iap'){ meta.gems+=item.gems; if(item.id==='pass') meta.souls+=120; saveMeta(); return true; } if(meta.gems<item.cost) return false; meta.gems-=item.cost; item.grant(); saveMeta(); return true; }
+  ,onFormationChosen:()=>{ const resume=pendingFormationStart; pendingFormationStart=null; resume?.(); }
+  ,onTruthChosen:()=>refreshTruthButton()
 });
 configureRender({
   getHeroAssets:()=>({meta,HEROX,HEROF,HEROSPR,HERO,ART}),
@@ -117,7 +121,8 @@ configureEnemy({
   syncStat:()=>syncStat(),
   gainXP:value=>gainXP(value),
   updateHUD:()=>updateHUD(),
-  beginDeath:()=>beginDeath()
+  beginDeath:()=>beginDeath(),
+  onFormationChosen:()=>{ const resume=pendingFormationStart; pendingFormationStart=null; resume?.(); }
 });
 
 /* ---------- 已退役音律 ----------
@@ -539,8 +544,6 @@ loadMeta();
 SND.setOn(!meta.mute);
 // 離開時記錄時間,供閉關(離線)收益計算
 function stamp(){ meta.lastSeen=Date.now(); saveMeta(); }
-window.addEventListener('beforeunload',stamp);
-document.addEventListener('visibilitychange',()=>{ if(document.hidden) stamp(); });
 
 // 閉關修煉:離線依歷史最佳波次被動生墨魂(封頂 meta.offCap 小時)
 function offlineRate(){ return 5 + meta.best.wave*2; }         // 每小時墨魂
@@ -903,7 +906,10 @@ let drawing=false, path=[], curLen=0, maxed=false;
 function pos(e){
   const r=cv.getBoundingClientRect();
   const p=e.touches?e.touches[0]:e;
-  return {x:p.clientX-r.left, y:p.clientY-r.top};
+  return {
+    x:(p.clientX-r.left)*(cv.clientWidth/Math.max(1,r.width)),
+    y:(p.clientY-r.top)*(cv.clientHeight/Math.max(1,r.height))
+  };
 }
 // 目前劍意還能畫多長的墨痕
 function allowedLen(){
@@ -924,8 +930,11 @@ function move(e){ if(!drawing)return; e.preventDefault(); const p=pos(e);
   }
 }
 function up(e){ if(!drawing)return; e.preventDefault(); drawing=false; launchCommand(path); path=[]; curLen=0; maxed=false; }
-cv.addEventListener('mousedown',down); cv.addEventListener('mousemove',move); window.addEventListener('mouseup',up);
-cv.addEventListener('touchstart',down,{passive:false}); cv.addEventListener('touchmove',move,{passive:false}); window.addEventListener('touchend',up,{passive:false});
+function cancelDraw(e){
+  if(!drawing) return;
+  if(e?.cancelable) e.preventDefault();
+  drawing=false; path=[]; curLen=0; maxed=false;
+}
 
 // ---------- 更新 ----------
 // ---------- 戰況遙測(DPS) ----------
@@ -964,7 +973,68 @@ function dmgTo(en, v){
   }
 }
 
+let truthCooldown=0, truthFx=null;
+function refreshTruthButton(){
+  const b=document.getElementById('truthbtn'); if(!b) return;
+  const item=runState&&runState.activeTruth&&INK_CONFIG.insightById[runState.activeTruth];
+  b.hidden=!item||!G.running; if(!item) return;
+  const sec=Math.ceil(truthCooldown/60); b.classList.toggle('cooling',truthCooldown>0);
+  b.querySelector('span').textContent=item.rune+' · '+item.name.slice(0,2);
+  b.querySelector('small').textContent=truthCooldown>0?sec+' 息':'200 劍意';
+}
+function castActiveTruth(){
+  if(!G.running||G.paused||!runState?.activeTruth||truthCooldown>0) return;
+  const item=INK_CONFIG.insightById[runState.activeTruth], cost=item.active.manaCost;
+  if(G.mana<cost){ SND.nomana(); return; }
+  G.mana-=cost; truthCooldown=Math.round(item.active.cooldown*60);
+  truthFx={id:item.id,t:0,dur:Math.max(54,Math.round((item.active.duration||.9)*60)),hits:new WeakMap()};
+  SND.cast(Math.max(W,H)); G.banner={txt:'真意 · '+item.name,life:1}; refreshTruthButton(); updateHUD();
+}
+function updateActiveTruth(){
+  if(truthCooldown>0) truthCooldown--;
+  if(!truthFx){ if((G.t%30)===0) refreshTruthButton(); return; }
+  const F=truthFx, P=G.player; F.t++;
+  const progress=F.t/F.dur, swords=Math.max(1,stat.count|0), base=stat.damage;
+  for(const en of G.enemies){
+    if(en.dead||en.showcaseGhost) continue;
+    let hit=false, dmg=base;
+    if(F.id==='truth_ten_thousand'){
+      hit=Math.abs(Math.hypot(en.x-P.x,en.y-P.y)/Math.hypot(W,H)-progress)<.085;
+    } else if(F.id==='truth_single_stroke'){
+      const y=H-(H+140)*progress; hit=Math.abs(en.y-y)<70; dmg=base*swords*.16;
+    } else if(F.id==='truth_return_hidden'){
+      const phase=(F.t%120)/120, radius=(phase<.5?phase*2:(1-phase)*2)*Math.hypot(W,H)*.52;
+      hit=Math.abs(Math.hypot(en.x-P.x,en.y-P.y)-radius)<34;
+    } else if(F.id==='truth_moon_return'){
+      hit=Math.abs(Math.hypot(en.x-P.x,en.y-P.y)-Math.min(W,H)*.25)<42;
+      dmg=base*Math.max(1,stat.flySpeed/14)*.22;
+    }
+    const last=F.hits.get(en)||-99;
+    if(hit&&F.t-last>=10){ F.hits.set(en,F.t); dmgTo(en,dmg); applyIntent(en); }
+  }
+  if(F.t>=F.dur) truthFx=null;
+  if((G.t%15)===0) refreshTruthButton();
+}
+function drawTruthFx(){
+  if(!truthFx||!G.player||!FLYSWORD.image.complete) return;
+  const F=truthFx,P=G.player,progress=F.t/F.dur,im=FLYSWORD.image;
+  ctx.save(); ctx.globalCompositeOperation='multiply';
+  const sword=(x,y,a,scale=1)=>{ ctx.save(); ctx.translate(x,y); ctx.rotate(a); ctx.globalAlpha=.72;
+    ctx.drawImage(im,-48*scale,-7*scale,96*scale,14*scale); ctx.restore(); };
+  if(F.id==='truth_ten_thousand'){
+    const r=progress*Math.hypot(W,H); for(let i=0;i<Math.max(12,stat.count*4);i++){ const a=i*2.399;
+      sword(P.x+Math.cos(a)*r,P.y+Math.sin(a)*r,a+Math.PI/2,.9); }
+  } else if(F.id==='truth_single_stroke') sword(W*.5,H-(H+140)*progress,-Math.PI/2,3.2);
+  else {
+    const n=Math.max(6,stat.count),phase=F.id==='truth_return_hidden'?(F.t%120)/120:0;
+    const r=F.id==='truth_return_hidden'?(phase<.5?phase*2:(1-phase)*2)*Math.hypot(W,H)*.52:Math.min(W,H)*.25;
+    for(let i=0;i<n;i++){ const a=F.t*.055+i*Math.PI*2/n; sword(P.x+Math.cos(a)*r,P.y+Math.sin(a)*r,a+Math.PI/2,1.15); }
+  }
+  ctx.restore();
+}
+
 function update(){
+  updateActiveTruth();
   G.t++;
   const P=G.player;
   const TF0=stat.tierFlags||{};
@@ -1526,66 +1596,6 @@ function toggleDiag(){
 }
 if(location.search.indexOf('debug')>=0) setTimeout(toggleDiag,0);
 
-// 自適應畫質:真的持續跑不動才調降算圖解析度。
-// 用中位數(不吃暖機/GC 造成的單點尖峰)、跳過開場兩秒、且要連兩個觀察窗都不合格才降。
-let idleFrame=0, perfBuf=[], perfBad=0, perfStart=0;
-function watchPerf(ts){
-  if(!perfStart){ perfStart=ts; return; }
-  if(ts-perfStart<2000) return;                    // 開場暖機不計
-  perfBuf.push(ts);
-  if(perfBuf.length<91) return;
-  const d=[];
-  for(let i=1;i<perfBuf.length;i++) d.push(perfBuf[i]-perfBuf[i-1]);
-  perfBuf.length=0;
-  d.sort((a,b)=>a-b);
-  const med=d[d.length>>1];
-  if(med>22){                                      // 中位低於 ~45fps
-    if(++perfBad>=2 && DPR>1){
-      setDPR(Math.max(1,+(DPR-0.5).toFixed(2)));
-      cv.width=W*DPR; cv.height=H*DPR; ctx.setTransform(DPR,0,0,DPR,0,0);
-      perfBad=0;
-    }
-  } else perfBad=0;
-}
-// 邏輯固定 60Hz,畫面幀率另計。
-// 這同時修掉一個舊問題:原本 update() 綁在 requestAnimationFrame 上,120Hz 螢幕會讓
-// 整個遊戲跑兩倍速。現在不管畫面多少幀,遊戲速度都一樣。
-const LOGIC_MS=1000/60;
-let logicAcc=0, renderAcc=0, lastFrameTs=0;
-function loop(ts){
-  ts=ts||performance.now();
-  diagFrame(ts);
-  const dt=Math.min(200, lastFrameTs ? ts-lastFrameTs : LOGIC_MS); lastFrameTs=ts;
-  if(G.running){
-    watchPerf(ts);
-    const m=DIAG.on?performance.now():0;
-    if(!G.paused){
-      logicAcc+=dt;
-      let steps=0;
-      while(logicAcc>=LOGIC_MS && steps<4){        // 最多補 4 步,卡頓後不暴衝
-        if(G.hitstop>0) G.hitstop--;               // 頓幀:命中瞬間凍結一兩格,讓斬擊有份量
-        else update();
-        logicAcc-=LOGIC_MS; steps++;
-      }
-      // 一幀已補滿上限仍有欠步時,只保留不足一格的餘數。
-      // 舊條件要求 steps===0,但有欠步時 steps 必定大於 0,導致手機掉幀後 backlog 永遠清不掉,
-      // 每個畫面都連跑四次 update(),形成越補越卡的 spiral of death。
-      if(steps===4 && logicAcc>=LOGIC_MS) logicAcc%=LOGIC_MS;
-      const m2=DIAG.on?performance.now():0;
-      // 畫面幀率上限(meta.fps,0=不限)
-      let paint=true;
-      const cap=meta.fps|0;
-      if(cap>0){ const iv=1000/cap; renderAcc+=dt;
-        if(renderAcc>=iv){ renderAcc=renderAcc%iv; } else paint=false; }
-      if(paint && !NODRAW) draw();
-      if(DIAG.on){ DIAG.upd=DIAG.upd*0.9+(m2-m)*0.1; DIAG.drw=DIAG.drw*0.9+(performance.now()-m2)*0.1; }
-    } else if((idleFrame++ & 3)===0){
-      if(!NODRAW) draw();                        // 暫停/選卡:畫面靜止,降頻重繪省下遮罩模糊成本
-    }
-  }
-  requestAnimationFrame(loop);
-}
-
 // ---------- 開始/結束 ----------
 // 開場過場 v2:鏡頭推近桌上畫軸(首頁整體一起放大,LOGO/按鈕自然出框)→ 桌面隱去
 // → 畫軸(同張桌面圖切成上下兩半)由中心拉開 → 抵達關卡上下邊緣後淡出 → HUD 淡入。
@@ -1629,7 +1639,10 @@ function playOpening(done){
   const wrap=document.getElementById('wrap'), opening=document.getElementById('opening'),
         splash=document.getElementById('splash'), hud=document.getElementById('hud');
   const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let finished=false, safetyTimer=0;
   const finish=()=>{
+    if(finished) return;
+    finished=true; clearTimeout(safetyTimer);
     wrap.classList.remove('op'); wrap.style.setProperty('--z','0'); wrap.style.setProperty('--uf','1');
     if(opening){ opening.classList.remove('show'); opening.style.opacity=''; }
     splash.classList.remove('zooming'); splash.style.display='none'; splash.style.opacity='';
@@ -1649,7 +1662,10 @@ function playOpening(done){
   if(hud) hud.style.opacity='0';
   const ease=t=>1-Math.pow(1-t,3), easeIO=t=>t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;
   const t0=performance.now(), HOLD=0, ZOOM=1100, UNFURL=1400, HUDF=520;
+  // 手機掉幀、切到背景或瀏覽器暫停 rAF 時，仍必須完成收尾並打開選陣。
+  safetyTimer=setTimeout(finish,HOLD+ZOOM+UNFURL+HUDF+700);
   function frame(now){
+    if(finished) return;
     const t=now-t0;
     const z  = t<=HOLD ? 0 : ease(Math.min(1,(t-HOLD)/ZOOM));
     const uf = t<=HOLD+ZOOM ? 0 : easeIO(Math.min(1,(t-HOLD-ZOOM)/UNFURL));
@@ -1665,11 +1681,14 @@ function playOpening(done){
   requestAnimationFrame(frame);
 }
 function start(mode){
+  // 新局永遠使用完整戰場圖層。效能隔離工具可能在首頁留下 NODRAW / DRAWLV 狀態，
+  // 不可讓那個除錯狀態帶進正式戰鬥而令玩家與敵人同時消失。
+  NODRAW=false; DRAWLV=9;
   const bossTest=mode==='boss'||mode==='boss-fast';
   const fastRestart=mode==='boss-fast';
   dpsReset();
   // 新局不可繼承上一局/開場期間累積的邏輯與繪圖計時。
-  logicAcc=0; renderAcc=0; lastFrameTs=performance.now();
+  resetBootClock();
   Object.assign(G,{running:true,paused:false,t:0,enemies:[],bossShots:[],swords:[],particles:[],inks:[],texts:[],stains:[],splashes:[],mists:[],commands:[],
     kills:0,waveKills:0,wave:bossTest?60:1,waveTimer:0,spawnAcc:0,eliteSpawned:{},webT:0,bossTest,bossShowcase:false,bossEntered:bossTest,chapterComplete:false,
     bossPreset60:false,bossFightFrames:0,bossKillSecs:null,hpLocked:false,xp:0,xpNeed:6,level:1,pendingLevels:0,mana:100,
@@ -1684,6 +1703,7 @@ function start(mode){
   SND.unlock(); SND.intensity(bossTest?60:1); SND.duck(false);
   // 以 runtime 建立本局狀態(含永久問道加成),再映射回 stat.*
   runState = INK_CONFIG.runtime.createRunState(buildPermanentSave(), 1);
+  truthCooldown=0; truthFx=null; refreshTruthButton();
   syncStat();
   G.mana = stat.manaMax;
   G.player=new Player();
@@ -1704,18 +1724,19 @@ function start(mode){
   updateHUD();
   computePlayTop();                       // HUD 此時顯示,量測頂部安全區
   requestAnimationFrame(computePlayTop);  // 佈局穩定後再量一次
-  // 開場畫卷過場:過場完成才解除暫停、開始生怪/計時
-  if(fastRestart){
-    G.paused=false; SND.startMusic();
-  } else {
-    G.paused=true;
-    playOpening(()=>{ G.paused=false;
-      // 低畫質已跳過展卷，不能讓剛由「入局」手勢啟動的首頁 OP 再淡出 400ms，
-      // 否則會先漏出一小段 OP 才切到第一波戰鬥曲。
-      if(meta.quality==='low') SND.stopMenu(0);
-      SND.startMusic();        // 畫卷拉開完畢 → 首頁樂淡出、戰鬥樂淡入(startMusic 內含 stopMenu)
-    });
-  }
+  // 先完成入境畫軸；抵達第一境後才顯示四選一，選定前不生怪、不計時。
+  G.paused=true;
+  pendingFormationStart=()=>continueAfterFormation(fastRestart);
+  if(fastRestart) drawStartingFormations();
+  else playOpening(()=>{
+    if(meta.quality==='low') SND.stopMenu(0);
+    drawStartingFormations();
+  });
+}
+
+function continueAfterFormation(fastRestart){
+  G.paused=false;
+  SND.startMusic();
 }
 
 function renderBossTestTools(){
@@ -1971,25 +1992,7 @@ function inkSplashAt(x,y){
     d.style.animation='inkOut '+(0.45+Math.random()*0.25).toFixed(2)+'s ease-out forwards'; wrap.appendChild(d); }
   layer.appendChild(wrap); setTimeout(()=>wrap.remove(), 850);
 }
-document.addEventListener('pointerdown', (e)=>{ const b=e.target.closest && e.target.closest('.btn'); if(b) inkSplashAt(e.clientX,e.clientY); }, true);
-document.getElementById('startbtn').onclick=start;
-document.getElementById('bosstestbtn').onclick=()=>start('boss');
-document.getElementById('bosstestswordup').onclick=()=>bossTestSwordCount(1);
-document.getElementById('bosstestsworddown').onclick=()=>bossTestSwordCount(-1);
-document.getElementById('bosstestpreset').onclick=bossTestWave60Preset;
-document.getElementById('bosstestup').onclick=()=>bossTestLevel(1);
-document.getElementById('bosstestdown').onclick=()=>bossTestLevel(-1);
-document.getElementById('bosstestphase').onclick=bossTestNextPhase;
-document.getElementById('bosstestfour').onclick=bossTestFourDirections;
-document.getElementById('bosstestfang').onclick=bossTestFang;
-document.getElementById('bosstestlock').onclick=toggleBossTestHpLock;
-document.getElementById('bosstestretry').onclick=()=>start('boss-fast');
-document.getElementById('againbtn').onclick=start;
-document.getElementById('metabtn').onclick=uiOpenMeta;
-document.getElementById('splashmetabtn').onclick=uiOpenMeta;
-document.getElementById('metaplaybtn').onclick=start;
-document.getElementById('metaclosebtn').onclick=uiCloseMeta;
-const ART_CATEGORY_NAME={form:'劍式',momentum:'劍勢',intent:'劍意',cultivation:'修持',truth:'真意'};
+const ART_CATEGORY_NAME={form:'劍陣',momentum:'劍行',intent:'劍痕',cultivation:'劍稟',blade:'劍型',truth:'真意'};
 function artTierName(rank){ return rank<=1?'一階':rank===2?'二階':'三階'; }
 function renderSwordArts(){
   const list=document.getElementById('artslist'); if(!list) return;
@@ -2006,37 +2009,24 @@ function toggleSwordArts(force){
   if(G.running) G.paused=open||isPausedByUser();
   if(!meta.mute) SND.ui();
 }
-document.getElementById('swordartsbtn').onclick=()=>toggleSwordArts(true);
-document.getElementById('artsclose').onclick=()=>toggleSwordArts(false);
-document.getElementById('artsPanel').onclick=e=>{ if(e.target.id==='artsPanel') toggleSwordArts(false); };
-document.getElementById('scoretribtn').onclick=e=>{
+function toggleScorePanel(e){
   e.stopPropagation();
   const wrap=document.getElementById('scorewrap'), panel=document.getElementById('dpsbox');
   const open=wrap.classList.toggle('open');
   e.currentTarget.setAttribute('aria-expanded',String(open));
   e.currentTarget.setAttribute('aria-label',open?'收合本境進度':'展開本境進度');
   panel.setAttribute('aria-hidden',String(!open));
-};
-document.getElementById('pausebtn').onclick=()=>togglePause();
-document.getElementById('autobtn').onclick=toggleAuto;
-document.getElementById('rerollbtn').onclick=rerollCards;
-document.getElementById('sndbtn').onclick=toggleSound;
+}
 renderSoundButton(); bindVolumeSettings(); renderVolumeSettings();
 // 首次互動即解鎖音訊(瀏覽器自動播放限制);還在首頁就淡入首頁 BGM(game_op_loop,Loop)。
 // 這裡刻意不用 {once:true}:玩家很可能第一下就點在靜音鍵上、或當下 meta.mute 還是開的,
 // 一旦把唯一一次機會用掉,之後整局都不會再有首頁樂。改為「播起來才解除監聽」。
-(function bindMenuBgm(){
-  const EV=['pointerdown','keydown','touchstart'];
-  const onGesture=()=>{
-    SND.unlock();
-    if(G.running || meta.mute) return;                 // 已入局或靜音:這次不算,繼續聽下一次
-    SND.startMenu();
-    if(SND.menuPlaying()) EV.forEach(ev=>window.removeEventListener(ev,onGesture));
-  };
-  EV.forEach(ev=>window.addEventListener(ev,onGesture,{passive:true}));
-})();
-document.getElementById('resumebtn').onclick=()=>togglePause(false);
-document.getElementById('respecbtn').onclick=requestRespec;
+function startMenuFromGesture(){
+  SND.unlock();
+  if(G.running||meta.mute) return false;
+  SND.startMenu();
+  return SND.menuPlaying();
+}
 bindHeroChoices();
 // 劍訣精進:列出已滿階的悟道與三層進度。滿階那一刻才開始累計,所以沒滿階的不列。
 // 左上狀態列與右上吊牌切齊下緣。吊牌的高度含固定 20px 間距與字級 clamp 下限,
@@ -2058,11 +2048,7 @@ bindPauseTabs();
 uiEnableDragScroll('pausepanel');
 uiEnableDragScroll('metabox');
 uiEnableDragScroll('shopbox');
-document.getElementById('pausequitbtn').onclick=()=>{ togglePause(false); gameOver(); };
-document.getElementById('splashshopbtn').onclick=uiOpenShop;
-document.getElementById('metashopbtn').onclick=uiOpenShop;
-document.getElementById('shopclosebtn').onclick=uiCloseShop;
-window.addEventListener('keydown',e=>{
+function handleGlobalKeydown(e){
   if(e.key==='Escape'||e.key==='p'||e.key==='P'){ e.preventDefault(); togglePause(); }
   else if(e.key==='a'||e.key==='A'){ e.preventDefault(); toggleAuto(); }
   else if(e.key==='m'||e.key==='M'){ e.preventDefault(); toggleSound(); }
@@ -2079,19 +2065,54 @@ window.addEventListener('keydown',e=>{
       if(b.classList.contains('show')) b.focus();
     }
   }
-  else if(e.key==='v'||e.key==='V'){ e.preventDefault(); bisectDraw(); }
-  else if(e.key==='n'||e.key==='N'){ e.preventDefault(); bisectMicro(); }
-  else if(e.key==='k'||e.key==='K'){ e.preventDefault(); bisectPage(); }   // P 已是暫停,改用 K
-  else if(e.key==='9'){ e.preventDefault(); NODRAW=!NODRAW;
+  else if((e.key==='v'||e.key==='V')&&!G.running){ e.preventDefault(); bisectDraw(); }
+  else if((e.key==='n'||e.key==='N')&&!G.running){ e.preventDefault(); bisectMicro(); }
+  else if((e.key==='k'||e.key==='K')&&!G.running){ e.preventDefault(); bisectPage(); }   // P 已是暫停,改用 K
+  else if(e.key==='9'&&!G.running){ e.preventDefault(); NODRAW=!NODRAW;
     DIAG.hist.length=0; if(!DIAG.on) toggleDiag(); }
-  else if(e.key==='0'){ e.preventDefault();
+  else if(e.key==='0'&&!G.running){ e.preventDefault();
     const off=Object.keys(FX).some(k=>FX[k]);
     Object.keys(FX).forEach(k=>FX[k]=!off);
     DIAG.hist.length=0; if(!DIAG.on) toggleDiag(); }
+}
+
+let lastLoopErrorAt=0;
+configureBoot({
+  diagFrame:ts=>diagFrame(ts), getDiag:()=>DIAG, getFps:()=>meta.fps,
+  isNoDraw:()=>NODRAW, update:()=>update(), draw:()=>{ draw(); drawTruthFx(); },
+  degradeQuality:()=>{
+    if(meta.quality==='low'&&!FX.vig&&!FX.trail&&!FX.ink&&!FX.part&&!FX.glow) return;
+    meta.quality='low'; applyQuality(); saveMeta();
+  },
+  onLoopError:error=>{
+    // 單幀錯誤後清掉時間欠步，避免恢復時補算暴衝；保留下一幀繼續運作。
+    resetBootClock();
+    const now=performance.now();
+    if(!lastLoopErrorAt||now-lastLoopErrorAt>1000){
+      lastLoopErrorAt=now;
+      console.error('[Inkblade] recovered frame error',error);
+    }
+  }
 });
-// 鎖右鍵:遊戲畫面不提供瀏覽器右鍵選單(也順手擋掉長按選單與拖曳選取)
-document.addEventListener('contextmenu', e=>{ e.preventDefault(); return false; });
-document.addEventListener('dragstart', e=>e.preventDefault());
-document.addEventListener('selectstart', e=>{ if(!/^(INPUT|TEXTAREA)$/.test(e.target.tagName)) e.preventDefault(); });
-loop();
+bindBootEvents({
+  inkSplashAt,
+  stamp,
+  canvas:{down,move,up,cancel:cancelDraw},
+  menuGesture:startMenuFromGesture,
+  keydown:handleGlobalKeydown,
+  clicks:{
+    startbtn:start, bosstestbtn:()=>start('boss'), bosstestswordup:()=>bossTestSwordCount(1),
+    bosstestsworddown:()=>bossTestSwordCount(-1), bosstestpreset:bossTestWave60Preset,
+    bosstestup:()=>bossTestLevel(1), bosstestdown:()=>bossTestLevel(-1), bosstestphase:bossTestNextPhase,
+    bosstestfour:bossTestFourDirections, bosstestfang:bossTestFang, bosstestlock:toggleBossTestHpLock,
+    bosstestretry:()=>start('boss-fast'), againbtn:start, metabtn:uiOpenMeta, splashmetabtn:uiOpenMeta,
+    metaplaybtn:start, metaclosebtn:uiCloseMeta, swordartsbtn:()=>toggleSwordArts(true),
+    artsclose:()=>toggleSwordArts(false), artsPanel:e=>{ if(e.target.id==='artsPanel') toggleSwordArts(false); },
+    scoretribtn:toggleScorePanel, pausebtn:()=>togglePause(), autobtn:toggleAuto, truthbtn:castActiveTruth, rerollbtn:rerollCards,
+    sndbtn:toggleSound, resumebtn:()=>togglePause(false), respecbtn:requestRespec,
+    pausequitbtn:()=>{ togglePause(false); gameOver(); }, splashshopbtn:uiOpenShop,
+    metashopbtn:uiOpenShop, shopclosebtn:uiCloseShop
+  }
+});
+startBoot();
 })();

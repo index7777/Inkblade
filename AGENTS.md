@@ -1,3 +1,8 @@
+任何 UI、HUD、卡片、Responsive、動畫、特效或 Gameplay 視覺修改，
+完成前必須完整執行 `VISUAL-SMOKE-TEST.md`。
+
+未完成其中必要測試與截圖自證，不得宣告修復完成。
+
 # Inkblade repository scope
 
 This repository is the existing browser-based Inkblade game, detected from `package.json`, `src/`, `data/`, and the HTML entry points. Authoritative product source roots are `src/` and `data/`; `inkblade.html` and `index.html` are authored runtime entry points. `game.js` is the confirmed esbuild bundle produced by `npm run build` and is not authoritative source.

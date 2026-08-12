@@ -1,0 +1,937 @@
+/* ==========================================================================
+ * 墨劍訣 · Game Config v2.1.0 衝突完整修復版
+ * ----------------------------------------------------------------------------
+ * 修復清單:
+ * 1. 真意互斥快照回滾機制,解決多流派數值疊加爆炸
+ * 2. 劍式單一生效快照回滾,嚴格遵守「僅一種陣型生效」設定
+ * 3. 狀態層堆疊邊界截斷 + 全域狀態清空API
+ * 4. 抽卡rollInsights去重、動態稀有度權重、聽墨規則優化
+ * 5. 全屬性邊界clamp約束,杜絕數值溢出
+ * 6. Rebirth依賴雙重校驗、循環依賴檢測、傳承臨時鎖定
+ * 7. Legacy相容層完整支援mul/flag/status/truth全部機制
+ * 8. FX渲染優先級規範、特效疊加衝突處理
+ * 9. 新增局重置resetRunState、配置強化校驗、難度衰減倍率
+ * 10. 約束真意/劍式抽取池互斥,禁止多個同類同時存在
+ *
+ * 世界觀:畫外執筆,畫內御劍。
+ *
+ * 新版能力分為:
+ *   1. 劍式 FORM        — 決定飛劍如何排列(單一生效,等級保留但加成互斥)
+ *   2. 劍勢 MOMENTUM    — 決定飛劍如何運動(可全部疊滿)
+ *   3. 劍意 INTENT      — 決定命中後留下的效果(可全部疊滿)
+ *   4. 修持 CULTIVATION — 強化當局基礎能力(可全部疊滿)
+ *   5. 真意 TRUTH       — 改寫整個流派,一局僅能啟用一種,互斥不可共存
+ *
+ * 問道分為:築基 FOUNDATION、心法 MIND、傳承 INHERITANCE。
+ * 視覺語言只使用:破墨、飛白、潑墨、墨滴、留白。特效由 Canvas / Ink
+ * Engine 表現;本檔只宣告 FX 語意,不載入 FX 圖片。
+ * ========================================================================== */
+(function installInkBladeConfig(global) {
+  'use strict';
+
+  const VERSION = '2.1.0';
+
+  const CATEGORY = Object.freeze({
+    FORM: 'form',
+    MOMENTUM: 'momentum',
+    INTENT: 'intent',
+    CULTIVATION: 'cultivation',
+    TRUTH: 'truth'
+  });
+
+  const REBIRTH_BRANCH = Object.freeze({
+    FOUNDATION: 'foundation',
+    MIND: 'mind',
+    INHERITANCE: 'inheritance'
+  });
+
+  const RARITY = Object.freeze({
+    AWAKENING: 'awakening',
+    CLARITY: 'clarity',
+    PENETRATION: 'penetration',
+    TRUTH: 'truth'
+  });
+
+  const rarity = Object.freeze({
+    order: [RARITY.AWAKENING, RARITY.CLARITY, RARITY.PENETRATION, RARITY.TRUTH],
+    weight: Object.freeze({ awakening: 60, clarity: 28, penetration: 10, truth: 2, n: 60, r: 28, e: 10, l: 2 }),
+    name: Object.freeze({ awakening: '初悟', clarity: '明悟', penetration: '徹悟', truth: '真意', n: '初悟', r: '明悟', e: '徹悟', l: '真意' }),
+    color: Object.freeze({ awakening: '#4b4944', clarity: '#315654', penetration: '#78643b', truth: '#7b2725' })
+  });
+
+  const fx = Object.freeze({
+    BREAK_INK: 'break_ink',
+    DRY_BRUSH: 'dry_brush',
+    SPLASH: 'ink_splash',
+    INK_DROP: 'ink_drop',
+    NEGATIVE_SPACE: 'negative_space',
+    WHITE_CUT: 'white_cut',
+    ERODING_INK: 'eroding_ink',
+    SUPPRESSED_INK: 'suppressed_ink'
+  });
+
+  /* 明確 DSL:每個 operation 都必須指定 op、path 與 value。
+   * add:加算;mul:乘算;set:設定;max:至少為;flag:布林開關;
+   * status:命中附加狀態;unlock:當局解鎖;truth:啟用互斥真意。
+   */
+  const OP_SCHEMA = Object.freeze({
+    add: ['stats.hpMax', 'stats.costMultiplier', 'mechanics.hitPadding', 'mechanics.manaRefund', 'mechanics.splashChain', 'stats.damage', 'stats.swordWidth', 'stats.swordSpeed', 'stats.swordLife', 'stats.pierce', 'stats.critChance', 'stats.critMultiplier', 'stats.manaMax', 'stats.manaRegen', 'stats.manaOnKill', 'stats.swordCap', 'stats.swordCount', 'stats.manaCostBase', 'stats.manaCostPerPixel', 'mechanics.returnHits', 'mechanics.splashRadius', 'mechanics.homingStrength'],
+    mul: ['stats.costMultiplier', 'stats.damage', 'stats.swordWidth', 'stats.swordSpeed', 'stats.swordLife', 'stats.critMultiplier', 'stats.manaCostBase', 'stats.manaCostPerPixel', 'mechanics.splashDamage', 'mechanics.statusDuration', 'mechanics.trailOpacity'],
+    set: ['formation', 'stats.swordCount', 'mechanics.homingCanCrit', 'mechanics.returnEnabled'],
+    max: ['stats.mana', 'stats.manaMax', 'stats.swordCap'],
+    flag: ['flags.firstStrikeCrit', 'flags.returnLeavesDryBrush', 'flags.splashOnKill', 'flags.listenToInk', 'flags.whiteCutOnCrit',
+      // ── 以下為小成/大成/圓滿的行為旗標,由主檔在對應玩法位置接線 ──
+      'flags.longBlade', 'flags.dryBrushTrail', 'flags.edgeMoment', 'flags.strokeLingers',
+      'flags.freeCastAtFull', 'flags.newSwordDash', 'flags.autoRefill', 'flags.focusStacks', 'flags.focusStrike',
+      'flags.afterimage', 'flags.afterimageHits', 'flags.dotRefresh', 'flags.dotSpread', 'flags.dotBurst',
+      'flags.rootOnSuppress', 'flags.rootWhiteCut', 'flags.whiteCutSlash', 'flags.whiteCutLingers',
+      'flags.healOnFullMana', 'flags.summonOnFullMana', 'flags.inkDropOnSplash', 'flags.inkDropExplode',
+      'flags.scatterEcho', 'flags.scatterEchoIntent', 'flags.scatterEchoReturn',
+      'flags.volleyTighten', 'flags.volleyStrike', 'flags.volleyHeavy',
+      'flags.pierceRamp', 'flags.pierceBreak', 'flags.pierceRecoil',
+      'flags.guideExtend', 'flags.guideRetarget', 'flags.guideNeverMiss',
+      'flags.returnFaster', 'flags.returnSeek', 'flags.returnBounce',
+      'flags.afterimageSolid'],
+    status: ['erosion', 'suppression'],
+    unlock: ['runUnlocks', 'permanentUnlocks'],
+    truth: ['activeTruth']
+  });
+
+  const op = (kind, path, value) => Object.freeze({ op: kind, path, value });
+  const status = (id, payload) => Object.freeze({ op: 'status', path: id, value: Object.freeze(payload) });
+
+  // ── 劍意成本模型 ──────────────────────────────────────────────
+  // 「劍大、劍多」不再是純加值 —— 兩者都會把每像素的劍意成本拉上去,玩家必須取捨:
+  // 要一把又寬又重的劍,就只畫得出短劍令;要畫長劍令,就得把鋒收細。
+  //   每像素成本 = manaCostPerPixel × (劍寬/基準)^widthExponent × 劍數^countExponent × costMultiplier
+  // 指數 <1 是刻意的:純線性會讓四劍直接四倍貴,重到沒人敢點劍式。
+  // costMultiplier 是給流派用的乘數(斂鋒、細雨如織會把它壓下去)。
+  const COST_MODEL = Object.freeze({ baseWidth: 18, widthExponent: 0.8, countExponent: 0.6 });
+  // 道行成長:每提升一重,神識與劍意上限的額外加成。
+  // 存在的理由 —— 敵人的總血量到第 40 境是第 10 境的 8.4 倍,但玩家被咬一口的傷害是固定值,
+  // 容錯永遠停在「漏 10 隻就死」。不隨道行成長的話後期容錯率會掉到 12%。
+  const GROWTH = Object.freeze({ hpPerLevel: 6, manaPerLevel: 5 });
+  function strokeCostPerPixel(stats) {
+    const wf = Math.pow(Math.max(1, stats.swordWidth) / COST_MODEL.baseWidth, COST_MODEL.widthExponent);
+    const cf = Math.pow(Math.max(1, stats.swordCount), COST_MODEL.countExponent);
+    return stats.manaCostPerPixel * wf * cf * (stats.costMultiplier == null ? 1 : stats.costMultiplier);
+  }
+
+  // ── 小成 / 大成 / 圓滿 ────────────────────────────────────────
+  // RANK 1~maxRank 是數值成長;滿階之後改用「局內擊殺數」推進三層機制。
+  // 計數是「每個技能各自累計」,而且**滿階那一刻才歸零起算** —— 所以早抽滿的技能
+  // 先進化,晚抽滿的晚進化,不會全部擠在同一波一起爆開。
+  const TIER_NAMES = Object.freeze(['小成', '大成', '圓滿']);
+  const TIER_KILLS = Object.freeze([300, 500, 1000]);
+  // pending:該層行為依賴尚未完工的系統(目前是劍令),資料先就位,效果暫不套用。
+  const tier = (level, description, effects, pending) => Object.freeze({
+    level, name: TIER_NAMES[level], kills: TIER_KILLS[level],
+    description, effects: Object.freeze(effects || []), pending: pending || null
+  });
+
+  const insight = (data) => Object.freeze({
+    maxRank: 99,
+    requires: Object.freeze([]),
+    excludes: Object.freeze([]),
+    fx: Object.freeze({ trail: null, hit: null, status: null }),
+    ...data,
+    requires: Object.freeze(data.requires || []),
+    excludes: Object.freeze(data.excludes || []),
+    effects: Object.freeze(data.effects || []),
+    tiers: Object.freeze(data.tiers || []),
+    fx: Object.freeze(data.fx || { trail: null, hit: null, status: null })
+  });
+
+  const INSIGHTS = Object.freeze([
+    // ── 劍式:同時只能維持一種排列,但可重複領悟增加劍數。 ──────────────
+    insight({ id: 'form_scatter', category: CATEGORY.FORM, rarity: RARITY.CLARITY, name: '散鋒式', rune: '散', maxRank: 5, description: '劍鋒如展卷向兩側散開;增一劍,清掃群墨。', tradeoff: '分散後不易集中斬擊單一墨獸。', tiers: [tier(0, '命中後向兩側分出殘鋒。', [op('flag', 'flags.scatterEcho', true)]), tier(1, '殘鋒亦能觸發墨痕。', [op('flag', 'flags.scatterEchoIntent', true)]), tier(2, '殘鋒命中後不散,折返一次。', [op('flag', 'flags.scatterEchoReturn', true)])], effects: [op('add', 'stats.swordCount', 1), op('set', 'formation', 'fan')], fx: { trail: fx.DRY_BRUSH, hit: fx.BREAK_INK } }),
+    insight({ id: 'form_together', category: CATEGORY.FORM, rarity: RARITY.CLARITY, name: '齊鋒式', rune: '齊', maxRank: 5, description: '數劍同起同落;增一劍,並列掃過同一片墨域。', tradeoff: '橫向覆蓋佳,轉向較為遲緩。', tiers: [tier(0, '飛劍間距收窄,自動集火。', [op('flag', 'flags.volleyTighten', true)]), tier(1, '同時命中時,末劍造成齊斬。', [op('flag', 'flags.volleyStrike', true)]), tier(2, '每四次齊斬自行引出一記重斬。', [op('flag', 'flags.volleyHeavy', true)])], effects: [op('add', 'stats.swordCount', 1), op('set', 'formation', 'parallel')], fx: { trail: fx.BREAK_INK, hit: fx.WHITE_CUT } }),
+    insight({ id: 'form_chain', category: CATEGORY.FORM, rarity: RARITY.CLARITY, name: '貫鋒式', rune: '貫', maxRank: 5, description: '劍鋒首尾相承;增一劍,沿同一道劍令接連斬落。', tradeoff: '集火最強,覆蓋範圍最窄。', tiers: [tier(0, '每穿透一名墨獸,傷害提高半成。', [op('flag', 'flags.pierceRamp', true)]), tier(1, '劍令末位墨獸受到破甲。', [op('flag', 'flags.pierceBreak', true)]), tier(2, '劍令走完後回刺首名墨獸。', [op('flag', 'flags.pierceRecoil', true)])], effects: [op('add', 'stats.swordCount', 1), op('set', 'formation', 'inline')], fx: { trail: fx.WHITE_CUT, hit: fx.BREAK_INK } }),
+    // ── 劍勢:改變飛劍運動。 ───────────────────────────────────────
+    insight({ id: 'momentum_swift', category: CATEGORY.MOMENTUM, rarity: RARITY.AWAKENING, name: '疾影', rune: '疾', maxRank: 5, description: '劍影先於墨痕而至,飛行更快、更遠。', tiers: [tier(0, '飛劍身後留下殘影。', [op('flag', 'flags.afterimage', true)]), tier(1, '殘影造成兩成半傷害。', [op('flag', 'flags.afterimageHits', true)]), tier(2, '殘影可獨立命中墨獸。', [op('flag', 'flags.afterimageSolid', true)])], effects: [op('add', 'stats.swordSpeed', 3.6), op('add', 'stats.swordLife', 0.26)], fx: { trail: fx.DRY_BRUSH } }),
+    insight({ id: 'momentum_pierce', category: CATEGORY.MOMENTUM, rarity: RARITY.CLARITY, name: '透墨', rune: '透', maxRank: 5, description: '劍不止於一墨,可多穿透兩個墨身。', effects: [op('add', 'stats.pierce', 2)], fx: { trail: fx.WHITE_CUT, hit: fx.BREAK_INK } }),
+    insight({ id: 'momentum_guide', category: CATEGORY.MOMENTUM, rarity: RARITY.PENETRATION, name: '引鋒', rune: '引', maxRank: 5, description: '劍意感知墨氣,於飛行中自行修正鋒向。', tradeoff: '每次領悟令直擊傷害降低 12%,引鋒本身不能暴擊。', requires: ['inherit_guide'], tiers: [tier(0, '劍令末端的延伸更長。', [op('flag', 'flags.guideExtend', true)]), tier(1, '擊殺後立即再向下一目標延伸。', [op('flag', 'flags.guideRetarget', true)]), tier(2, '劍令絕不空走,必尋得墨獸。', [op('flag', 'flags.guideNeverMiss', true)])], effects: [op('add', 'mechanics.homingStrength', 0.055), op('mul', 'stats.damage', 0.88), op('set', 'mechanics.homingCanCrit', false)], fx: { trail: fx.DRY_BRUSH } }),
+    insight({ id: 'momentum_return', category: CATEGORY.MOMENTUM, rarity: RARITY.PENETRATION, name: '歸鋒', rune: '歸', maxRank: 5, description: '劍去必歸,抵達劍令末端後折返再斬。', tiers: [tier(0, '回程速度提高三成。', [op('flag', 'flags.returnFaster', true)]), tier(1, '回程末端自行探向最近墨獸。', [op('flag', 'flags.returnSeek', true)]), tier(2, '回程命中後再倒走一次。', [op('flag', 'flags.returnBounce', true)])], effects: [op('set', 'mechanics.returnEnabled', true), op('add', 'mechanics.returnHits', 1)], fx: { trail: fx.DRY_BRUSH, hit: fx.WHITE_CUT } }),
+    insight({ id: 'momentum_break', category: CATEGORY.MOMENTUM, rarity: RARITY.PENETRATION, name: '破墨', rune: '破', maxRank: 5, description: '劍鋒入墨時震散墨身,波及近旁墨獸。', tradeoff: '潑墨只在命中時出現,不改變飛劍本體。', tiers: [tier(0, '潑墨範圍內留下墨滴。', [op('flag', 'flags.inkDropOnSplash', true)]), tier(1, '墨滴可再次炸開。', [op('flag', 'flags.inkDropExplode', true)]), tier(2, '潑墨可連鎖引動。', [op('add', 'mechanics.splashChain', 1)])], effects: [op('add', 'mechanics.splashRadius', 38), op('mul', 'mechanics.splashDamage', 1.12)], fx: { hit: fx.SPLASH } }),
+    // ── 劍意:命中後留在墨獸身上的狀態。 ──────────────────────────
+    insight({ id: 'intent_erosion', category: CATEGORY.INTENT, rarity: RARITY.CLARITY, name: '蝕痕', rune: '蝕', maxRank: 5, description: '劍痕入墨身,每息蝕四點,續三息餘。', tiers: [tier(0, '蝕痕可被重新刷新。', [op('flag', 'flags.dotRefresh', true)]), tier(1, '蝕痕向鄰近墨獸擴散。', [op('flag', 'flags.dotSpread', true)]), tier(2, '墨獸潰散時爆出剩餘蝕傷。', [op('flag', 'flags.dotBurst', true)])], effects: [status('erosion', { stacks: 1, damagePerSecond: 4, duration: 3.2, maxStacks: 6 })], fx: { hit: fx.WHITE_CUT, status: fx.ERODING_INK } }),
+    insight({ id: 'intent_suppress', category: CATEGORY.INTENT, rarity: RARITY.CLARITY, name: '鎮痕', rune: '鎮', maxRank: 5, description: '鎮住墨流;墨獸行速降一成二並受蝕。', tiers: [tier(0, '鎮痕緩速幅度提高。', [op('mul', 'mechanics.statusDuration', 1.25)]), tier(1, '鎮痕額外定身三分之一息。', [op('flag', 'flags.rootOnSuppress', true)]), tier(2, '定身結束時炸開一道留白斬。', [op('flag', 'flags.rootWhiteCut', true)])], effects: [status('suppression', { stacks: 1, slow: 0.12, damagePerSecond: 1.5, duration: 2.6, maxStacks: 4 })], fx: { hit: fx.NEGATIVE_SPACE, status: fx.SUPPRESSED_INK } }),
+    insight({ id: 'intent_sever', category: CATEGORY.INTENT, rarity: RARITY.CLARITY, name: '斷意', rune: '斷', maxRank: 5, description: '一線留白斷開墨身,暴擊機會提高。', tiers: [tier(0, '暴擊必定留下飛白。', [op('flag', 'flags.whiteCutOnCrit', true)]), tier(1, '飛白自行斬出一擊。', [op('flag', 'flags.whiteCutSlash', true)]), tier(2, '飛白滯留兩息不散。', [op('flag', 'flags.whiteCutLingers', true)])], effects: [op('add', 'stats.critChance', 0.12), op('flag', 'flags.whiteCutOnCrit', true)], fx: { hit: fx.WHITE_CUT } }),
+    insight({ id: 'intent_restore', category: CATEGORY.INTENT, rarity: RARITY.AWAKENING, name: '回元', rune: '元', maxRank: 5, description: '墨獸潰散時,殘留劍意回歸靈府。', tiers: [tier(0, '斬妖回收更多劍意。', [op('add', 'stats.manaOnKill', 2)]), tier(1, '劍意滿盈後轉而回補神識。', [op('flag', 'flags.healOnFullMana', true)]), tier(2, '劍意滿盈時自行召出一把飛劍。', [op('flag', 'flags.summonOnFullMana', true)])], effects: [op('add', 'stats.manaOnKill', 0.78)], fx: { hit: fx.INK_DROP } }),
+    // ── 修持:當局基礎能力。 ───────────────────────────────────────
+    insight({ id: 'cultivate_edge', category: CATEGORY.CULTIVATION, rarity: RARITY.AWAKENING, name: '養鋒', rune: '鋒', maxRank: 5, description: '凝養劍鋒,使每次入墨更深。', tiers: [tier(0, '飛劍模型變長,鋒芒更顯。', [op('flag', 'flags.longBlade', true)]), tier(1, '劍氣拖尾轉為飛白乾筆。', [op('flag', 'flags.dryBrushTrail', true)]), tier(2, '每隔數息入「鋒芒」,下一擊必暴。', [op('flag', 'flags.edgeMoment', true)])], effects: [op('add', 'stats.damage', 18)] }),
+    insight({ id: 'cultivate_breadth', category: CATEGORY.CULTIVATION, rarity: RARITY.AWAKENING, name: '展鋒', rune: '展', maxRank: 5, description: '展開劍勢,使劍痕更寬、更易觸及墨身。', tiers: [tier(0, '劍痕再展,劍寬顯著增加。', [op('add', 'stats.swordWidth', 6)]), tier(1, '命中判定體積一併放大。', [op('add', 'mechanics.hitPadding', 6)]), tier(2, '劍痕滯留半息,可再傷墨獸。', [op('flag', 'flags.strokeLingers', true)])], effects: [op('add', 'stats.swordWidth', 5.6)], fx: { trail: fx.BREAK_INK } }),
+    insight({ id: 'cultivate_breath', category: CATEGORY.CULTIVATION, rarity: RARITY.AWAKENING, name: '納息', rune: '息', maxRank: 5, description: '納劍意入靈府,提高劍意上限與周天回復。', tiers: [tier(0, '周天更暢,劍意回復加快。', [op('add', 'stats.manaRegen', 0.5)]), tier(1, '每次御劍返還部分劍意。', [op('add', 'mechanics.manaRefund', 0.2)]), tier(2, '劍意滿盈時,定息免費御劍一次。', [op('flag', 'flags.freeCastAtFull', true)])], effects: [op('add', 'stats.manaMax', 38), op('add', 'stats.manaRegen', 0.16), op('max', 'stats.mana', 'stats.manaMax')] }),
+    insight({ id: 'cultivate_sheath', category: CATEGORY.CULTIVATION, rarity: RARITY.CLARITY, name: '開匣', rune: '匣', maxRank: 5, description: '劍匣再開;同一道劍令多派一把飛劍。', tiers: [tier(0, '劍匣再開,同道劍令並行增一劍。', [op('add', 'stats.swordCount', 1)]), tier(1, '新出鞘的飛劍立即得速。', [op('flag', 'flags.newSwordDash', true)]), tier(2, '每隔數息自行補上一把飛劍。', [op('flag', 'flags.autoRefill', true)])], effects: [op('add', 'stats.swordCount', 1)] }),
+    insight({ id: 'cultivate_temper', category: CATEGORY.CULTIVATION, rarity: RARITY.AWAKENING, name: '斂鋒', rune: '斂', maxRank: 5, description: '收鋒入微;劍痕轉細,劍意大省。', tradeoff: '劍痕變細,擦邊命中的機會下降。', tiers: [tier(0, '鋒再收細,劍意更省。', [op('add', 'stats.swordWidth', -3), op('mul', 'stats.costMultiplier', 0.9)]), tier(1, '細鋒不受墨氣阻滯,穿透增一。', [op('add', 'stats.pierce', 1)]), tier(2, '運鋒如絲,劍意成本再減兩成。', [op('mul', 'stats.costMultiplier', 0.8)])], effects: [op('add', 'stats.swordWidth', -1.6), op('mul', 'stats.costMultiplier', 0.92)], fx: { trail: fx.DRY_BRUSH } }),
+    insight({ id: 'cultivate_focus', category: CATEGORY.CULTIVATION, rarity: RARITY.CLARITY, name: '凝神', rune: '凝', maxRank: 5, description: '心念專一,暴擊劍痕更深。', tiers: [tier(0, '心念更專,暴擊機率提高。', [op('add', 'stats.critChance', 0.08)]), tier(1, '連續命中累積專注層數。', [op('flag', 'flags.focusStacks', true)]), tier(2, '專注滿層,下一道劍令為凝神一劍。', [op('flag', 'flags.focusStrike', true)])], effects: [op('add', 'stats.critMultiplier', 0.2), op('mul', 'mechanics.trailOpacity', 1.05)] }),
+    // ── 真意:改變流派;一局只能啟用一種。 ─────────────────────────
+    insight({ id: 'truth_ten_thousand', category: CATEGORY.TRUTH, rarity: RARITY.TRUTH, name: '萬劍歸宗', rune: '萬', maxRank: 1, description: '增四劍同赴一令;單劍傷害略降。', requires: ['inherit_ten_thousand'], effects: [op('truth', 'activeTruth', 'truth_ten_thousand'), op('add', 'stats.swordCount', 4), op('mul', 'stats.damage', 0.82)], fx: { trail: fx.DRY_BRUSH, hit: fx.BREAK_INK } }),
+    insight({ id: 'truth_single_stroke', category: CATEGORY.TRUTH, rarity: RARITY.TRUTH, name: '一筆開天', rune: '一', maxRank: 1, description: '萬念歸於一鋒:只留一劍,傷害與劍寬大幅提高。', requires: ['inherit_single_stroke'], effects: [op('truth', 'activeTruth', 'truth_single_stroke'), op('set', 'stats.swordCount', 1), op('mul', 'stats.damage', 2.35), op('mul', 'stats.swordWidth', 1.45), op('add', 'stats.pierce', 4)], fx: { trail: fx.WHITE_CUT, hit: fx.BREAK_INK } }),
+    insight({ id: 'truth_return_hidden', category: CATEGORY.TRUTH, rarity: RARITY.TRUTH, name: '歸藏無痕', rune: '藏', maxRank: 1, description: '所有劍必定折返,回程傷害更高。', requires: ['inherit_return_hidden'], effects: [op('truth', 'activeTruth', 'truth_return_hidden'), op('set', 'mechanics.returnEnabled', true), op('add', 'mechanics.returnHits', 1), op('flag', 'flags.returnLeavesDryBrush', true), op('unlock', 'runUnlocks', 'returnDamageMultiplier:1.65')], fx: { trail: fx.DRY_BRUSH, hit: fx.WHITE_CUT } }),
+    insight({ id: 'truth_ink_sea', category: CATEGORY.TRUTH, rarity: RARITY.TRUTH, name: '墨海無涯', rune: '海', maxRank: 1, description: '潑墨範圍與波及傷害大幅提高。', requires: ['inherit_ink_sea'], effects: [op('truth', 'activeTruth', 'truth_ink_sea'), op('add', 'mechanics.splashRadius', 72), op('mul', 'mechanics.splashDamage', 1.65), op('flag', 'flags.splashOnKill', true), op('mul', 'stats.damage', 0.9)], fx: { hit: fx.SPLASH, status: fx.INK_DROP } }),
+    insight({ id: 'truth_fine_rain', category: CATEGORY.TRUTH, rarity: RARITY.TRUTH, name: '細雨如織', rune: '雨', maxRank: 1, description: '劍細如雨;劍意大省,增二劍。', requires: ['inherit_fine_rain'], effects: [op('truth', 'activeTruth', 'truth_fine_rain'), op('mul', 'stats.swordWidth', 0.55), op('mul', 'stats.costMultiplier', 0.45), op('add', 'stats.swordCount', 2), op('mul', 'stats.damage', 0.72)], fx: { trail: fx.DRY_BRUSH, hit: fx.INK_DROP } }),
+    insight({ id: 'truth_dry_peaks', category: CATEGORY.TRUTH, rarity: RARITY.TRUTH, name: '飛白千峰', rune: '白', maxRank: 1, description: '劍痕斷續留白;暴擊後再生一道殘鋒。', requires: ['inherit_dry_peaks'], effects: [op('truth', 'activeTruth', 'truth_dry_peaks'), op('add', 'stats.critChance', 0.18), op('flag', 'flags.whiteCutOnCrit', true), op('unlock', 'runUnlocks', 'criticalEcho:1')], fx: { trail: fx.DRY_BRUSH, hit: fx.WHITE_CUT } })
+  ]);
+
+  const rebirthNode = (data) => Object.freeze({
+    maxRank: 1,
+    costs: Object.freeze([]),
+    requires: Object.freeze([]),
+    effects: Object.freeze([]),
+    ...data,
+    costs: Object.freeze(data.costs || []),
+    requires: Object.freeze(data.requires || []),
+    effects: Object.freeze(data.effects || [])
+  });
+
+  const REBIRTH = Object.freeze([
+    // 築基:穩定且有限的永久數值。
+    rebirthNode({ id: 'foundation_spirit_house', branch: REBIRTH_BRANCH.FOUNDATION, name: '靈府初成', description: '每階令開局劍意上限提高十五。', maxRank: 10, costs: [30, 65, 125, 220, 340, 490, 680, 910, 1180, 1500], effects: [op('add', 'stats.manaMax', 15), op('max', 'stats.mana', 'stats.manaMax')] }),
+    rebirthNode({ id: 'foundation_sea_of_mind', branch: REBIRTH_BRANCH.FOUNDATION, name: '識海初開', description: '每階令開局神識上限提高十五。', maxRank: 10, costs: [30, 65, 125, 220, 340, 490, 680, 910, 1180, 1500], effects: [op('add', 'stats.hpMax', 15)] }),
+    rebirthNode({ id: 'foundation_sword_bone', branch: REBIRTH_BRANCH.FOUNDATION, name: '劍骨凝成', description: '每階令開局劍傷提高三。', maxRank: 4, costs: [30, 65, 125, 220], effects: [op('add', 'stats.damage', 3)] }),
+    rebirthNode({ id: 'foundation_flow', branch: REBIRTH_BRANCH.FOUNDATION, name: '行氣如劍', description: '每階令開局劍速提高一。', maxRank: 3, costs: [40, 95, 190], effects: [op('add', 'stats.swordSpeed', 1)] }),
+    rebirthNode({ id: 'foundation_cycle', branch: REBIRTH_BRANCH.FOUNDATION, name: '周天養息', description: '每階令劍意回復提高。', maxRank: 3, costs: [40, 95, 190], effects: [op('add', 'stats.manaRegen', 0.05)] }),
+    rebirthNode({ id: 'foundation_sword_case', branch: REBIRTH_BRANCH.FOUNDATION, name: '劍匣初開', description: '開局增一劍,並以扇形起手。', maxRank: 1, costs: [320], effects: [op('add', 'stats.swordCount', 1), op('set', 'formation', 'fan')] }),
+    // 心法:永久改變節奏,不直接堆疊大量傷害。
+    rebirthNode({ id: 'mind_clear_strike', branch: REBIRTH_BRANCH.MIND, name: '明心一斬', description: '每局第一道有效劍痕必定暴擊。', costs: [140], requires: ['foundation_sword_bone:2'], effects: [op('flag', 'flags.firstStrikeCrit', true)] }),
+    rebirthNode({ id: 'mind_return_thought', branch: REBIRTH_BRANCH.MIND, name: '歸念', description: '折返的飛劍留下淡飛白,回程更易辨識。', costs: [170], requires: ['foundation_flow:2'], effects: [op('flag', 'flags.returnLeavesDryBrush', true)] }),
+    rebirthNode({ id: 'mind_break_ink', branch: REBIRTH_BRANCH.MIND, name: '破墨心訣', description: '墨獸潰散時有機會留下小片潑墨,僅造成低額波及傷害。', costs: [210], requires: ['foundation_sword_bone:3'], effects: [op('flag', 'flags.splashOnKill', true)] }),
+    rebirthNode({ id: 'mind_listen_ink', branch: REBIRTH_BRANCH.MIND, name: '聽墨', description: '每次悟道至少出現一項尚未滿階的劍勢或劍意。', costs: [240], requires: ['foundation_spirit_house:2'], effects: [op('flag', 'flags.listenToInk', true)] }),
+    // 傳承:只負責把新能力放入悟道池。
+    rebirthNode({ id: 'inherit_guide', branch: REBIRTH_BRANCH.INHERITANCE, name: '傳承·引鋒', description: '劍意〈引鋒〉進入悟道池。', costs: [160], effects: [op('unlock', 'permanentUnlocks', 'inherit_guide')] }),
+    rebirthNode({ id: 'inherit_ten_thousand', branch: REBIRTH_BRANCH.INHERITANCE, name: '傳承·萬劍歸宗', description: '真意〈萬劍歸宗〉進入悟道池。', costs: [280], requires: ['foundation_sword_case:1'], effects: [op('unlock', 'permanentUnlocks', 'inherit_ten_thousand')] }),
+    rebirthNode({ id: 'inherit_single_stroke', branch: REBIRTH_BRANCH.INHERITANCE, name: '傳承·一筆開天', description: '真意〈一筆開天〉進入悟道池。', costs: [300], requires: ['foundation_sword_bone:4'], effects: [op('unlock', 'permanentUnlocks', 'inherit_single_stroke')] }),
+    rebirthNode({ id: 'inherit_return_hidden', branch: REBIRTH_BRANCH.INHERITANCE, name: '傳承·歸藏無痕', description: '真意〈歸藏無痕〉進入悟道池。', costs: [260], requires: ['mind_return_thought:1'], effects: [op('unlock', 'permanentUnlocks', 'inherit_return_hidden')] }),
+    rebirthNode({ id: 'inherit_ink_sea', branch: REBIRTH_BRANCH.INHERITANCE, name: '傳承·墨海無涯', description: '真意〈墨海無涯〉進入悟道池。', costs: [290], requires: ['mind_break_ink:1'], effects: [op('unlock', 'permanentUnlocks', 'inherit_ink_sea')] }),
+    rebirthNode({ id: 'inherit_fine_rain', branch: REBIRTH_BRANCH.INHERITANCE, name: '傳承·細雨如織', description: '真意〈細雨如織〉進入悟道池。', costs: [270], requires: ['foundation_spirit_house:2'], effects: [op('unlock', 'permanentUnlocks', 'inherit_fine_rain')] }),
+    rebirthNode({ id: 'inherit_dry_peaks', branch: REBIRTH_BRANCH.INHERITANCE, name: '傳承·飛白千峰', description: '真意〈飛白千峰〉進入悟道池。', costs: [320], requires: ['mind_clear_strike:1'], effects: [op('unlock', 'permanentUnlocks', 'inherit_dry_peaks')] })
+  ]);
+
+  const BASE_RUN_STATE = Object.freeze({
+    formation: 'single',
+    activeTruth: null,
+    activeForm: null,
+    appliedTruthEffects: [],
+    appliedFormEffects: [],
+    stats: Object.freeze({ hpMax: 100, costMultiplier: 1, damage: 24, swordWidth: 18, swordSpeed: 14, swordLife: 1.35, pierce: 0, critChance: 0.05, critMultiplier: 2, manaMax: 100, mana: 100, manaRegen: 0.85, manaOnKill: 0, swordCap: 4, swordCount: 1, manaCostBase: 6, manaCostPerPixel: 0.13 }),
+    mechanics: Object.freeze({ homingStrength: 0, homingCanCrit: true, returnEnabled: false, returnHits: 0, splashRadius: 0, splashDamage: 0.35, statusDuration: 1, trailOpacity: 1, hitPadding: 0, manaRefund: 0, splashChain: 0 }),
+    statuses: Object.freeze({}),
+    flags: Object.freeze({ firstStrikeCrit: false, returnLeavesDryBrush: false, splashOnKill: false, listenToInk: false, whiteCutOnCrit: false }),
+    ranks: Object.freeze({}),
+    runUnlocks: Object.freeze([]),
+    lockedInheritance: Object.freeze([]),
+    resetInsightTimes: 0,
+    tierKills: Object.freeze({}),   // 技能滿階後的局內擊殺累計
+    tierLevel: Object.freeze({}),   // 已達第幾層(0=未小成,3=圓滿)
+    difficultyScale: 1
+  });
+
+  function clone(value) {
+    if (typeof structuredClone === 'function') return structuredClone(value);
+    return JSON.parse(JSON.stringify(value));
+  }
+
+  function getPath(target, path) {
+    return String(path).split('.').reduce((node, key) => node == null ? undefined : node[key], target);
+  }
+
+  function setPath(target, path, value) {
+    const keys = String(path).split('.');
+    const leaf = keys.pop();
+    const parent = keys.reduce((node, key) => {
+      if (!node[key] || typeof node[key] !== 'object') node[key] = {};
+      return node[key];
+    }, target);
+    parent[leaf] = value;
+  }
+
+  // 只有「明確指向 state 子樹」的字串才視為路徑參照(stats./mechanics./flags.)。
+  // 修正:原本任何含 '.' 的字串都會被當路徑,導致 'returnDamageMultiplier:1.65' 解析成 undefined。
+  const VALUE_PATH_RE = /^(stats|mechanics|flags)\./;
+  function resolveValue(state, value) {
+    return typeof value === 'string' && VALUE_PATH_RE.test(value) ? getPath(state, value) : value;
+  }
+
+  // 反向回滾單一操作(真意/劍式專用)
+  function revertOperation(state, opItem) {
+    const currentVal = Number(getPath(state, opItem.path) || 0);
+    const val = resolveValue(state, opItem.value);
+    switch (opItem.op) {
+      case 'add': setPath(state, opItem.path, currentVal - Number(val)); break;
+      case 'mul': setPath(state, opItem.path, currentVal / Number(val)); break;
+      case 'set': break;
+      case 'flag': setPath(state, opItem.path, !Boolean(val)); break;
+      case 'unlock': {
+        const arr = getPath(state, opItem.path);
+        if (Array.isArray(arr)) setPath(state, opItem.path, arr.filter(v => v !== val));
+        break;
+      }
+    }
+  }
+
+  // 回滾全部真意效果
+  function revertTruthEffects(state) {
+    state.appliedTruthEffects.forEach(opItem => revertOperation(state, opItem));
+    state.appliedTruthEffects = [];
+    state.activeTruth = null;
+  }
+
+  // 回滾全部劍式效果
+  function revertFormEffects(state) {
+    state.appliedFormEffects.forEach(opItem => revertOperation(state, opItem));
+    state.appliedFormEffects = [];
+    state.activeForm = null;
+  }
+
+  function applyOperation(state, operation, difficultyScale = 1) {
+    const value = resolveValue(state, operation.value);
+    const scale = difficultyScale;
+    switch (operation.op) {
+      case 'add': setPath(state, operation.path, Number(getPath(state, operation.path) || 0) + Number(value) * scale); break;
+      case 'mul': setPath(state, operation.path, Number(getPath(state, operation.path) || 0) * Number(value)); break;
+      case 'set': setPath(state, operation.path, value); break;
+      case 'max': setPath(state, operation.path, Math.max(Number(getPath(state, operation.path) || 0), Number(value) * scale)); break;
+      case 'flag': setPath(state, operation.path, Boolean(value)); break;
+      case 'status': {
+        const current = state.statuses[operation.path] || {};
+        const payload = clone(value);
+        const newRank = Number(current.rank || 0) + 1;
+        const maxStack = payload.maxStacks || 99;
+        state.statuses[operation.path] = { ...current, ...payload, rank: Math.min(newRank, maxStack) };
+        break;
+      }
+      case 'unlock': {
+        if (!Array.isArray(state[operation.path])) state[operation.path] = [];
+        if (!state[operation.path].includes(value)) state[operation.path].push(value);
+        break;
+      }
+      case 'truth': {
+        revertTruthEffects(state);
+        state.activeTruth = operation.value;
+        const truthInsight = insightById[operation.value];
+        const truthOps = truthInsight.effects.filter(e => e.op !== 'truth');
+        state.appliedTruthEffects = clone(truthOps);
+        truthOps.forEach(opItem => applyOperation(state, opItem, state.difficultyScale));
+        break;
+      }
+      default: throw new Error(`未知 effect operation: ${operation.op}`);
+    }
+    return state;
+  }
+
+  // 全域屬性邊界截斷
+  function clampAllStats(state) {
+    const s = state.stats;
+    // 劍匣上限已廢除(劍令系統:劍令數量無上限)。這裡只留一個防爆的理智上限,
+    // 不是設計上的限制 —— 並行劍數的代價由劍意成本模型承擔(劍多就貴)。
+    s.swordCount = Math.max(1, Math.min(s.swordCount, 24));
+    s.critChance = Math.max(0, Math.min(s.critChance, 0.95));
+    s.mana = Math.min(s.mana, s.manaMax);
+    s.swordSpeed = Math.max(5, Math.min(s.swordSpeed, 60));
+    s.pierce = Math.max(0, Math.min(s.pierce, 8));
+    s.critMultiplier = Math.max(1, Math.min(s.critMultiplier, 10));
+    s.manaCostBase = Math.max(0, Math.min(s.manaCostBase, 60));
+    s.manaCostPerPixel = Math.max(0.01, Math.min(s.manaCostPerPixel, 1));
+    s.costMultiplier = Math.max(0.15, Math.min(s.costMultiplier == null ? 1 : s.costMultiplier, 4));
+    s.swordWidth = Math.max(4, Math.min(s.swordWidth, 90));
+    const m = state.mechanics;
+    m.splashRadius = Math.max(0, Math.min(m.splashRadius, 180));
+    m.splashDamage = Math.max(0.1, Math.min(m.splashDamage, 5));
+    m.homingStrength = Math.max(0, Math.min(m.homingStrength, 0.3));
+  }
+
+  // 清空場上所有墨獸狀態
+  function clearAllStatus(state) {
+    state.statuses = {};
+  }
+
+  // 單局完整重置函數
+  function resetRunState(permanentInput = {}, difficultyScale = 1) {
+    const permanent = createPermanentState(permanentInput);
+    const state = clone(BASE_RUN_STATE);
+    state.difficultyScale = difficultyScale;
+    state.permanentUnlocks = [...permanent.permanentUnlocks];
+    revertTruthEffects(state);
+    revertFormEffects(state);
+    clearAllStatus(state);
+    state.ranks = {};
+    state.runUnlocks = [];
+    for (const node of REBIRTH) {
+      const rank = Number(permanent.ranks[node.id] || 0);
+      for (let i = 0; i < rank; i += 1) node.effects.forEach((effect) => applyOperation(state, effect, state.difficultyScale));
+    }
+    state.stats.mana = state.stats.manaMax;
+    clampAllStats(state);
+    return state;
+  }
+
+  class SeededRandom {
+    constructor(seed = Date.now()) { this.state = (Number(seed) >>> 0) || 0x6d2b79f5; }
+    next() { let t = this.state += 0x6d2b79f5; t = Math.imul(t ^ t >>> 15, t | 1); t ^= t + Math.imul(t ^ t >>> 7, t | 61); return ((t ^ t >>> 14) >>> 0) / 4294967296; }
+    range(min, max) { return min + (max - min) * this.next(); }
+    int(min, max) { return Math.floor(this.range(min, max + 1)); }
+    pick(items) { return items.length ? items[this.int(0, items.length - 1)] : undefined; }
+  }
+
+  const insightById = Object.freeze(Object.fromEntries(INSIGHTS.map((item) => [item.id, item])));
+  const rebirthById = Object.freeze(Object.fromEntries(REBIRTH.map((item) => [item.id, item])));
+
+  function createPermanentState(saved = {}) {
+    return {
+      version: VERSION,
+      insight: Math.max(0, Number(saved.insight || 0)),
+      ranks: { ...(saved.ranks || {}) },
+      permanentUnlocks: [...new Set(saved.permanentUnlocks || [])]
+    };
+  }
+
+  // 強化依賴校驗:同時檢查Rebirth節點與Insight悟道等級
+  function requirementMet(source, requirement) {
+    const [id, rankText] = String(requirement).split(':');
+    const requiredRank = Number(rankText || 1);
+    const rebirthRank = Number(source.ranks?.[id] || 0);
+    const insightItem = insightById[id];
+    let insightRank = 0;
+    if (insightItem) insightRank = Number(source.ranks?.[id] || 0);
+    return rebirthRank >= requiredRank || insightRank >= requiredRank || source.permanentUnlocks?.includes(id) || source.runUnlocks?.includes(id);
+  }
+
+  function createRunState(permanentInput = {}, difficultyScale = 1) {
+    const permanent = createPermanentState(permanentInput);
+    const state = clone(BASE_RUN_STATE);
+    state.difficultyScale = difficultyScale;
+    state.permanentUnlocks = [...permanent.permanentUnlocks];
+    // 存一份永久快照,供洗點時「重建」用(避免 mul 反向的順序誤差)
+    state.permanentSnapshot = { ranks: { ...permanent.ranks }, permanentUnlocks: [...permanent.permanentUnlocks] };
+    for (const node of REBIRTH) {
+      const rank = Number(permanent.ranks[node.id] || 0);
+      for (let i = 0; i < rank; i += 1) node.effects.forEach((effect) => applyOperation(state, effect, state.difficultyScale));
+    }
+    state.stats.mana = state.stats.manaMax;
+    clampAllStats(state);
+    return state;
+  }
+
+  function canOfferInsight(state, item) {
+    const rank = Number(state.ranks[item.id] || 0);
+    if (rank >= item.maxRank) return false;
+    if (!item.requires.every((requirement) => requirementMet(state, requirement))) return false;
+    if (item.excludes.some((id) => Number(state.ranks[id] || 0) > 0)) return false;
+    // 真意互斥:局內已有任一真意等級則不刷新其他真意
+    if (item.category === CATEGORY.TRUTH) {
+      const hasAnyTruth = INSIGHTS.some(ins => ins.category === CATEGORY.TRUTH && Number(state.ranks[ins.id] || 0) > 0);
+      if (hasAnyTruth) return false;
+      if (state.activeTruth && state.activeTruth !== item.id) return false;
+    }
+    return true;
+  }
+
+  // 動態稀有度衰減權重計算
+  // 階數加權:已投資越深的悟道,越容易再次出現 —— 讓「專精」是玩家滾出來的,不靠額外 UI。
+  //
+  // 注意:這**不是**為了讓滿階變得可能。實測全新存檔的卡池只有 17 張(7 張需傳承解鎖,
+  // 其中 6 張是 maxRank 1 的真意),再加上同稀有度每 3 張 ×0.75 的權重衰減,
+  // 有效卡池比「24 張等機率」小得多 —— 就算完全不加權,第 40 境也已有約 2.7 張滿階。
+  // 這個係數的實際效果只有 +0.1~0.2 張(1.0→1.45 是 2.7→2.9),
+  // 真正的價值在手感:你正在堆的那張會更常出現在三選一裡,專精的過程比較不卡。
+  // 想關掉就設 1.0。
+  const RANK_FOCUS = 1.25;
+  function getDynamicRarityWeight(state, item) {
+    let base = rarity.weight[item.rarity];
+    const sameRarityCount = INSIGHTS.filter(i => i.rarity === item.rarity && Number(state.ranks[i.id] || 0) > 0).length;
+    // 每3個同稀有度悟道,權重 ×0.75衰減
+    const decayTimes = Math.floor(sameRarityCount / 3);
+    base *= Math.pow(0.75, decayTimes);
+    // 階數越高,出現率越高(真意 maxRank 1,不適用)
+    const rank = Number(state.ranks[item.id] || 0);
+    if (rank > 0 && item.category !== CATEGORY.TRUTH) base *= Math.pow(RANK_FOCUS, rank);
+    // 已解鎖傳承對應真意,truth權重提升至12
+    if (item.category === CATEGORY.TRUTH && state.permanentUnlocks.some(u => item.requires.includes(u))) {
+      base = 12;
+    }
+    return Math.max(0.1, base);
+  }
+
+  function weightedPick(items, rng, state) {
+    const total = items.reduce((sum, item) => sum + getDynamicRarityWeight(state, item), 0);
+    if (total <= 0) return undefined;
+    let cursor = rng.next() * total;
+    for (const item of items) {
+      cursor -= getDynamicRarityWeight(state, item);
+      if (cursor <= 0) return item;
+    }
+    return items[items.length - 1];
+  }
+
+  function rollInsights(state, count = 3, rngInput = new SeededRandom()) {
+    const rng = typeof rngInput.next === 'function' ? rngInput : new SeededRandom(rngInput);
+    let pool = INSIGHTS.filter((item) => canOfferInsight(state, item));
+    // 過濾被封鎖傳承對應悟道
+    pool = pool.filter(item => !state.lockedInheritance.some(lock => item.requires.includes(lock)));
+    const result = [];
+    const forceInkListening = state.flags.listenToInk && pool.some((item) => item.category === CATEGORY.MOMENTUM || item.category === CATEGORY.INTENT);
+    if (forceInkListening && count > 0) {
+      const focused = pool.filter((item) => item.category === CATEGORY.MOMENTUM || item.category === CATEGORY.INTENT);
+      const chosen = weightedPick(focused, rng, state);
+      if (chosen) result.push(chosen);
+    }
+    while (result.length < count) {
+      const candidates = pool.filter((item) => !result.includes(item));
+      if (!candidates.length) break;
+      const chosen = weightedPick(candidates, rng, state);
+      if (!chosen) break;
+      result.push(chosen);
+    }
+    return result;
+  }
+
+  function applyInsight(state, insightId) {
+    const item = insightById[insightId];
+    if (!item) throw new Error(`不存在的領悟:${insightId}`);
+    if (!canOfferInsight(state, item)) throw new Error(`目前無法領悟:${insightId}`);
+    // 劍式單一生效快照處理
+    if (item.category === CATEGORY.FORM) {
+      // 只有「換成另一種劍式」才回滾舊的;重複領悟同一劍式要能疊加劍數
+      // (卡面寫「增一劍」,原本每次都先撤上一次,結果永遠只有 +1 —— 已修)。
+      const switching = state.activeForm && state.activeForm !== item.id;
+      if (switching) revertFormEffects(state);
+      state.activeForm = item.id;
+      const formOps = item.effects.filter(e => e.op !== 'truth');
+      // 累積快照:換式時要把同一劍式歷次的效果全部撤乾淨
+      state.appliedFormEffects = (switching ? [] : clone(state.appliedFormEffects || [])).concat(clone(formOps));
+      formOps.forEach(opItem => applyOperation(state, opItem, state.difficultyScale));
+    } else if (item.category === CATEGORY.TRUTH) {
+      // 真意僅執行 truth op:其處理器已負責回滾舊真意、套用本真意其餘效果一次、並記錄快照。
+      // 修正:原本外層再 forEach 全部 effects 會把數值效果重複套用一次(bug)。
+      const truthOp = item.effects.find(e => e.op === 'truth');
+      applyOperation(state, truthOp, state.difficultyScale);
+    } else {
+      item.effects.forEach((effect) => applyOperation(state, effect, state.difficultyScale));
+    }
+    state.ranks[item.id] = Number(state.ranks[item.id] || 0) + 1;
+    // 滿階那一刻起算階級擊殺數(每個技能各自累計)
+    if (item.tiers.length && state.ranks[item.id] >= item.maxRank && state.tierKills[item.id] == null) {
+      state.tierKills[item.id] = 0;
+      state.tierLevel[item.id] = 0;
+    }
+    clampAllStats(state);
+    return state;
+  }
+
+  // ── 階級推進 ────────────────────────────────────────────────
+  // 技能滿階時把計數器歸零開始算(見 applyInsight)。之後每次擊殺推進所有已滿階技能。
+  // 門檻是「自起算後的累計」,不是差額:300 / 500 / 1000。
+  function noteKill(state, count = 1) {
+    const gained = [];
+    if (!state.tierKills) return gained;
+    for (const id of Object.keys(state.tierKills)) {
+      const item = insightById[id];
+      if (!item || !item.tiers.length) continue;
+      state.tierKills[id] = Number(state.tierKills[id] || 0) + count;
+      const cur = Number(state.tierLevel[id] || 0);
+      let lv = cur;
+      while (lv < item.tiers.length && state.tierKills[id] >= item.tiers[lv].kills) lv += 1;
+      if (lv > cur) {
+        for (let i = cur; i < lv; i += 1) {
+          const t = item.tiers[i];
+          // pending 的層只升級不套效果(行為依賴尚未完工的系統)
+          if (!t.pending) t.effects.forEach(e => applyOperation(state, e, state.difficultyScale));
+          gained.push({ id, name: item.name, rune: item.rune, tier: t.name, level: t.level,
+                        description: t.description, pending: t.pending });
+        }
+        state.tierLevel[id] = lv;
+        clampAllStats(state);
+      }
+    }
+    return gained;
+  }
+
+  // UI 用:所有已滿階技能的階級進度
+  function getTierView(state) {
+    if (!state.tierKills) return [];
+    return Object.keys(state.tierKills).map((id) => {
+      const item = insightById[id];
+      if (!item) return null;
+      const lv = Number(state.tierLevel[id] || 0);
+      const kills = Number(state.tierKills[id] || 0);
+      const next = item.tiers[lv] || null;
+      return {
+        id, name: item.name, rune: item.rune, level: lv,
+        tierName: lv > 0 ? item.tiers[lv - 1].name : null,
+        kills,
+        nextName: next ? next.name : null,
+        nextAt: next ? next.kills : null,
+        remaining: next ? Math.max(0, next.kills - kills) : 0,
+        tiers: item.tiers.map((t, i) => ({ name: t.name, kills: t.kills, description: t.description,
+                                           reached: i < lv, pending: t.pending }))
+      };
+    }).filter(Boolean);
+  }
+
+  // ── 劍訣註解「效果」模式 ─────────────────────────────────────
+  // 產生器放在 config,讓 validateConfig 與畫面共用同一份實作 ——
+  // 否則版面驗證會跟實際顯示脫節(卡片只有 ~103px 可用寬,超出就被裁掉)。
+  const EFFECT_LABEL = Object.freeze({
+    'stats.hpMax':'神識上限','stats.damage':'傷害','stats.swordWidth':'劍寬','stats.swordSpeed':'劍速',
+    'stats.swordLife':'滯空','stats.pierce':'穿透','stats.critChance':'暴擊率','stats.critMultiplier':'暴擊倍',
+    'stats.manaMax':'劍意上限','stats.manaRegen':'劍意回復','stats.manaOnKill':'回劍意',
+    'stats.swordCap':'劍匣席','stats.swordCount':'飛劍數','stats.costMultiplier':'劍意消耗',
+    'stats.manaCostBase':'起手劍意','stats.manaCostPerPixel':'每寸劍意',
+    'mechanics.homingStrength':'追蹤','mechanics.returnHits':'折返','mechanics.splashRadius':'潑墨範圍',
+    'mechanics.splashDamage':'潑墨傷害','mechanics.statusDuration':'狀態時長','mechanics.trailOpacity':'墨痕濃度',
+    'mechanics.hitPadding':'命中範圍','mechanics.manaRefund':'劍意返還','mechanics.splashChain':'潑墨連鎖'
+  });
+  const EFFECT_PCT = new Set(['stats.critChance','mechanics.homingStrength','mechanics.manaRefund']);
+  const FORMATION_CN = Object.freeze({ fan:'扇形', parallel:'平行', inline:'連珠' });
+  // 版面預算:全形字算 1、半形字算 0.55。卡片一行最多 EFFECT_MAX_W,最多 EFFECT_MAX_LINES 行。
+  const EFFECT_MAX_W = 9.2;
+  const EFFECT_MAX_LINES = 4;
+  function textWidth(t){
+    let w=0;
+    for(const ch of String(t)) w += (ch.charCodeAt(0) < 0x2000) ? 0.55 : 1;
+    return w;
+  }
+  function fmtNum(v){ return String(Math.round(v*100)/100); }
+  function effectLines(item){
+    if (typeof item === 'string') item = insightById[item];
+    if (!item) return [];
+    const out=[];
+    for(const e of item.effects){
+      const L=EFFECT_LABEL[e.path];
+      if(e.op==='add' && L){
+        const v=Number(e.value)||0, neg=v<0, a=Math.abs(v);
+        out.push(L+' '+(neg?'−':'+')+(EFFECT_PCT.has(e.path)?Math.round(a*100)+'%':fmtNum(a)));
+      } else if(e.op==='mul' && L){
+        const d=Math.round((Number(e.value)-1)*100);
+        if(d!==0) out.push(L+' '+(d>0?'+':'−')+Math.abs(d)+'%');
+      } else if(e.op==='set' && e.path==='formation'){
+        out.push('陣型 · '+(FORMATION_CN[e.value]||e.value));
+      } else if(e.op==='set' && e.path==='stats.swordCount'){
+        out.push('飛劍數 = '+e.value);
+      } else if(e.op==='max' && e.path==='stats.mana'){
+        out.push('補滿劍意');
+      } else if(e.op==='status'){
+        // 敵方狀態:拆成短句,一行一件事 —— 併成一句會超出卡片寬度
+        const v=e.value||{};
+        if(v.slow) out.push('緩速 '+Math.round(v.slow*100)+'%');
+        if(v.damagePerSecond) out.push('每秒 −'+fmtNum(v.damagePerSecond));
+        if(v.duration) out.push('續 '+fmtNum(v.duration)+' 秒');
+      }
+    }
+    return out.slice(0, EFFECT_MAX_LINES);
+  }
+
+  // 計算本次洗點消耗劍意(0=免費)。免費 1 次後遞增,封頂 250。
+  function calcResetCost(resetTimes) {
+    if (resetTimes < 1) return 0;
+    const costTable = [30, 80, 150, 250];
+    return costTable[Math.min(resetTimes - 1, costTable.length - 1)];
+  }
+
+  // 撤銷單一悟道之「一階」加成。
+  // 修正版:依快照模型,劍式/真意由快照回滾(只在其為當前生效時),避免與 resetAll 重複扣減。
+  function undoInsight(state, insightId) {
+    const item = insightById[insightId];
+    if (!item) throw new Error(`不存在悟道:${insightId}`);
+    const currentRank = Number(state.ranks[insightId] || 0);
+    if (currentRank <= 0) throw new Error(`該悟道未領悟,無法撤銷:${insightId}`);
+    if (item.category === CATEGORY.FORM) {
+      if (state.activeForm === insightId) revertFormEffects(state);
+    } else if (item.category === CATEGORY.TRUTH) {
+      if (state.activeTruth === insightId) revertTruthEffects(state);
+    } else {
+      item.effects.forEach((opItem) => revertOperation(state, opItem)); // 反向一階
+    }
+    state.ranks[insightId] = currentRank - 1;
+    if (state.ranks[insightId] <= 0) delete state.ranks[insightId];
+    clampAllStats(state);
+    return state;
+  }
+
+  // 全局一鍵洗點:回到「開局(base + 永久問道)」狀態,清空本局悟道/真意/劍式/敵人狀態。
+  // 採「重建」而非逐項反向 —— 徹底避免 mul 反向的順序誤差與真意/劍式殘留。保留洗點次數。
+  function resetAllInsights(state) {
+    const times = Number(state.resetInsightTimes || 0);
+    const snap = state.permanentSnapshot || { permanentUnlocks: state.permanentUnlocks || [] };
+    const fresh = createRunState(snap, state.difficultyScale);
+    fresh.resetInsightTimes = times;
+    Object.keys(state).forEach((k) => { delete state[k]; });
+    Object.assign(state, fresh);
+    clearAllStatus(state);
+    return state;
+  }
+
+  function canPurchaseRebirth(permanentInput, nodeId) {
+    const permanent = createPermanentState(permanentInput);
+    const node = rebirthById[nodeId];
+    if (!node) return { ok: false, reason: 'unknown_node' };
+    const rank = Number(permanent.ranks[nodeId] || 0);
+    if (rank >= node.maxRank) return { ok: false, reason: 'max_rank' };
+    // 強化雙重依賴校驗
+    const allReqMet = node.requires.every(req => requirementMet(permanent, req));
+    if (!allReqMet) return { ok: false, reason: 'requirements' };
+    const cost = Number(node.costs[rank]);
+    if (permanent.insight < cost) return { ok: false, reason: 'insufficient_insight', cost };
+    // 循環依賴檢測
+    const checkCycle = (targetId, chain = []) => {
+      if (chain.includes(targetId)) return true;
+      const targetNode = rebirthById[targetId];
+      if (!targetNode) return false;
+      for (const req of targetNode.requires) {
+        const reqId = req.split(':')[0];
+        if (checkCycle(reqId, [...chain, targetId])) return true;
+      }
+      return false;
+    };
+    if (checkCycle(nodeId)) return { ok: false, reason: 'cycle_requirement' };
+    return { ok: true, cost, nextRank: rank + 1 };
+  }
+
+  function purchaseRebirth(permanentInput, nodeId) {
+    const permanent = createPermanentState(permanentInput);
+    const check = canPurchaseRebirth(permanent, nodeId);
+    if (!check.ok) return { ok: false, reason: check.reason, cost: check.cost, state: permanent };
+    const node = rebirthById[nodeId];
+    permanent.insight -= check.cost;
+    permanent.ranks[nodeId] = check.nextRank;
+    for (const effect of node.effects) {
+      if (effect.op === 'unlock' && effect.path === 'permanentUnlocks' && !permanent.permanentUnlocks.includes(effect.value)) permanent.permanentUnlocks.push(effect.value);
+    }
+    return { ok: true, node, rank: check.nextRank, cost: check.cost, state: permanent };
+  }
+
+  // 臨時鎖定傳承悟道池
+  function lockInheritance(state, inheritId) {
+    if (!state.lockedInheritance.includes(inheritId)) state.lockedInheritance.push(inheritId);
+  }
+
+  function unlockInheritance(state, inheritId) {
+    state.lockedInheritance = state.lockedInheritance.filter(id => id !== inheritId);
+  }
+
+  function getRebirthView(permanentInput) {
+    const permanent = createPermanentState(permanentInput);
+    return REBIRTH.map((node) => ({ ...node, rank: Number(permanent.ranks[node.id] || 0), purchase: canPurchaseRebirth(permanent, node.id) }));
+  }
+
+  function getEffectiveFx(state, insightId) {
+    const item = insightById[insightId];
+    if (!item) return null;
+    // FX渲染優先級:trail < hit < status < truth全域特效
+    return {
+      trail: item.fx.trail,
+      hit: item.fx.hit,
+      status: item.fx.status,
+      truth: state.activeTruth ? insightById[state.activeTruth].fx : null,
+      returnDryBrush: Boolean(state.flags.returnLeavesDryBrush),
+      criticalWhiteCut: Boolean(state.flags.whiteCutOnCrit)
+    };
+  }
+
+  // 舊存檔版本遷移:補全缺失欄位、去重、標記為當前版本(只補不刪玩家進度)
+  function migratePermanentSave(rawSave) {
+    const save = clone(rawSave || {});
+    const targetVer = VERSION;
+    if (!save.version) save.version = '2.0.0';
+    if (typeof save.insight !== 'number') save.insight = 0;
+    if (!save.ranks || typeof save.ranks !== 'object') save.ranks = {};
+    if (!Array.isArray(save.permanentUnlocks)) save.permanentUnlocks = [];
+    save.permanentUnlocks = [...new Set(save.permanentUnlocks)];
+    if (save.version === '2.0.0') save.version = targetVer;
+    if (save.version > targetVer) {
+      const allowKeys = ['version', 'insight', 'ranks', 'permanentUnlocks'];
+      Object.keys(save).forEach((key) => { if (!allowKeys.includes(key)) delete save[key]; });
+      save.version = targetVer;
+    }
+    return Object.freeze(save);
+  }
+
+  // 戰鬥快照:一次聚合本局所有戰鬥用數值,渲染/戰鬥層直接讀,避免重複遍歷與乘算不一致
+  function getCombatSnapshot(state) {
+    const s = state.stats, m = state.mechanics, f = state.flags;
+    const unlockMap = Object.fromEntries(state.runUnlocks.map((str) => str.split(':')));
+    const returnDamageMult = Number(unlockMap.returnDamageMultiplier || 1);
+    const hasCriticalEcho = unlockMap.criticalEcho === '1';
+    return Object.freeze({
+      blade: { baseDamage: s.damage, width: s.swordWidth, speed: s.swordSpeed, lifeTime: s.swordLife, pierceCount: s.pierce, maxCap: s.swordCap, currentCount: s.swordCount },
+      crit: { chance: Math.min(s.critChance, 0.95), multiplier: s.critMultiplier, whiteCutOnCrit: f.whiteCutOnCrit, criticalEcho: hasCriticalEcho, firstStrikeGuaranteed: f.firstStrikeCrit },
+      returnBlade: { enabled: m.returnEnabled, hitCount: m.returnHits, damageMultiplier: returnDamageMult, leaveDryBrush: f.returnLeavesDryBrush },
+      splash: { radius: m.splashRadius, damageMult: m.splashDamage },
+      homing: { strength: m.homingStrength, canCrit: m.homingCanCrit },
+      mana: { current: s.mana, max: s.manaMax, regenPerSec: s.manaRegen, gainOnKill: s.manaOnKill,
+              costBase: s.manaCostBase, costPerPixel: s.manaCostPerPixel,
+              costPerPixelEffective: strokeCostPerPixel(s),
+              maxStrokeLength: Math.max(0, (s.manaMax - s.manaCostBase) / strokeCostPerPixel(s)) },
+      statusTimeScale: m.statusDuration,
+      globalFlags: { splashOnKill: f.splashOnKill, listenInkPool: f.listenToInk },
+      activeTruthId: state.activeTruth,
+      activeFormId: state.activeForm
+    });
+  }
+
+  // 悟道卡片說明的字數硬上限(全形字/String.length)。實測固定卡片最窄版面容量。
+  const DESC_MAX = 22;
+  function validateConfig() {
+    const errors = [];
+    const ids = new Set();
+    for (const item of INSIGHTS) {
+      if (ids.has(item.id)) errors.push(`重複 insight id: ${item.id}`);
+      ids.add(item.id);
+      if (!Object.values(CATEGORY).includes(item.category)) errors.push(`無效分類: ${item.id}`);
+      if (!rarity.order.includes(item.rarity)) errors.push(`無效稀有度: ${item.id}`);
+      // 文案長度上限:悟道三選一卡片為固定尺寸,說明超過 DESC_MAX 全形字會被裁切。
+      // 見 docs/技能文案規範.md。超標一律由 AI 縮短文案,不得縮小字級。
+      if (item.description && item.description.length > DESC_MAX)
+        errors.push(`說明超出 ${DESC_MAX} 字(${item.description.length}):${item.name} 需縮短文案`);
+      // 效果模式的版面檢查:卡片寬度固定,超寬會被裁掉(見 docs/技能文案規範.md)
+      {
+        const lines=effectLines(item);
+        if (lines.length > EFFECT_MAX_LINES)
+          errors.push(`效果行數超出 ${EFFECT_MAX_LINES}(${lines.length}):${item.name}`);
+        for (const ln of lines) {
+          const w = textWidth(ln);
+          if (w > EFFECT_MAX_W)
+            errors.push(`效果單行過寬(${w.toFixed(2)}/${EFFECT_MAX_W}):${item.name} 「${ln}」`);
+        }
+      }
+      // 真意必須攜帶truth操作
+      if (item.category === CATEGORY.TRUTH && !item.effects.some(e => e.op === 'truth')) {
+        errors.push(`真意缺少truth操作: ${item.id}`);
+      }
+      // 劍式僅允許 add/stats.swordCount + set/formation
+      if (item.category === CATEGORY.FORM) {
+        const invalid = item.effects.some(e => !((e.op === 'add' && e.path === 'stats.swordCount') || (e.op === 'set' && e.path === 'formation')));
+        if (invalid) errors.push(`劍式包含非法效果: ${item.id}`);
+      }
+      for (const effect of item.effects) {
+        if (!OP_SCHEMA[effect.op]) errors.push(`無效操作 ${effect.op}: ${item.id}`);
+        else if (!OP_SCHEMA[effect.op].includes(effect.path)) errors.push(`無效路徑 ${effect.path}: ${item.id}`);
+      }
+    }
+    const rebirthIds = new Set();
+    for (const node of REBIRTH) {
+      if (rebirthIds.has(node.id)) errors.push(`重複 rebirth id: ${node.id}`);
+      rebirthIds.add(node.id);
+      if (node.costs.length !== node.maxRank) errors.push(`cost 數量不符: ${node.id}`);
+      // Rebirth循環依賴檢測
+      const checkCycle = (targetId, chain = []) => {
+        if (chain.includes(targetId)) return true;
+        const targetNode = rebirthById[targetId];
+        if (!targetNode) return false;
+        for (const req of targetNode.requires) {
+          const reqId = req.split(':')[0];
+          if (checkCycle(reqId, [...chain, targetId])) return true;
+        }
+        return false;
+      };
+      if (checkCycle(node.id)) errors.push(`重生節點存在循環依賴: ${node.id}`);
+    }
+    return Object.freeze({ ok: errors.length === 0, errors: Object.freeze(errors) });
+  }
+
+  /* 舊引擎相容層:完整支援mul/flag/status/truth全部機制 */
+  const LEGACY_RARITY = Object.freeze({ awakening: 'n', clarity: 'r', penetration: 'e', truth: 'l' });
+  const LEGACY_PATH = Object.freeze({
+    'stats.hpMax': 'hpMax', 'stats.swordCount': 'count', 'stats.damage': 'damage', 'stats.swordWidth': 'size', 'stats.swordSpeed': 'speed', 'stats.swordLife': 'life', 'stats.pierce': 'pierce', 'stats.critChance': 'crit', 'stats.manaMax': 'manaMax', 'stats.manaRegen': 'manaRegen', 'stats.manaOnKill': 'regen', 'stats.swordCap': 'cap', 'mechanics.homingStrength': 'homing', 'mechanics.returnHits': 'ret', 'mechanics.splashRadius': 'explode', formation: 'formation'
+  });
+
+  function toLegacyEffect(item) {
+    const result = { add: {}, mul: {}, flags: [], status: [] };
+    for (const effect of item.effects) {
+      const key = LEGACY_PATH[effect.path];
+      if (!key) continue;
+      if (effect.op === 'add') result.add[key] = effect.value;
+      if (effect.op === 'mul') result.mul[key] = effect.value;
+      if (effect.op === 'flag') result.flags.push(effect.path);
+      if (effect.op === 'status') result.status.push({ id: effect.path, ...effect.value });
+    }
+    return result;
+  }
+
+  const legacyAffixes = Object.freeze(INSIGHTS.map((item) => Object.freeze({
+    id: item.id,
+    name: item.name,
+    rar: LEGACY_RARITY[item.rarity],
+    rune: item.rune,
+    desc: item.description,
+    effect: Object.freeze(toLegacyEffect(item)),
+    locked: item.requires[0] || undefined,
+    category: item.category,
+    fx: item.fx
+  })));
+
+  const legacyMetaUp = Object.freeze(REBIRTH.filter((node) => node.branch === REBIRTH_BRANCH.FOUNDATION).map((node) => Object.freeze({
+    id: node.id,
+    name: node.name,
+    desc: node.description,
+    max: node.maxRank,
+    cost: node.costs,
+    per: Object.freeze(Object.fromEntries(node.effects.filter((effect) => effect.op === 'add').map((effect) => [LEGACY_PATH[effect.path] || effect.path.split('.').pop(), effect.value])))
+  })));
+
+  const legacyMetaUnlock = Object.freeze(REBIRTH.filter((node) => node.branch !== REBIRTH_BRANCH.FOUNDATION).map((node) => Object.freeze({ id: node.id, name: node.name, desc: node.description, cost: node.costs[0] })));
+
+  const validation = validateConfig();
+  if (!validation.ok) throw new Error(`INK_CONFIG 驗證失敗:\n${validation.errors.join('\n')}`);
+
+  const CONFIG = Object.freeze({
+    version: VERSION,
+    schemaVersion: 2,
+    terminology: Object.freeze({ upgradeTitle: '悟道', upgradePrompt: '請領悟一縷劍意', rebirthTitle: '問道', currency: '劍意' }),
+    growth: GROWTH,
+    category: CATEGORY,
+    rebirthBranch: REBIRTH_BRANCH,
+    rarity,
+    fx,
+    opSchema: OP_SCHEMA,
+    baseRunState: BASE_RUN_STATE,
+    insights: INSIGHTS,
+    insightById,
+    rebirth: REBIRTH,
+    rebirthById,
+    runtime: Object.freeze({
+      SeededRandom,
+      createPermanentState,
+      createRunState,
+      resetRunState,
+      canOfferInsight,
+      rollInsights,
+      applyInsight,
+      undoInsight,
+      resetAllInsights,
+      calcResetCost,
+      applyOperation,
+      revertTruthEffects,
+      revertFormEffects,
+      clearAllStatus,
+      clampAllStats,
+      canPurchaseRebirth,
+      purchaseRebirth,
+      lockInheritance,
+      unlockInheritance,
+      getRebirthView,
+      getEffectiveFx,
+      migratePermanentSave,
+      getCombatSnapshot,
+      noteKill,
+      getTierView,
+      effectLines,
+      textWidth,
+      validateConfig
+    }),
+    // 舊版完整相容介面
+    affixes: legacyAffixes,
+    metaUp: legacyMetaUp,
+    metaUnlock: legacyMetaUnlock,
+    homingBoost: Object.freeze({ unlock: 'inherit_guide', mult: 2.2 }),
+    legacy: Object.freeze({
+      rarity: Object.freeze({ weight: Object.freeze({ n: 60, r: 28, e: 10, l: 2 }), name: Object.freeze({ n: '初悟', r: '明悟', e: '徹悟', l: '真意' }) }),
+      affixes: legacyAffixes,
+      metaUp: legacyMetaUp,
+      metaUnlock: legacyMetaUnlock
+    })
+  });
+
+  global.INK_CONFIG = CONFIG;
+})(typeof window !== 'undefined' ? window : globalThis);

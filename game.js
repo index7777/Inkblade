@@ -138,6 +138,21 @@
   var H = 0;
   var DPR = Math.min(window.devicePixelRatio || 1, 2);
   var PLAY_TOP = 0;
+  var MASTER_W = 640;
+  var MASTER_H = 1138;
+  function fitMasterStage() {
+    const wrap = document.getElementById("wrap");
+    if (!wrap) return 1;
+    const viewport = window.visualViewport;
+    const bodyStyle = getComputedStyle(document.body);
+    const safeX = (parseFloat(bodyStyle.paddingLeft) || 0) + (parseFloat(bodyStyle.paddingRight) || 0);
+    const safeY = (parseFloat(bodyStyle.paddingTop) || 0) + (parseFloat(bodyStyle.paddingBottom) || 0);
+    const availableW = Math.max(1, (viewport?.width || window.innerWidth) - safeX);
+    const availableH = Math.max(1, (viewport?.height || window.innerHeight) - safeY);
+    const scale = Math.min(availableW / MASTER_W, availableH / MASTER_H);
+    wrap.style.setProperty("--stage-scale", String(scale));
+    return scale;
+  }
   var QUALITY = {
     low: { dpr: 1, fx: { bg: true, vig: false, trail: false, ink: false, part: false, glow: false }, ink: 0, part: 0 },
     med: { dpr: 1.5, fx: { bg: true, vig: true, trail: true, ink: true, part: true, glow: false }, ink: 90, part: 120 },
@@ -161,6 +176,7 @@
     if (!cv) return;
     try {
       const cr = cv.getBoundingClientRect();
+      const logicalScale = cr.height > 0 ? cv.clientHeight / cr.height : 1;
       let bottom = 0;
       for (const id of ["barwrap", "realmHUD", "ctrls", "scorewrap"]) {
         const el = document.getElementById(id);
@@ -169,7 +185,7 @@
         if (st.display === "none" || st.visibility === "hidden" || +st.opacity === 0) continue;
         const r = el.getBoundingClientRect();
         if (!r.height) continue;
-        bottom = Math.max(bottom, r.bottom - cr.top);
+        bottom = Math.max(bottom, (r.bottom - cr.top) * logicalScale);
       }
       PLAY_TOP = bottom > 0 ? bottom + 6 : Math.min(H * 0.14, 90);
     } catch (_) {
@@ -190,9 +206,9 @@
     if (hooks.invalidatePaper) hooks.invalidatePaper();
   }
   function resize() {
-    const r = cv.getBoundingClientRect();
-    W = Math.max(1, Math.round(r.width) || window.innerWidth);
-    H = Math.max(1, Math.round(r.height) || window.innerHeight);
+    fitMasterStage();
+    W = Math.max(1, cv.clientWidth || MASTER_W);
+    H = Math.max(1, cv.clientHeight || MASTER_H);
     DPR = Math.min(window.devicePixelRatio || 1, qual().dpr, DPR || 2);
     cv.width = W * DPR;
     cv.height = H * DPR;
@@ -1499,8 +1515,6 @@
     {
       const P = G.player, p1 = cut[Math.min(3, cut.length - 1)];
       G.aim = Math.atan2(p1.y - P.y, p1.x - P.x);
-      const h = P.r * 4.7, feet = P.y + P.r * 1.05;
-      G.streaks.push({ x1: P.x + G.facing * h * 0.1, y1: feet - h * 0.55, x2: s0.x, y2: s0.y, life: 1 });
     }
     const n = Math.max(1, stat.count | 0);
     const c = {
@@ -3405,13 +3419,17 @@
   }
   var levelChoiceLocked = false;
   var levelRerolls = 2;
-  var CARD_CATEGORY_NAME = { form: "陣", momentum: "行", intent: "痕", cultivation: "稟", truth: "意" };
+  var startingFormationOpen = false;
+  var truthSelectionOpen = false;
+  var CARD_CATEGORY_NAME = { form: "陣", momentum: "行", intent: "痕", cultivation: "稟", blade: "型", truth: "意" };
   var CARD_RANK_CN = ["", "一", "二", "三", "四", "五"];
   function levelChoiceOpen() {
     return document.getElementById("overlay").classList.contains("show");
   }
   function resetLevelChoice() {
     levelChoiceLocked = false;
+    startingFormationOpen = false;
+    document.getElementById("cardbox")?.classList.remove("formation-draft", "compact-draft", "truth-draft");
     document.getElementById("overlay")?.classList.remove("show");
   }
   function renderReroll() {
@@ -3440,6 +3458,16 @@
     levelChoiceLocked = false;
     hooks5.resetSwordDrawing?.();
     const runtime = hooks5.getRuntime?.(), runState = hooks5.getRunState?.();
+    if (!runState.activeForm) {
+      drawStartingFormations();
+      return;
+    }
+    startingFormationOpen = false;
+    document.getElementById("cardbox")?.classList.remove("formation-draft", "compact-draft", "truth-draft");
+    document.querySelector("#cardbox h2").textContent = "悟 · 選一道劍訣";
+    document.querySelector("#cardbox p.tip").textContent = "道行精進，天地賜法。點選一張以承其力。";
+    document.getElementById("rerollbtn").hidden = false;
+    document.getElementById("rerollleft").hidden = false;
     const choices = runtime.rollInsights(runState, 3);
     const box = document.getElementById("cards");
     box.innerHTML = "";
@@ -3465,13 +3493,78 @@
     document.getElementById("overlay").classList.add("show");
     applyBattleMode();
   }
+  function drawTruthChoices() {
+    const runtime = hooks5.getRuntime?.(), runState = hooks5.getRunState?.();
+    if (!G.running || !runtime || !runState || runState.activeTruth) return false;
+    const choices = runtime.getUnlockedTruths(runState);
+    if (!choices.length) return false;
+    truthSelectionOpen = true;
+    levelChoiceLocked = false;
+    hooks5.resetSwordDrawing?.();
+    document.getElementById("cardbox")?.classList.remove("formation-draft");
+    document.getElementById("cardbox")?.classList.add("compact-draft", "truth-draft");
+    document.querySelector("#cardbox h2").textContent = "真意 · 選一式鎖定";
+    document.querySelector("#cardbox p.tip").textContent = "劍陣五階，真意初成。本局選定後不可更換。";
+    document.getElementById("rerollbtn").hidden = true;
+    document.getElementById("rerollleft").hidden = true;
+    document.getElementById("manabill").innerHTML = "<b>共通</b><span>消耗 200 劍意 · 冷卻 30 秒</span>";
+    document.getElementById("lvqueue").textContent = "";
+    const box = document.getElementById("cards");
+    box.innerHTML = "";
+    choices.forEach((item) => {
+      const element = document.createElement("div");
+      element.className = "card truth-card";
+      element.innerHTML = `<div class="cardcategory">意</div><div class="rune">${item.rune}</div>
+      <div class="cname">${item.name}</div><div class="cdesc">${item.description}</div>
+      <div class="ctrade">${item.active.duration ? "持續 " + item.active.duration + " 秒" : "瞬發"}</div>`;
+      element.onclick = () => selectInsightCard(item);
+      box.appendChild(element);
+    });
+    document.getElementById("overlay").classList.add("show");
+    G.paused = true;
+    return true;
+  }
+  function drawStartingFormations() {
+    if (!G.running) return;
+    const runtime = hooks5.getRuntime?.(), runState = hooks5.getRunState?.();
+    if (!runtime || !runState || runState.activeForm) return;
+    startingFormationOpen = true;
+    levelChoiceLocked = false;
+    levelRerolls = 0;
+    hooks5.resetSwordDrawing?.();
+    const cardbox = document.getElementById("cardbox");
+    cardbox.classList.add("formation-draft", "compact-draft");
+    cardbox.querySelector("h2").textContent = "定 · 選一座劍陣";
+    cardbox.querySelector("p.tip").textContent = "此陣將鎖定本局，選定後不可更換。";
+    const box = document.getElementById("cards");
+    box.innerHTML = "";
+    runtime.getStartingFormations().forEach((item) => {
+      const displayName = cardDisplayName(item), displayRune = Array.from(displayName)[0] || "陣";
+      const element = document.createElement("div");
+      element.className = "card";
+      element.innerHTML = `<div class="cardcategory" aria-label="類別：陣">陣</div>
+      <div class="cardrank" aria-label="選擇後為一階">一階</div>
+      <div class="rune">${displayRune}</div><div class="cname">${displayName}</div>${cardBody(item)}`;
+      element.onclick = () => selectInsightCard(item);
+      box.appendChild(element);
+    });
+    document.getElementById("lvqueue").textContent = "四陣擇一 · 必選";
+    document.getElementById("manabill").innerHTML = "";
+    renderReroll();
+    document.getElementById("rerollbtn").hidden = true;
+    document.getElementById("rerollleft").hidden = true;
+    document.getElementById("overlay").classList.add("show");
+    G.paused = true;
+  }
   function selectInsightCard(item) {
     if (levelChoiceLocked || !G.running) return;
     levelChoiceLocked = true;
     hooks5.playPick?.();
     const runtime = hooks5.getRuntime?.(), runState = hooks5.getRunState?.();
     const rankBefore = runState.ranks[item.id] || 0;
-    runtime.applyInsight(runState, item.id);
+    if (startingFormationOpen) runtime.chooseStartingFormation(runState, item.id);
+    else if (truthSelectionOpen) runtime.chooseActiveTruth(runState, item.id);
+    else runtime.applyInsight(runState, item.id);
     hooks5.syncStat?.();
     if (item.category === "form") {
       runtime.recomputeForFormation(runState);
@@ -3485,7 +3578,21 @@
       G.banner = { txt: item.name + " 滿階 · 小成 " + item.tiers[0].kills + " 斬", life: 1 };
       hooks5.floatText?.(G.player.x, G.player.y - 56, item.name + " 滿階", "#c08a2e");
     }
-    closeLevelUp();
+    if (truthSelectionOpen) {
+      truthSelectionOpen = false;
+      document.getElementById("overlay").classList.remove("show");
+      levelChoiceLocked = false;
+      G.banner = { txt: "真意 · " + item.name, life: 1 };
+      hooks5.onTruthChosen?.(item);
+      if (G.pendingLevels > 0 && G.running) drawCards();
+      else G.paused = pausedByUser;
+    } else if (startingFormationOpen) {
+      startingFormationOpen = false;
+      document.getElementById("cardbox").classList.remove("formation-draft", "compact-draft", "truth-draft");
+      document.getElementById("overlay").classList.remove("show");
+      levelChoiceLocked = false;
+      hooks5.onFormationChosen?.(item);
+    } else closeLevelUp();
   }
   function applyBattleMode() {
     if (!levelChoiceOpen()) return;
@@ -3500,6 +3607,7 @@
   }
   function closeLevelUp() {
     if (G.pendingLevels > 0) G.pendingLevels--;
+    if (drawTruthChoices()) return;
     if (G.pendingLevels > 0 && G.running) {
       drawCards();
       return;
@@ -3883,10 +3991,161 @@
     window.addEventListener("pointercancel", end);
   }
 
+  // src/boot.js
+  var LOGIC_MS = 1e3 / 60;
+  var hooks6 = {};
+  var idleFrame = 0;
+  var perfBuf = [];
+  var perfBad = 0;
+  var perfStart = 0;
+  var logicAcc = 0;
+  var renderAcc = 0;
+  var lastFrameTs = 0;
+  function configureBoot(nextHooks) {
+    hooks6 = nextHooks || {};
+  }
+  function resetBootClock(now = performance.now()) {
+    logicAcc = 0;
+    renderAcc = 0;
+    lastFrameTs = now;
+  }
+  function watchPerf(ts) {
+    if (!perfStart) {
+      perfStart = ts;
+      return;
+    }
+    if (ts - perfStart < 2e3) return;
+    perfBuf.push(ts);
+    if (perfBuf.length < 91) return;
+    const d = [];
+    for (let i = 1; i < perfBuf.length; i++) d.push(perfBuf[i] - perfBuf[i - 1]);
+    perfBuf.length = 0;
+    d.sort((a, b) => a - b);
+    const med = d[d.length >> 1];
+    if (med > 22) {
+      if (++perfBad >= 2) {
+        if (DPR > 1) {
+          setDPR(Math.max(1, +(DPR - 0.5).toFixed(2)));
+          cv.width = W * DPR;
+          cv.height = H * DPR;
+          ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+        } else {
+          hooks6.degradeQuality?.();
+        }
+        perfBad = 0;
+      }
+    } else perfBad = 0;
+  }
+  function gameLoop(ts) {
+    try {
+      ts = ts || performance.now();
+      hooks6.diagFrame?.(ts);
+      const dt = Math.min(200, lastFrameTs ? ts - lastFrameTs : LOGIC_MS);
+      lastFrameTs = ts;
+      if (G.running) {
+        watchPerf(ts);
+        const diag = hooks6.getDiag?.();
+        const measuring = diag?.on ? performance.now() : 0;
+        if (!G.paused) {
+          logicAcc += dt;
+          let steps = 0;
+          while (logicAcc >= LOGIC_MS && steps < 4) {
+            if (G.hitstop > 0) G.hitstop--;
+            else hooks6.update?.();
+            logicAcc -= LOGIC_MS;
+            steps++;
+          }
+          if (steps === 4 && logicAcc >= LOGIC_MS) logicAcc %= LOGIC_MS;
+          const afterUpdate = diag?.on ? performance.now() : 0;
+          let paint = true;
+          const cap = (hooks6.getFps?.() || 0) | 0;
+          if (cap > 0) {
+            const iv = 1e3 / cap;
+            renderAcc += dt;
+            if (renderAcc >= iv) renderAcc %= iv;
+            else paint = false;
+          }
+          if (paint && !hooks6.isNoDraw?.()) hooks6.draw?.();
+          if (diag?.on) {
+            diag.upd = diag.upd * 0.9 + (afterUpdate - measuring) * 0.1;
+            diag.drw = diag.drw * 0.9 + (performance.now() - afterUpdate) * 0.1;
+          }
+        } else if ((idleFrame++ & 3) === 0 && !hooks6.isNoDraw?.()) hooks6.draw?.();
+      }
+    } catch (error) {
+      hooks6.onLoopError?.(error);
+    } finally {
+      requestAnimationFrame(gameLoop);
+    }
+  }
+  function bindClick(id, handler) {
+    const el = document.getElementById(id);
+    if (el) el.onclick = handler;
+  }
+  function bindBootEvents(actions) {
+    document.addEventListener("pointerdown", (e) => {
+      const b = e.target.closest && e.target.closest(".btn");
+      if (b) actions.inkSplashAt?.(e.clientX, e.clientY);
+    }, true);
+    for (const [id, handler] of Object.entries(actions.clicks || {})) bindClick(id, handler);
+    if (actions.stamp) {
+      window.addEventListener("beforeunload", actions.stamp);
+      document.addEventListener("visibilitychange", () => {
+        if (document.hidden) actions.stamp();
+      });
+    }
+    if (actions.canvas) {
+      const { down, move, up, cancel } = actions.canvas;
+      const finish = (event, commit) => {
+        (commit ? up : cancel)?.(event);
+        try {
+          if (cv.hasPointerCapture?.(event.pointerId)) cv.releasePointerCapture(event.pointerId);
+        } catch (_) {
+        }
+      };
+      cv.addEventListener("pointerdown", (event) => {
+        if (event.pointerType === "mouse" && event.button !== 0) return;
+        try {
+          cv.setPointerCapture?.(event.pointerId);
+        } catch (_) {
+        }
+        down(event);
+      }, { passive: false });
+      cv.addEventListener("pointermove", move, { passive: false });
+      cv.addEventListener("pointerup", (event) => finish(event, true), { passive: false });
+      cv.addEventListener("pointercancel", (event) => finish(event, false), { passive: false });
+      cv.addEventListener("lostpointercapture", cancel, { passive: false });
+      window.addEventListener("blur", cancel);
+      document.addEventListener("visibilitychange", () => {
+        if (document.hidden) cancel?.();
+      });
+    }
+    if (actions.menuGesture) {
+      const events = ["pointerdown", "keydown", "touchstart"];
+      const onGesture = () => {
+        if (actions.menuGesture()) events.forEach((ev) => window.removeEventListener(ev, onGesture));
+      };
+      events.forEach((ev) => window.addEventListener(ev, onGesture, { passive: true }));
+    }
+    window.addEventListener("keydown", (e) => actions.keydown?.(e));
+    document.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      return false;
+    });
+    document.addEventListener("dragstart", (e) => e.preventDefault());
+    document.addEventListener("selectstart", (e) => {
+      if (!/^(INPUT|TEXTAREA)$/.test(e.target.tagName)) e.preventDefault();
+    });
+  }
+  function startBoot() {
+    requestAnimationFrame(gameLoop);
+  }
+
   // src/main.js
   (function() {
     "use strict";
     let booted = false;
+    let pendingFormationStart = null;
     configureViewport({
       getQuality: () => meta.quality,
       getFX: () => FX,
@@ -3924,9 +4183,7 @@
       applyVolume: () => SND.applyVol(),
       setSoundEnabled: (on) => SND.setOn(on),
       applyQuality: () => applyQuality(),
-      resetRenderAccumulator: () => {
-        renderAcc = 0;
-      },
+      resetRenderAccumulator: () => resetBootClock(),
       renderHeroChoices: () => renderHeroChoices(),
       renderTierList: () => renderTierList(),
       resetRespec: () => resetRespecConfirmation(),
@@ -3958,7 +4215,13 @@
         item.grant();
         saveMeta();
         return true;
-      }
+      },
+      onFormationChosen: () => {
+        const resume = pendingFormationStart;
+        pendingFormationStart = null;
+        resume?.();
+      },
+      onTruthChosen: () => refreshTruthButton()
     });
     configureRender({
       getHeroAssets: () => ({ meta, HEROX, HEROF, HEROSPR, HERO, ART }),
@@ -4019,7 +4282,12 @@
       syncStat: () => syncStat(),
       gainXP: (value) => gainXP(value),
       updateHUD: () => updateHUD(),
-      beginDeath: () => beginDeath()
+      beginDeath: () => beginDeath(),
+      onFormationChosen: () => {
+        const resume = pendingFormationStart;
+        pendingFormationStart = null;
+        resume?.();
+      }
     });
     const ART = { body: new Image(), sword: new Image(), n: 0, ok: false };
     ["body", "sword"].forEach((k) => {
@@ -4341,10 +4609,6 @@
       meta.lastSeen = Date.now();
       saveMeta();
     }
-    window.addEventListener("beforeunload", stamp);
-    document.addEventListener("visibilitychange", () => {
-      if (document.hidden) stamp();
-    });
     function offlineRate() {
       return 5 + meta.best.wave * 2;
     }
@@ -4668,7 +4932,10 @@
     function pos(e) {
       const r = cv.getBoundingClientRect();
       const p = e.touches ? e.touches[0] : e;
-      return { x: p.clientX - r.left, y: p.clientY - r.top };
+      return {
+        x: (p.clientX - r.left) * (cv.clientWidth / Math.max(1, r.width)),
+        y: (p.clientY - r.top) * (cv.clientHeight / Math.max(1, r.height))
+      };
     }
     function allowedLen() {
       let b = Math.max(0, G.mana - stat.costBase);
@@ -4704,12 +4971,14 @@
       curLen = 0;
       maxed = false;
     }
-    cv.addEventListener("mousedown", down);
-    cv.addEventListener("mousemove", move);
-    window.addEventListener("mouseup", up);
-    cv.addEventListener("touchstart", down, { passive: false });
-    cv.addEventListener("touchmove", move, { passive: false });
-    window.addEventListener("touchend", up, { passive: false });
+    function cancelDraw(e) {
+      if (!drawing) return;
+      if (e?.cancelable) e.preventDefault();
+      drawing = false;
+      path = [];
+      curLen = 0;
+      maxed = false;
+    }
     const DPS = { win: 10, f: 0, cur: { d: 0, m: 0, k: 0 }, buckets: [], totD: 0, totM: 0, totK: 0, secs: 0, open: false };
     function dpsReset() {
       DPS.f = 0;
@@ -4756,7 +5025,100 @@
         dpsAdd("d", v);
       }
     }
+    let truthCooldown = 0, truthFx = null;
+    function refreshTruthButton() {
+      const b = document.getElementById("truthbtn");
+      if (!b) return;
+      const item = runState && runState.activeTruth && INK_CONFIG.insightById[runState.activeTruth];
+      b.hidden = !item || !G.running;
+      if (!item) return;
+      const sec = Math.ceil(truthCooldown / 60);
+      b.classList.toggle("cooling", truthCooldown > 0);
+      b.querySelector("span").textContent = item.rune + " · " + item.name.slice(0, 2);
+      b.querySelector("small").textContent = truthCooldown > 0 ? sec + " 息" : "200 劍意";
+    }
+    function castActiveTruth() {
+      if (!G.running || G.paused || !runState?.activeTruth || truthCooldown > 0) return;
+      const item = INK_CONFIG.insightById[runState.activeTruth], cost = item.active.manaCost;
+      if (G.mana < cost) {
+        SND.nomana();
+        return;
+      }
+      G.mana -= cost;
+      truthCooldown = Math.round(item.active.cooldown * 60);
+      truthFx = { id: item.id, t: 0, dur: Math.max(54, Math.round((item.active.duration || 0.9) * 60)), hits: /* @__PURE__ */ new WeakMap() };
+      SND.cast(Math.max(W, H));
+      G.banner = { txt: "真意 · " + item.name, life: 1 };
+      refreshTruthButton();
+      updateHUD();
+    }
+    function updateActiveTruth() {
+      if (truthCooldown > 0) truthCooldown--;
+      if (!truthFx) {
+        if (G.t % 30 === 0) refreshTruthButton();
+        return;
+      }
+      const F = truthFx, P = G.player;
+      F.t++;
+      const progress = F.t / F.dur, swords = Math.max(1, stat.count | 0), base = stat.damage;
+      for (const en of G.enemies) {
+        if (en.dead || en.showcaseGhost) continue;
+        let hit = false, dmg = base;
+        if (F.id === "truth_ten_thousand") {
+          hit = Math.abs(Math.hypot(en.x - P.x, en.y - P.y) / Math.hypot(W, H) - progress) < 0.085;
+        } else if (F.id === "truth_single_stroke") {
+          const y = H - (H + 140) * progress;
+          hit = Math.abs(en.y - y) < 70;
+          dmg = base * swords * 0.16;
+        } else if (F.id === "truth_return_hidden") {
+          const phase = F.t % 120 / 120, radius = (phase < 0.5 ? phase * 2 : (1 - phase) * 2) * Math.hypot(W, H) * 0.52;
+          hit = Math.abs(Math.hypot(en.x - P.x, en.y - P.y) - radius) < 34;
+        } else if (F.id === "truth_moon_return") {
+          hit = Math.abs(Math.hypot(en.x - P.x, en.y - P.y) - Math.min(W, H) * 0.25) < 42;
+          dmg = base * Math.max(1, stat.flySpeed / 14) * 0.22;
+        }
+        const last = F.hits.get(en) || -99;
+        if (hit && F.t - last >= 10) {
+          F.hits.set(en, F.t);
+          dmgTo(en, dmg);
+          applyIntent(en);
+        }
+      }
+      if (F.t >= F.dur) truthFx = null;
+      if (G.t % 15 === 0) refreshTruthButton();
+    }
+    function drawTruthFx() {
+      if (!truthFx || !G.player || !FLYSWORD.image.complete) return;
+      const F = truthFx, P = G.player, progress = F.t / F.dur, im = FLYSWORD.image;
+      ctx.save();
+      ctx.globalCompositeOperation = "multiply";
+      const sword = (x, y, a, scale = 1) => {
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(a);
+        ctx.globalAlpha = 0.72;
+        ctx.drawImage(im, -48 * scale, -7 * scale, 96 * scale, 14 * scale);
+        ctx.restore();
+      };
+      if (F.id === "truth_ten_thousand") {
+        const r = progress * Math.hypot(W, H);
+        for (let i = 0; i < Math.max(12, stat.count * 4); i++) {
+          const a = i * 2.399;
+          sword(P.x + Math.cos(a) * r, P.y + Math.sin(a) * r, a + Math.PI / 2, 0.9);
+        }
+      } else if (F.id === "truth_single_stroke") sword(W * 0.5, H - (H + 140) * progress, -Math.PI / 2, 3.2);
+      else {
+        const n = Math.max(6, stat.count), phase = F.id === "truth_return_hidden" ? F.t % 120 / 120 : 0;
+        const r = F.id === "truth_return_hidden" ? (phase < 0.5 ? phase * 2 : (1 - phase) * 2) * Math.hypot(W, H) * 0.52 : Math.min(W, H) * 0.25;
+        for (let i = 0; i < n; i++) {
+          const a = F.t * 0.055 + i * Math.PI * 2 / n;
+          sword(P.x + Math.cos(a) * r, P.y + Math.sin(a) * r, a + Math.PI / 2, 1.15);
+        }
+      }
+      ctx.restore();
+    }
     function update() {
+      updateActiveTruth();
       G.t++;
       const P = G.player;
       const TF0 = stat.tierFlags || {};
@@ -5605,71 +5967,6 @@
       DIAG.el.classList.toggle("show", DIAG.on);
     }
     if (location.search.indexOf("debug") >= 0) setTimeout(toggleDiag, 0);
-    let idleFrame = 0, perfBuf = [], perfBad = 0, perfStart = 0;
-    function watchPerf(ts) {
-      if (!perfStart) {
-        perfStart = ts;
-        return;
-      }
-      if (ts - perfStart < 2e3) return;
-      perfBuf.push(ts);
-      if (perfBuf.length < 91) return;
-      const d = [];
-      for (let i = 1; i < perfBuf.length; i++) d.push(perfBuf[i] - perfBuf[i - 1]);
-      perfBuf.length = 0;
-      d.sort((a, b) => a - b);
-      const med = d[d.length >> 1];
-      if (med > 22) {
-        if (++perfBad >= 2 && DPR > 1) {
-          setDPR(Math.max(1, +(DPR - 0.5).toFixed(2)));
-          cv.width = W * DPR;
-          cv.height = H * DPR;
-          ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-          perfBad = 0;
-        }
-      } else perfBad = 0;
-    }
-    const LOGIC_MS = 1e3 / 60;
-    let logicAcc = 0, renderAcc = 0, lastFrameTs = 0;
-    function loop(ts) {
-      ts = ts || performance.now();
-      diagFrame(ts);
-      const dt = Math.min(200, lastFrameTs ? ts - lastFrameTs : LOGIC_MS);
-      lastFrameTs = ts;
-      if (G.running) {
-        watchPerf(ts);
-        const m = DIAG.on ? performance.now() : 0;
-        if (!G.paused) {
-          logicAcc += dt;
-          let steps = 0;
-          while (logicAcc >= LOGIC_MS && steps < 4) {
-            if (G.hitstop > 0) G.hitstop--;
-            else update();
-            logicAcc -= LOGIC_MS;
-            steps++;
-          }
-          if (steps === 4 && logicAcc >= LOGIC_MS) logicAcc %= LOGIC_MS;
-          const m2 = DIAG.on ? performance.now() : 0;
-          let paint = true;
-          const cap = meta.fps | 0;
-          if (cap > 0) {
-            const iv = 1e3 / cap;
-            renderAcc += dt;
-            if (renderAcc >= iv) {
-              renderAcc = renderAcc % iv;
-            } else paint = false;
-          }
-          if (paint && !NODRAW) draw();
-          if (DIAG.on) {
-            DIAG.upd = DIAG.upd * 0.9 + (m2 - m) * 0.1;
-            DIAG.drw = DIAG.drw * 0.9 + (performance.now() - m2) * 0.1;
-          }
-        } else if ((idleFrame++ & 3) === 0) {
-          if (!NODRAW) draw();
-        }
-      }
-      requestAnimationFrame(loop);
-    }
     let openingSeen = false;
     const DESK_IMG = { w: 941, h: 1672 };
     const SCROLL_UV = { x0: 0.1, x1: 0.88, y0: 0.47, y1: 0.5165, seam: 0.4935 };
@@ -5716,7 +6013,11 @@
     function playOpening(done) {
       const wrap = document.getElementById("wrap"), opening = document.getElementById("opening"), splash2 = document.getElementById("splash"), hud = document.getElementById("hud");
       const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      let finished = false, safetyTimer = 0;
       const finish = () => {
+        if (finished) return;
+        finished = true;
+        clearTimeout(safetyTimer);
         wrap.classList.remove("op");
         wrap.style.setProperty("--z", "0");
         wrap.style.setProperty("--uf", "1");
@@ -5746,7 +6047,9 @@
       if (hud) hud.style.opacity = "0";
       const ease = (t) => 1 - Math.pow(1 - t, 3), easeIO = (t) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
       const t0 = performance.now(), HOLD = 0, ZOOM = 1100, UNFURL = 1400, HUDF = 520;
+      safetyTimer = setTimeout(finish, HOLD + ZOOM + UNFURL + HUDF + 700);
       function frame(now) {
+        if (finished) return;
         const t = now - t0;
         const z = t <= HOLD ? 0 : ease(Math.min(1, (t - HOLD) / ZOOM));
         const uf = t <= HOLD + ZOOM ? 0 : easeIO(Math.min(1, (t - HOLD - ZOOM) / UNFURL));
@@ -5762,12 +6065,12 @@
       requestAnimationFrame(frame);
     }
     function start(mode) {
+      NODRAW = false;
+      DRAWLV = 9;
       const bossTest = mode === "boss" || mode === "boss-fast";
       const fastRestart = mode === "boss-fast";
       dpsReset();
-      logicAcc = 0;
-      renderAcc = 0;
-      lastFrameTs = performance.now();
+      resetBootClock();
       Object.assign(G, {
         running: true,
         paused: false,
@@ -5843,6 +6146,9 @@
       SND.intensity(bossTest ? 60 : 1);
       SND.duck(false);
       runState = INK_CONFIG.runtime.createRunState(buildPermanentSave(), 1);
+      truthCooldown = 0;
+      truthFx = null;
+      refreshTruthButton();
       syncStat();
       G.mana = stat.manaMax;
       G.player = new Player();
@@ -5866,17 +6172,17 @@
       updateHUD();
       computePlayTop();
       requestAnimationFrame(computePlayTop);
-      if (fastRestart) {
-        G.paused = false;
-        SND.startMusic();
-      } else {
-        G.paused = true;
-        playOpening(() => {
-          G.paused = false;
-          if (meta.quality === "low") SND.stopMenu(0);
-          SND.startMusic();
-        });
-      }
+      G.paused = true;
+      pendingFormationStart = () => continueAfterFormation(fastRestart);
+      if (fastRestart) drawStartingFormations();
+      else playOpening(() => {
+        if (meta.quality === "low") SND.stopMenu(0);
+        drawStartingFormations();
+      });
+    }
+    function continueAfterFormation(fastRestart) {
+      G.paused = false;
+      SND.startMusic();
     }
     function renderBossTestTools() {
       const lock = document.getElementById("bosstestlock");
@@ -6253,28 +6559,7 @@
       layer.appendChild(wrap);
       setTimeout(() => wrap.remove(), 850);
     }
-    document.addEventListener("pointerdown", (e) => {
-      const b = e.target.closest && e.target.closest(".btn");
-      if (b) inkSplashAt(e.clientX, e.clientY);
-    }, true);
-    document.getElementById("startbtn").onclick = start;
-    document.getElementById("bosstestbtn").onclick = () => start("boss");
-    document.getElementById("bosstestswordup").onclick = () => bossTestSwordCount(1);
-    document.getElementById("bosstestsworddown").onclick = () => bossTestSwordCount(-1);
-    document.getElementById("bosstestpreset").onclick = bossTestWave60Preset;
-    document.getElementById("bosstestup").onclick = () => bossTestLevel(1);
-    document.getElementById("bosstestdown").onclick = () => bossTestLevel(-1);
-    document.getElementById("bosstestphase").onclick = bossTestNextPhase;
-    document.getElementById("bosstestfour").onclick = bossTestFourDirections;
-    document.getElementById("bosstestfang").onclick = bossTestFang;
-    document.getElementById("bosstestlock").onclick = toggleBossTestHpLock;
-    document.getElementById("bosstestretry").onclick = () => start("boss-fast");
-    document.getElementById("againbtn").onclick = start;
-    document.getElementById("metabtn").onclick = openMeta;
-    document.getElementById("splashmetabtn").onclick = openMeta;
-    document.getElementById("metaplaybtn").onclick = start;
-    document.getElementById("metaclosebtn").onclick = closeMeta;
-    const ART_CATEGORY_NAME = { form: "劍式", momentum: "劍勢", intent: "劍意", cultivation: "修持", truth: "真意" };
+    const ART_CATEGORY_NAME = { form: "劍陣", momentum: "劍行", intent: "劍痕", cultivation: "劍稟", blade: "劍型", truth: "真意" };
     function artTierName(rank) {
       return rank <= 1 ? "一階" : rank === 2 ? "二階" : "三階";
     }
@@ -6301,38 +6586,23 @@
       if (G.running) G.paused = open || isPausedByUser();
       if (!meta.mute) SND.ui();
     }
-    document.getElementById("swordartsbtn").onclick = () => toggleSwordArts(true);
-    document.getElementById("artsclose").onclick = () => toggleSwordArts(false);
-    document.getElementById("artsPanel").onclick = (e) => {
-      if (e.target.id === "artsPanel") toggleSwordArts(false);
-    };
-    document.getElementById("scoretribtn").onclick = (e) => {
+    function toggleScorePanel(e) {
       e.stopPropagation();
       const wrap = document.getElementById("scorewrap"), panel = document.getElementById("dpsbox");
       const open = wrap.classList.toggle("open");
       e.currentTarget.setAttribute("aria-expanded", String(open));
       e.currentTarget.setAttribute("aria-label", open ? "收合本境進度" : "展開本境進度");
       panel.setAttribute("aria-hidden", String(!open));
-    };
-    document.getElementById("pausebtn").onclick = () => togglePause();
-    document.getElementById("autobtn").onclick = toggleAuto;
-    document.getElementById("rerollbtn").onclick = rerollCards;
-    document.getElementById("sndbtn").onclick = toggleSound;
+    }
     renderSoundButton();
     bindVolumeSettings();
     renderVolumeSettings();
-    (function bindMenuBgm() {
-      const EV = ["pointerdown", "keydown", "touchstart"];
-      const onGesture = () => {
-        SND.unlock();
-        if (G.running || meta.mute) return;
-        SND.startMenu();
-        if (SND.menuPlaying()) EV.forEach((ev) => window.removeEventListener(ev, onGesture));
-      };
-      EV.forEach((ev) => window.addEventListener(ev, onGesture, { passive: true }));
-    })();
-    document.getElementById("resumebtn").onclick = () => togglePause(false);
-    document.getElementById("respecbtn").onclick = requestRespec;
+    function startMenuFromGesture() {
+      SND.unlock();
+      if (G.running || meta.mute) return false;
+      SND.startMenu();
+      return SND.menuPlaying();
+    }
     bindHeroChoices();
     function alignHud() {
       computePlayTop();
@@ -6346,14 +6616,7 @@
     enableDragScroll("pausepanel");
     enableDragScroll("metabox");
     enableDragScroll("shopbox");
-    document.getElementById("pausequitbtn").onclick = () => {
-      togglePause(false);
-      gameOver();
-    };
-    document.getElementById("splashshopbtn").onclick = openShop;
-    document.getElementById("metashopbtn").onclick = openShop;
-    document.getElementById("shopclosebtn").onclick = closeShop;
-    window.addEventListener("keydown", (e) => {
+    function handleGlobalKeydown(e) {
       if (e.key === "Escape" || e.key === "p" || e.key === "P") {
         e.preventDefault();
         togglePause();
@@ -6385,36 +6648,100 @@
           b.classList.toggle("show");
           if (b.classList.contains("show")) b.focus();
         }
-      } else if (e.key === "v" || e.key === "V") {
+      } else if ((e.key === "v" || e.key === "V") && !G.running) {
         e.preventDefault();
         bisectDraw();
-      } else if (e.key === "n" || e.key === "N") {
+      } else if ((e.key === "n" || e.key === "N") && !G.running) {
         e.preventDefault();
         bisectMicro();
-      } else if (e.key === "k" || e.key === "K") {
+      } else if ((e.key === "k" || e.key === "K") && !G.running) {
         e.preventDefault();
         bisectPage();
-      } else if (e.key === "9") {
+      } else if (e.key === "9" && !G.running) {
         e.preventDefault();
         NODRAW = !NODRAW;
         DIAG.hist.length = 0;
         if (!DIAG.on) toggleDiag();
-      } else if (e.key === "0") {
+      } else if (e.key === "0" && !G.running) {
         e.preventDefault();
         const off = Object.keys(FX).some((k) => FX[k]);
         Object.keys(FX).forEach((k) => FX[k] = !off);
         DIAG.hist.length = 0;
         if (!DIAG.on) toggleDiag();
       }
+    }
+    let lastLoopErrorAt = 0;
+    configureBoot({
+      diagFrame: (ts) => diagFrame(ts),
+      getDiag: () => DIAG,
+      getFps: () => meta.fps,
+      isNoDraw: () => NODRAW,
+      update: () => update(),
+      draw: () => {
+        draw();
+        drawTruthFx();
+      },
+      degradeQuality: () => {
+        if (meta.quality === "low" && !FX.vig && !FX.trail && !FX.ink && !FX.part && !FX.glow) return;
+        meta.quality = "low";
+        applyQuality();
+        saveMeta();
+      },
+      onLoopError: (error) => {
+        resetBootClock();
+        const now = performance.now();
+        if (!lastLoopErrorAt || now - lastLoopErrorAt > 1e3) {
+          lastLoopErrorAt = now;
+          console.error("[Inkblade] recovered frame error", error);
+        }
+      }
     });
-    document.addEventListener("contextmenu", (e) => {
-      e.preventDefault();
-      return false;
+    bindBootEvents({
+      inkSplashAt,
+      stamp,
+      canvas: { down, move, up, cancel: cancelDraw },
+      menuGesture: startMenuFromGesture,
+      keydown: handleGlobalKeydown,
+      clicks: {
+        startbtn: start,
+        bosstestbtn: () => start("boss"),
+        bosstestswordup: () => bossTestSwordCount(1),
+        bosstestsworddown: () => bossTestSwordCount(-1),
+        bosstestpreset: bossTestWave60Preset,
+        bosstestup: () => bossTestLevel(1),
+        bosstestdown: () => bossTestLevel(-1),
+        bosstestphase: bossTestNextPhase,
+        bosstestfour: bossTestFourDirections,
+        bosstestfang: bossTestFang,
+        bosstestlock: toggleBossTestHpLock,
+        bosstestretry: () => start("boss-fast"),
+        againbtn: start,
+        metabtn: openMeta,
+        splashmetabtn: openMeta,
+        metaplaybtn: start,
+        metaclosebtn: closeMeta,
+        swordartsbtn: () => toggleSwordArts(true),
+        artsclose: () => toggleSwordArts(false),
+        artsPanel: (e) => {
+          if (e.target.id === "artsPanel") toggleSwordArts(false);
+        },
+        scoretribtn: toggleScorePanel,
+        pausebtn: () => togglePause(),
+        autobtn: toggleAuto,
+        truthbtn: castActiveTruth,
+        rerollbtn: rerollCards,
+        sndbtn: toggleSound,
+        resumebtn: () => togglePause(false),
+        respecbtn: requestRespec,
+        pausequitbtn: () => {
+          togglePause(false);
+          gameOver();
+        },
+        splashshopbtn: openShop,
+        metashopbtn: openShop,
+        shopclosebtn: closeShop
+      }
     });
-    document.addEventListener("dragstart", (e) => e.preventDefault());
-    document.addEventListener("selectstart", (e) => {
-      if (!/^(INPUT|TEXTAREA)$/.test(e.target.tagName)) e.preventDefault();
-    });
-    loop();
+    startBoot();
   })();
 })();

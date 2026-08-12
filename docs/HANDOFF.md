@@ -5,7 +5,7 @@
 
 ## Current objective
 
-繼續 Stage 2b 模組拆分。既定五個 subsystem 中，`enemy.js`、`combat.js`、`render.js`、`ui.js` 已完成；下一步只剩 `boot.js`：啟動流程、事件綁定、遊戲迴圈初始化。不要擴大 gameplay scope，也不要順手實作新功能。
+Stage 2b 模組拆分與「開局四選一・鎖定一路」均已完成。下一步等待使用者依 `docs/card-function-matrix.md` 重整卡片對應、硬互斥與前置關係；未定案前不要自行加入新的 A／B 排斥。
 
 ## Completed module boundaries
 
@@ -13,8 +13,9 @@
 - `src/combat.js`：飛劍、劍令、劍陣、命中、傷害、定鋒／劍樁相關戰鬥流程。
 - `src/render.js`：角色、敵人、Boss、飛劍、特效、紙張背景與總繪製入口。
 - `src/ui.js`：HUD、選卡、重抽、暫停、設定、音量、轉世閣、重塑確認、角色選擇、商城、劍訣精進列表、面板拖曳捲動。
-- `src/main.js`：目前 2097 行，仍是 gameplay orchestration 與待拆 `boot.js` 的 source。
+- `src/main.js`：保留 gameplay orchestration 與玩法狀態轉換。
 - `src/ui.js`：目前 522 行。UI 透過 `configureUI()` hooks 呼叫存檔、runtime、音效與 gameplay mutation；UI 不複製 production domain logic。
+- `src/boot.js`：固定 60Hz 邏輯迴圈、繪圖幀率限制、自適應 DPR、頁面／Canvas／鍵盤／按鈕事件綁定與啟動入口。
 
 ## Important ownership decisions
 
@@ -23,13 +24,11 @@
 - 商城 catalog 仍在 main；購買 mutation 經 `purchaseShopItem` hook 執行。`ui.js` 只繪製商品與派送選擇。
 - `game.js` 是 `src/main.js` 的 esbuild bundle，不是 authoritative source。不要直接修改 `game.js`。
 
-## Next task: boot.js
+## Next task: card relationship redesign
 
-1. 先用 `graphify query` 找出啟動、DOM event bindings、`requestAnimationFrame`／timer、loop 初始化與 splash/menu lifecycle。
-2. 用 Serena 定位 named symbols 與 references；避免整檔讀取 `src/main.js`。
-3. 建立 `src/boot.js`，只抽啟動／事件／loop orchestration；不要搬 gameplay state transitions 或改 gameplay behavior。
-4. 保持重要入口為可被 Serena 定位的 named symbols，避免新的 anonymous mega-IIFE 或無意義 wrappers。
-5. 完成後跑 tests、build、check、`graphify update .`，再做至少 5 個核心 symbol 的 Find Symbol / Find References / Read Symbol Body 驗收。
+1. 以 `docs/card-function-matrix.md` 為現況基準，等待使用者確認哪些 A／B 必須硬互斥。
+2. 確認後才修改 `requires`、`excludes`、`formationLock` 與真意結構。
+3. 不要把「數值取捨」自行誤判成硬互斥。
 
 ## Verification baseline
 
@@ -37,7 +36,7 @@
 - `npm run build`：PASS；產生 `game.js`。
 - `npm run check`：PASS。
 - `graphify update .`：PASS；目前 graph 為 1673 nodes / 2203 edges / 114 communities。
-- UI 是 DOM/browser integration；目前沒有自動化瀏覽器測試，不能宣稱 UI interaction 已被 unit tests 覆蓋。拆 `boot.js` 時應維持此項為明示 testability gap，不要造 placeholder tests。
+- UI／boot 是 DOM/browser integration；目前沒有自動化瀏覽器測試，不能宣稱互動已被 unit tests 覆蓋。`boot.js` 拆分維持行為等價，仍需實機 smoke test。
 
 ## Tooling requirements
 

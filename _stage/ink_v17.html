@@ -1,0 +1,3242 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<link rel="icon" href="data:,">
+<title>墨劍訣 Inkblade · 水墨仙俠</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  /* 手機長壓不跳選單、不選字、不拖圖 —— 長壓選單會中斷劍令的觸控 */
+  * { -webkit-touch-callout:none; }
+  img { -webkit-user-drag:none; user-select:none; pointer-events:none; }
+  html,body { width:100%; height:100%; height:100dvh; overflow:hidden; background:#181511;
+    font-family:"Noto Serif TC","STKaiti","KaiTi","LiSu",serif; touch-action:none; user-select:none; }
+  body { display:grid; place-items:center; }
+  #wrap { position:relative; width:min(100vw,56.25dvh); height:min(100dvh,177.778vw);
+    --paper-inset:clamp(18px,5vw,28px); --scroll-top-safe:clamp(44px,8vw,48px);
+    --scroll-bottom-safe:clamp(38px,6.7vw,42px); overflow:hidden; background:#27231e;
+    box-shadow:0 0 48px rgba(0,0,0,.62); }
+  /* ── 開場過場(v2)──────────────────────────────────────────────
+     1) 鏡頭以「桌上畫軸中心」為原點,把整個首頁(桌面圖 + LOGO + 按鈕)一起 zoom in
+        → LOGO/按鈕自然被推出畫面外消失,不需要額外淡出。
+     2) zoom 到畫軸剛好等於畫面寬時,桌面隱去,只留畫軸。
+     3) 畫軸取自同一張桌面圖(同 cover 貼圖 + 同 transform),沿中央繫繩切成上下兩半,
+        因此與 zoom 後的畫面「像素級對齊」,不需要手動對位參數。
+     4) 兩半從中心往上下拉開,抵達關卡上下邊緣後淡出。
+     --z 0→1 鏡頭推近;--uf 0→1 畫軸拉開;其餘幾何量由 JS 依實際視窗量測寫入。 */
+  #wrap { --z:0; --uf:1; --ox:50%; --oy:49%; --zoom:1;
+          --sx0:0px; --sx1:0px; --sy0:0px; --sy1:0px; --seam:0px; --tTop:0px; --tBot:0px; }
+  #opening { position:absolute; inset:0; z-index:60; pointer-events:none; display:none; }
+  #opening.show { display:block; }
+  /* 兩半畫軸:與 #splash 同一張 cover 底圖、同一組 transform,只是 clip 出畫軸的上/下半 */
+  .op-scroll { position:absolute; inset:0;
+    background:
+      linear-gradient(rgba(18,15,10,.30), rgba(18,15,10,.58)),
+      url('assets/scenes/home-desk-bg.png') center/cover no-repeat;
+    transform-origin:var(--ox) var(--oy);
+    filter:drop-shadow(0 2px 6px rgba(16,12,8,.5)); }
+  .op-scroll.top {
+    clip-path:inset(var(--sy0) calc(100% - var(--sx1)) calc(100% - var(--seam)) var(--sx0));
+    transform:translateY(calc(var(--uf) * var(--tTop))) scale(calc(1 + var(--z) * (var(--zoom) - 1))); }
+  .op-scroll.bottom {
+    clip-path:inset(var(--seam) calc(100% - var(--sx1)) calc(100% - var(--sy1)) var(--sx0));
+    transform:translateY(calc(var(--uf) * var(--tBot))) scale(calc(1 + var(--z) * (var(--zoom) - 1))); }
+  /* 首頁在過場期間跟著鏡頭一起推近(LOGO/按鈕自然出框) */
+  #splash.zooming { pointer-events:none; overflow:hidden;
+    transform-origin:var(--ox) var(--oy);
+    transform:scale(calc(1 + var(--z) * (var(--zoom) - 1))); }
+  /* 鏡頭推近時 LOGO / 標語 / 按鈕一邊被推出畫面、一邊淡去,鏡頭到底時畫面上只剩畫軸 */
+  #splash.zooming > #splashlogo, #splash.zooming > .tagline, #splash.zooming > .btncol {
+    opacity:var(--uiFade,1); }
+  #wrap.op #paper, #wrap.op #game { filter:blur(calc((1 - var(--uf)) * 5px)); }
+  /* 紙層與暈影層改由 CSS 合成:靜態內容交給 GPU 圖層,完全不進每幀繪圖,
+     整頁也只剩一張畫布(先前三張滿版畫布並存 + 每幀滿版 blit 是效能疑點)。*/
+  #depthpaper { position:absolute; inset:-18px; z-index:0; background-repeat:no-repeat;
+    filter:blur(15px) brightness(.68) saturate(.72); transform:scale(1.07); opacity:.82; }
+  #paper { position:absolute; top:0; bottom:0; left:var(--paper-inset); right:var(--paper-inset); z-index:0;
+    background-repeat:no-repeat; box-shadow:0 0 18px rgba(12,10,8,.34); }
+  canvas { position:absolute; top:0; bottom:0; left:var(--paper-inset); right:auto;
+    display:block; width:calc(100% - (var(--paper-inset) + var(--paper-inset))); height:100%; z-index:1; }
+  #vig { position:absolute; top:0; bottom:0; left:var(--paper-inset); right:var(--paper-inset); z-index:2; pointer-events:none;
+    background:radial-gradient(ellipse at center,
+      rgba(60,48,34,0) 46%, rgba(60,48,34,.05) 76%, rgba(60,48,34,.14) 100%); }
+  #hud { z-index:5; }
+
+  /* 直向 HUD：左上狀態、右上暫停、其下為戰況。中央全留給畫劍。 */
+  #hud { position:absolute; top:0; left:var(--paper-inset); right:var(--paper-inset); pointer-events:none; color:#3a332a;
+    padding:calc(var(--scroll-top-safe) + env(safe-area-inset-top)) 10px 0; }
+  /* 毛筆刷痕遮罩:程式生成的乾筆刷痕(鈍起筆 + 厚腰身 + 右端飛白分岔),
+     由 tools 端以噪聲取樣輸出成 SVG path;軌道與填色共用同一個遮罩。 */
+  #hud { --brush:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 14' preserveAspectRatio='none'%3E%3Cpath d='M2 7.19L4.18 1.98L6.36 0.41L8.53 0.41L10.71 0.41L12.89 0.42L15.07 0.42L17.24 0.43L19.42 0.43L21.6 0.44L23.78 0.44L25.96 0.44L28.13 0.44L30.31 0.43L32.49 0.42L34.67 0.41L36.84 0.4L39.02 0.38L41.2 0.36L43.38 0.35L45.56 0.33L47.73 0.32L49.91 0.3L52.09 0.29L54.27 0.28L56.44 0.28L58.62 0.27L60.8 0.27L62.98 0.27L65.16 0.28L67.33 0.28L69.51 0.28L71.69 0.29L73.87 0.29L76.04 0.29L78.22 0.29L80.4 0.28L82.58 0.27L84.76 0.26L86.93 0.24L89.11 0.22L91.29 0.2L93.47 0.18L95.64 0.15L97.82 0.13L100 0.1L102.18 0.08L104.36 0.06L106.53 0.05L108.71 0.04L110.89 0.04L113.07 0.05L115.24 0.06L117.42 0.07L119.6 0.09L121.78 0.12L123.96 0.15L126.13 0.18L128.31 0.22L130.49 0.25L132.67 0.29L134.84 0.32L137.02 0.35L139.2 0.37L141.38 0.39L143.56 0.41L145.73 0.42L147.91 0.42L150.09 0.42L152.27 0.42L154.44 0.41L156.62 0.4L158.8 0.39L160.98 0.38L163.16 0.37L165.33 0.36L167.51 0.35L169.69 0.34L171.87 0.33L174.04 0.33L176.22 0.55L178.4 0.84L180.58 1.16L182.76 1.5L184.93 1.86L187.11 2.26L189.29 2.7L191.47 3.21L193.64 3.83L195.82 4.65L198 6.89L198 7L195.82 9.23L193.64 10.04L191.47 10.65L189.29 11.15L187.11 11.59L184.93 11.98L182.76 12.34L180.58 12.67L178.4 12.98L176.22 13.27L174.04 13.49L171.87 13.48L169.69 13.47L167.51 13.46L165.33 13.45L163.16 13.44L160.98 13.42L158.8 13.41L156.62 13.4L154.44 13.38L152.27 13.38L150.09 13.37L147.91 13.37L145.73 13.38L143.56 13.39L141.38 13.4L139.2 13.43L137.02 13.45L134.84 13.48L132.67 13.52L130.49 13.55L128.31 13.59L126.13 13.63L123.96 13.66L121.78 13.7L119.6 13.73L117.42 13.75L115.24 13.77L113.07 13.78L110.89 13.79L108.71 13.79L106.53 13.79L104.36 13.78L102.18 13.76L100 13.75L97.82 13.73L95.64 13.7L93.47 13.68L91.29 13.66L89.11 13.64L86.93 13.62L84.76 13.61L82.58 13.6L80.4 13.59L78.22 13.59L76.04 13.59L73.87 13.59L71.69 13.59L69.51 13.6L67.33 13.61L65.16 13.62L62.98 13.62L60.8 13.63L58.62 13.63L56.44 13.64L54.27 13.64L52.09 13.63L49.91 13.63L47.73 13.62L45.56 13.62L43.38 13.61L41.2 13.6L39.02 13.6L36.84 13.59L34.67 13.59L32.49 13.59L30.31 13.59L28.13 13.6L25.96 13.61L23.78 13.62L21.6 13.63L19.42 13.65L17.24 13.66L15.07 13.68L12.89 13.7L10.71 13.71L8.53 13.73L6.36 13.74L4.18 12.17L2 6.98Z' fill='%23000'/%3E%3Cpath d='M178.97 3.58L180.63 3.3L182.3 3.08L183.96 3.08L185.62 3.02L187.29 3.02L188.95 3.21L190.61 3.25L192.27 3.12L193.94 3.21L195.6 3.43L197.26 3.57L198.92 3.94L198.92 3.94L197.26 3.88L195.6 3.87L193.94 3.75L192.27 3.74L190.61 3.95L188.95 3.98L187.29 3.85L185.62 3.9L183.96 4.02L182.3 4.07L180.63 4.34L178.97 4.66ZM168.47 5.03L170.71 5.2L172.95 5.28L175.18 5.14L177.42 5.17L179.65 5.37L181.89 5.49L184.12 5.69L186.36 6L188.59 6.01L190.83 5.81L193.07 5.75L195.3 5.79L195.3 5.79L193.07 6.08L190.83 6.27L188.59 6.58L186.36 6.66L184.12 6.42L181.89 6.29L179.65 6.23L177.42 6.09L175.18 6.12L172.95 6.32L170.71 6.29L168.47 6.17ZM168.89 7.18L170.83 7.32L172.78 7.48L174.72 7.8L176.66 7.88L178.61 7.67L180.55 7.56L182.49 7.49L184.44 7.35L186.38 7.42L188.32 7.65L190.27 7.67L192.21 7.75L192.21 7.75L190.27 8.09L188.32 8.24L186.38 8.14L184.44 8.19L182.49 8.43L180.55 8.58L178.61 8.78L176.66 9.07L174.72 9.06L172.78 8.81L170.83 8.71L168.89 8.64ZM161.72 9.84L164.66 9.69L167.61 9.63L170.56 9.47L173.51 9.45L176.46 9.66L179.41 9.69L182.36 9.58L185.31 9.66L188.25 9.77L191.2 9.85L194.15 10.19L197.1 10.7L197.1 10.7L194.15 10.6L191.2 10.43L188.25 10.48L185.31 10.48L182.36 10.5L179.41 10.69L176.46 10.74L173.51 10.61L170.56 10.7L167.61 10.92L164.66 11.05L161.72 11.26Z' fill='%23000'/%3E%3C/svg%3E");
+         --inkring:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M95.3 50L95.18 52.37L94.94 54.72L94.59 57.06L94.13 59.38L93.55 61.67L92.86 63.92L92.06 66.14L91.15 68.32L90.13 70.45L89.02 72.53L87.8 74.55L86.48 76.5L85.06 78.39L83.55 80.21L81.95 81.95L80.26 83.61L78.48 85.17L76.62 86.64L74.69 88.01L72.68 89.28L70.6 90.43L68.47 91.47L66.27 92.39L64.03 93.19L61.75 93.86L59.44 94.4L57.1 94.8L54.74 95.08L52.37 95.22L50 95.22L47.64 95.09L45.29 94.82L42.96 94.43L40.67 93.9L38.41 93.26L36.2 92.49L34.03 91.6L31.92 90.6L29.88 89.49L27.9 88.28L25.99 86.97L24.15 85.57L22.4 84.09L20.72 82.52L19.12 80.88L17.61 79.16L16.19 77.38L14.86 75.53L13.61 73.63L12.46 71.67L11.4 69.67L10.44 67.61L9.57 65.52L8.8 63.39L8.14 61.22L7.57 59.02L7.11 56.79L6.76 54.54L6.51 52.28L6.38 50L6.35 47.71L6.45 45.42L6.65 43.13L6.98 40.86L7.42 38.59L7.98 36.35L8.66 34.13L9.45 31.95L10.36 29.8L11.39 27.71L12.53 25.67L13.78 23.69L15.14 21.77L16.6 19.93L18.17 18.17L19.83 16.49L21.58 14.9L23.41 13.4L25.33 12.01L27.32 10.72L29.38 9.53L31.5 8.46L33.68 7.49L35.91 6.65L38.19 5.92L40.5 5.32L42.85 4.84L45.22 4.48L47.6 4.24L50 4.14L52.4 4.16L54.8 4.31L57.19 4.58L59.57 4.99L61.92 5.52L64.24 6.17L66.52 6.95L68.76 7.86L70.95 8.88L73.08 10.02L75.15 11.28L77.14 12.65L79.05 14.12L80.88 15.7L82.62 17.38L84.26 19.15L85.8 21.01L87.24 22.94L88.57 24.95L89.78 27.03L90.88 29.17L91.86 31.36L92.72 33.6L93.45 35.88L94.07 38.19L94.56 40.53L94.93 42.88L95.17 45.25L95.29 47.63L95.3 50Z M93.64 50L91.34 50L91.31 47.84L91.17 45.67L90.94 43.52L90.6 41.37L90.16 39.24L89.62 37.13L88.97 35.04L88.21 32.99L87.35 30.97L86.39 28.99L85.33 27.06L84.16 25.18L82.89 23.36L81.53 21.61L80.08 19.92L78.53 18.32L76.9 16.79L75.18 15.34L73.39 13.99L71.52 12.73L69.58 11.57L67.58 10.51L65.52 9.56L63.41 8.72L61.26 7.99L59.06 7.38L56.83 6.89L54.57 6.52L52.29 6.27L50 6.15L47.7 6.15L45.4 6.28L43.12 6.54L40.85 6.93L38.6 7.45L36.38 8.09L34.21 8.86L32.08 9.76L30.02 10.78L28.01 11.92L26.08 13.17L24.23 14.54L22.47 16.01L20.8 17.57L19.24 19.24L17.78 20.99L16.43 22.81L15.19 24.71L14.08 26.67L13.08 28.68L12.21 30.74L11.46 32.84L10.83 34.97L10.33 37.11L9.95 39.27L9.68 41.43L9.53 43.59L9.49 45.74L9.56 47.88L9.73 50L10 52.1L10.37 54.17L10.83 56.2L11.37 58.21L12 60.18L12.71 62.12L13.49 64.02L14.35 65.87L15.27 67.69L16.27 69.47L17.34 71.21L18.48 72.9L19.69 74.55L20.96 76.15L22.31 77.69L23.72 79.19L25.2 80.63L26.74 82.01L28.36 83.32L30.04 84.56L31.79 85.73L33.61 86.82L35.48 87.82L37.42 88.73L39.41 89.54L41.45 90.25L43.53 90.85L45.66 91.33L47.81 91.7L50 91.95L52.21 92.08L54.42 92.07L56.64 91.94L58.86 91.68L61.07 91.3L63.25 90.78L65.41 90.14L67.53 89.37L69.6 88.48L71.63 87.47L73.6 86.34L75.5 85.1L77.34 83.76L79.1 82.32L80.78 80.78L82.37 79.14L83.87 77.43L85.28 75.63L86.58 73.76L87.79 71.82L88.89 69.82L89.88 67.76L90.77 65.65L91.53 63.5L92.19 61.3L92.72 59.08L93.13 56.83L93.42 54.56L93.59 52.28Z' fill='%23241f1a' fill-rule='evenodd'/%3E%3Cpath d='M89.17 50L89.17 52.05L89.06 54.11L88.85 56.15L88.52 58.19L88.08 60.2L87.52 62.19L86.85 64.15L86.08 66.06L85.19 67.93L84.2 69.74L83.1 71.5L81.9 73.18L80.61 74.79L79.23 76.32L77.77 77.77L76.22 79.13L74.61 80.39L72.93 81.56L71.19 82.63L69.4 83.59L67.56 84.46L65.68 85.22L63.77 85.87L61.84 86.42L59.88 86.87L57.91 87.22L55.93 87.46L53.95 87.6L51.97 87.65L50 87.59L48.04 87.44L46.09 87.2L44.16 86.86L42.26 86.44L40.37 85.92L38.52 85.32L36.71 84.63L34.93 83.86L33.19 83L31.49 82.06L29.84 81.04L28.24 79.95L26.7 78.77L25.22 77.52L23.8 76.2L22.44 74.81L21.16 73.36L19.95 71.83L18.82 70.25L17.76 68.61L16.8 66.92L15.92 65.17L15.13 63.39L14.43 61.56L13.83 59.69L13.32 57.8L12.92 55.87L12.61 53.93L12.4 51.97L12.29 50L12.29 48.02L12.38 46.05L12.58 44.07L12.88 42.11L13.28 40.16L13.78 38.23L14.37 36.32L15.07 34.45L15.86 32.61L16.75 30.8L17.73 29.04L18.8 27.33L19.96 25.68L21.21 24.08L22.55 22.55L23.97 21.09L25.46 19.7L27.03 18.39L28.68 17.17L30.39 16.03L32.16 15L34 14.05L35.88 13.22L37.81 12.48L39.78 11.86L41.78 11.35L43.82 10.96L45.87 10.67L47.93 10.51L50 10.46L52.07 10.54L54.13 10.72L56.17 11.03L58.2 11.44L60.19 11.97L62.15 12.6L64.07 13.34L65.95 14.18L67.78 15.11L69.55 16.14L71.26 17.26L72.92 18.46L74.5 19.74L76.02 21.1L77.47 22.53L78.85 24.03L80.15 25.59L81.37 27.21L82.51 28.89L83.57 30.62L84.55 32.4L85.44 34.22L86.24 36.09L86.95 37.99L87.57 39.93L88.09 41.9L88.51 43.9L88.84 45.92L89.05 47.95L89.17 50Z M88.66 50L87.99 50L87.88 48.01L87.66 46.04L87.35 44.08L86.94 42.15L86.44 40.24L85.85 38.35L85.16 36.5L84.39 34.69L83.53 32.91L82.59 31.18L81.57 29.5L80.47 27.86L79.29 26.28L78.04 24.76L76.71 23.29L75.31 21.89L73.84 20.56L72.31 19.3L70.71 18.11L69.05 17L67.33 15.98L65.56 15.05L63.74 14.2L61.87 13.46L59.97 12.81L58.02 12.26L56.05 11.82L54.05 11.49L52.03 11.27L50 11.16L47.96 11.16L45.93 11.28L43.9 11.51L41.89 11.86L39.91 12.33L37.95 12.9L36.02 13.59L34.14 14.38L32.31 15.28L30.54 16.29L28.82 17.39L27.17 18.58L25.6 19.86L24.1 21.23L22.68 22.68L21.35 24.2L20.1 25.79L18.95 27.44L17.9 29.15L16.94 30.91L16.08 32.72L15.32 34.56L14.67 36.44L14.11 38.34L13.66 40.26L13.32 42.2L13.08 44.15L12.94 46.11L12.91 48.06L12.98 50L13.14 51.93L13.41 53.85L13.77 55.74L14.23 57.6L14.78 59.44L15.42 61.23L16.15 62.99L16.97 64.71L17.86 66.38L18.83 67.99L19.88 69.56L21 71.07L22.19 72.52L23.45 73.91L24.76 75.24L26.14 76.5L27.57 77.69L29.06 78.82L30.6 79.88L32.18 80.86L33.81 81.78L35.48 82.61L37.19 83.38L38.93 84.06L40.71 84.66L42.52 85.18L44.36 85.62L46.22 85.97L48.1 86.23L50 86.41L51.91 86.49L53.83 86.47L55.76 86.36L57.68 86.15L59.61 85.85L61.51 85.44L63.41 84.93L65.28 84.31L67.12 83.59L68.92 82.77L70.68 81.85L72.4 80.83L74.06 79.71L75.65 78.49L77.18 77.18L78.63 75.78L80 74.3L81.29 72.73L82.48 71.09L83.58 69.39L84.58 67.62L85.47 65.79L86.26 63.92L86.93 62L87.5 60.05L87.96 58.07L88.3 56.07L88.53 54.05L88.65 52.03Z' fill='%23241f1a' fill-rule='evenodd' opacity='.55'/%3E%3C/svg%3E"); }
+  .panel { background:rgba(248,243,232,.94); border:1px solid rgba(66,52,38,.45);
+    border-radius:6px; padding:7px 10px; box-shadow:0 3px 12px rgba(45,37,26,.14); }
+  /* 左上狀態列:文字一律不透明墨色(不再用半透明躲怪),靠紙色描邊維持可讀性。
+     條改為毛筆刷痕造型 —— 用 SVG 遮罩把軌道與填色一起裁成兩端收鋒的一筆。 */
+  #barwrap { width:clamp(158px,48vw,212px); background:none; border:none; box-shadow:none; padding:2px 4px;
+    text-shadow:0 1px 2px rgba(246,240,226,.98), 0 0 8px rgba(246,240,226,.9); }
+  #scorewrap { position:absolute; top:calc(var(--scroll-top-safe) + 70px + env(safe-area-inset-top)); right:12px;
+    min-width:94px; text-align:center; padding:9px 12px 11px; border-radius:4px;
+    background:rgba(250,246,238,.96); border:1px solid rgba(60,48,34,.5);
+    box-shadow:inset 0 0 0 3px rgba(250,246,238,1), inset 0 0 0 4px rgba(60,48,34,.26),
+               0 4px 14px rgba(45,37,26,.16); }
+  /* 吊牌的繩結與流蘇 */
+  #scorewrap::before { content:''; position:absolute; left:50%; top:100%; transform:translateX(-50%);
+    width:9px; height:9px; margin-top:-1px; border-radius:50%; background:rgba(60,48,34,.62); }
+  #scorewrap::after { content:''; position:absolute; left:50%; top:100%; transform:translateX(-50%);
+    margin-top:7px; width:7px; height:26px; border-radius:0 0 4px 4px;
+    background:linear-gradient(180deg,rgba(60,48,34,.58),rgba(60,48,34,.10)); }
+  #scorewrap .divider { height:1px; margin:7px 2px; background:rgba(60,48,34,.32); }
+  #ctrls { position:absolute; top:calc(var(--scroll-top-safe) + env(safe-area-inset-top)); right:12px;
+    display:flex; align-items:center; gap:10px; }
+  .ctl { pointer-events:auto; cursor:pointer; font-size:clamp(12px,1.5vw,14px);
+    letter-spacing:2px; color:#2b2620; white-space:nowrap;
+    min-height:32px; display:flex; align-items:center; }
+  /* 御劍 / 靜觀:共用手繪墨圈(SVG)當外框,內容為直式二字。
+     不再用 CSS 圓角與 box-shadow 疊圈 —— 那個太規整,沒有筆味。 */
+  .inkbtn { position:relative; width:60px; height:60px; min-height:60px; min-width:60px; padding:0;
+    display:flex; align-items:center; justify-content:center;
+    background:none; border:none; border-radius:50%; box-shadow:none;
+    transition:transform .12s; }
+  /* 墨圈外框獨立成一層 —— 這樣可以只轉圈、不轉字。底下不鋪白,直接透出宣紙。 */
+  .inkbtn::before { content:''; position:absolute; inset:0; border-radius:50%;
+    background:var(--inkring) center/contain no-repeat; }
+  .inkbtn .vt { position:relative; z-index:1; }
+  .inkbtn .vt { display:flex; flex-direction:column; align-items:center; line-height:1.08; }
+  .inkbtn .vt b { display:block; font-weight:600; font-size:17px; color:#241f1a;
+    font-family:"Noto Serif TC","STKaiti","KaiTi",serif; letter-spacing:0; }
+  .inkbtn:active { transform:scale(.95); }
+  /* 御劍啟用:不上黃、不加虛線 —— 直接讓原本那個手繪墨圈外框自己緩緩旋轉。
+     圈是不規則的,轉起來就像一道墨線繞著劍令走。 */
+  #autobtn.on::before { animation:inkorbit 7s linear infinite; }
+  #autobtn.on .vt b { color:#1c1712; }
+  @keyframes inkorbit { to { transform:rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce){ #autobtn.on::before { animation:none; } }
+  #pausebtn .pause-label { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); }
+  .ctl:hover { color:#7a2b2b; }
+  /* 毛筆刷痕:兩端收鋒、腰身略粗,軌道與填色共用同一個遮罩 */
+  .bar { position:relative; height:12px; margin-top:5px; border-radius:0; overflow:hidden;
+    background:rgba(66,52,38,.22);
+    -webkit-mask:var(--brush) no-repeat 0 0/100% 100%;
+            mask:var(--brush) no-repeat 0 0/100% 100%; }
+  .bar > i { display:block; height:100%; width:0%; transition:width .18s; }
+  /* 道行:細一階,左端一顆墨珠隨進度走 */
+  .barrow { position:relative; }
+  .barrow .bar { height:8px; }
+  #hpfill { background:linear-gradient(90deg,#8e2b24,#c0392b 55%,#a8322a); }
+  #mpfill { background:linear-gradient(90deg,#255663,#3f97b0 55%,#2f7d94); }
+  #xpfill { background:linear-gradient(90deg,#5b5346,#8d8271); }
+  #mpfill.low { background:linear-gradient(90deg,#8a5a2b,#c08a2e); }
+  .label { font-size:14px; letter-spacing:2px; color:#241f1a; font-weight:600; }
+  .label .sub { font-weight:400; }
+  .big { font-size:26px; font-weight:700; letter-spacing:2px; line-height:1; color:#241f1a; }
+  .sub { font-size:12px; color:#4f4436; letter-spacing:1px; }
+
+  /* 詞條選單 */
+  #overlay { position:absolute; inset:0; display:none; align-items:flex-end; justify-content:center;
+    background:rgba(25,22,18,.58); z-index:20; }
+  #overlay.show { display:flex; }
+  #cardbox { text-align:center; width:100%; padding:20px clamp(10px,3vw,20px) calc(var(--scroll-bottom-safe) + 20px + env(safe-area-inset-bottom));
+    max-height:72dvh; overflow-y:auto; color:#f3ecd8;
+    background:linear-gradient(180deg,rgba(24,21,17,0),rgba(24,21,17,.72) 15%,rgba(24,21,17,.9)); }
+  #cardbox h2 { color:#f3ecd8; font-size:clamp(21px,4.4vw,30px); letter-spacing:clamp(4px,1.2vw,8px);
+    margin-bottom:6px; text-shadow:0 2px 8px rgba(0,0,0,.5); }
+  #cardbox p.tip { color:#c9bfa6; letter-spacing:2px; margin-bottom:clamp(12px,2.6vw,26px);
+    font-size:clamp(12px,1.6vw,14px); }
+  #lvqueue { color:#d8b65a; margin:-8px 0 8px; }
+  #lvqueue:empty { display:none; }
+  #cards { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:clamp(8px,1.8vw,16px);
+    width:min(100%,620px); margin:0 auto; }
+  /* 卡片固定高度、內容置頂對齊 —— 字數不同也不會造成格子縮放或標題上下位移 */
+  .card { width:100%; height:clamp(172px,27vw,194px); box-sizing:border-box; background:#f3ecdb;
+    border:1px solid #aa9a7c; border-radius:5px; padding:clamp(11px,2vw,18px) clamp(9px,1.6vw,14px);
+    cursor:pointer;
+    display:flex; flex-direction:column; align-items:stretch; justify-content:flex-start;
+    transition:transform .15s, box-shadow .15s;
+    box-shadow:0 6px 14px rgba(0,0,0,.34); position:relative; overflow:hidden; }
+  .card:hover { transform:translateY(-5px); box-shadow:0 11px 24px rgba(0,0,0,.48); }
+  .card .rune { color:#17130f; font-size:clamp(34px,6vw,48px); margin:0 0 5px; line-height:1.05; text-align:center; }
+  /* 中標名稱:置中、套品階色(納息紫/透墨藍/…),固定行高不隨字數位移 */
+  .card .cname { font-size:clamp(15px,2.4vw,20px); font-weight:700; letter-spacing:clamp(1px,.5vw,3px);
+    margin:0 0 8px; text-align:center; min-height:1.4em; line-height:1.4; }
+  /* 功能說明:靠左對齊,佔滿剩餘空間 */
+  /* 劍訣註解「效果」模式:一行一句、數值靠對齊,比散文好掃 */
+  .card .cfx { display:flex; flex-direction:column; gap:4px; align-items:center; margin-top:2px; }
+  .card .cfx span { font-size:clamp(11px,1.7vw,14px); line-height:1.4; letter-spacing:1px;
+    color:#3a3227; font-weight:600; white-space:nowrap; }
+  .card .cdesc { font-size:clamp(10px,1.45vw,13px); line-height:1.55; color:#4a4033; letter-spacing:.3px;
+    text-align:left; align-self:stretch; flex:1 1 auto; overflow:hidden; }
+  #rerollbtn { margin:12px auto 3px; min-height:38px; padding:7px 16px; display:inline-flex;
+    align-items:center; justify-content:center; gap:7px; color:#2e2820; background:#eee6d4;
+    border:1px solid #95866d; border-radius:5px; box-shadow:0 3px 9px rgba(0,0,0,.28);
+    font:600 13px/1.2 "Noto Serif TC","STKaiti","KaiTi",serif; letter-spacing:2px; cursor:pointer; }
+  #rerollbtn::before { content:"◉"; font-family:serif; font-size:12px; }
+  #rerollbtn[disabled] { opacity:.42; cursor:default; }
+  #rerollleft { color:#c9bfa6; font-size:11px; letter-spacing:2px; min-height:17px; }
+  .rar-n { color:#6b7a55; } .rar-r { color:#3f6ea5; } .rar-e { color:#8a5bb0; } .rar-l { color:#c08a2e; }
+  .card.lv-r { border-color:#3f6ea5; } .card.lv-e { border-color:#8a5bb0; } .card.lv-l { border-color:#c08a2e; }
+
+  /* 開始 / 結束 */
+  #sndbtn.off { color:#9a8f7a; }
+  #metaoffline { text-align:center; margin:4px 0 2px; font-size:13.5px; color:#5a4e3c; letter-spacing:1px; }
+  #metaoffline .claim { display:inline-block; cursor:pointer; margin-left:8px; padding:4px 12px; border-radius:6px;
+    background:linear-gradient(180deg,#f0d68a,#d8b24a); border:1px solid #b8912e; color:#4a3a10; letter-spacing:2px; }
+  #shop { position:absolute; inset:0; display:none; align-items:center; justify-content:center; z-index:42;
+    background:rgba(20,18,14,.72); backdrop-filter:blur(3px); }
+  #shop.show { display:flex; }
+  #shopbox { width:min(680px,94vw); max-height:88dvh; overflow:auto; background:linear-gradient(180deg,#f6f0e0,#e6dcc4);
+    border:1px solid #b8a888; border-radius:12px; padding:clamp(16px,3vw,24px) clamp(14px,3vw,26px);
+    box-shadow:0 18px 50px rgba(0,0,0,.6); }
+  #shopbox h2 { font-size:clamp(20px,3.6vw,26px); letter-spacing:clamp(4px,1.4vw,8px); color:#2e2820; text-align:center; }
+  #shopgems { text-align:center; color:#3f6ea5; letter-spacing:2px; margin:6px 0 6px; font-size:15px; }
+  #shopgems b { font-size:22px; color:#3f6ea5; }
+  .shopnote { text-align:center; font-size:12px; color:#8a7a5a; letter-spacing:.5px; line-height:1.6; margin:6px 0 10px; }
+  .mtag { display:inline-block; font-size:11px; letter-spacing:1px; color:#7a2b2b; border:1px solid #b06a4a;
+    border-radius:4px; padding:0 5px; margin-left:6px; }
+  #metabonus { text-align:center; color:#5a4e3c; letter-spacing:1px; font-size:13px; margin:-8px 0 6px; }
+  #metabonus b { color:#6b7a55; }
+  #pause { position:absolute; inset:0; display:none; flex-direction:column; align-items:center; justify-content:center;
+    z-index:35; text-align:center; background:rgba(25,22,18,.78);
+    padding:calc(14px + env(safe-area-inset-top)) 12px calc(14px + env(safe-area-inset-bottom)); }
+  #pause.show { display:flex; }
+  /* 捲軸隱藏但仍可捲:滾輪、觸控、以及下方的拖曳捲動。
+     touch-action:pan-y 是必要的 —— body 設了 touch-action:none,不開這個手機滑不動。
+     overscroll-behavior:contain 防止捲到底時把手勢傳給底下的遊戲畫布。 */
+  #pausepanel { width:min(430px,100%); max-height:100%; overflow:auto; padding:22px 16px 22px;
+    scrollbar-width:none; -ms-overflow-style:none; touch-action:pan-y; overscroll-behavior:contain;
+    cursor:default;
+    border:1px solid rgba(214,199,166,.44); border-radius:14px;
+    background:linear-gradient(180deg,rgba(42,37,30,.94),rgba(27,24,20,.97));
+    box-shadow:0 22px 60px rgba(0,0,0,.55); }
+  #pausepanel::-webkit-scrollbar { width:0; height:0; display:none; }
+  #splash, #gameover { position:absolute; inset:0; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; z-index:30; text-align:center;
+    background:rgba(25,22,18,.6); backdrop-filter:blur(3px);
+    overflow-y:auto; padding:calc(16px + env(safe-area-inset-top)) 0 calc(16px + env(safe-area-inset-bottom)); }
+  /* 首頁:書案背景圖 + 極淡暗罩(保文字對比),覆寫共用底色 */
+  #splash { background-image:
+      linear-gradient(rgba(18,15,10,.30), rgba(18,15,10,.58)),
+      url('assets/scenes/home-desk-bg.png');
+    background-size:cover; background-position:center; background-repeat:no-repeat;
+    backdrop-filter:none; justify-content:flex-start; }
+  #splashlogo { width:min(62vw,340px); height:auto; margin-top:8vh;
+    filter:drop-shadow(0 3px 12px rgba(0,0,0,.55)); }
+  #splash .tagline { color:#d8cbb0; letter-spacing:10px; font-size:17px; margin-top:12px;
+    text-shadow:0 2px 6px rgba(0,0,0,.6); }
+  #splash .splashspacer { flex:1 1 auto; min-height:20vh; }
+  #splash .btncol { display:flex; flex-direction:column; gap:14px; align-items:center;
+    width:100%; margin-bottom:9vh; }
+  #splash .btncol .btn { width:min(70vw,300px); text-align:center; font-size:22px;
+    letter-spacing:8px; padding:14px 0; }
+  /* 點按潑墨回饋 */
+  #inkfx { position:fixed; inset:0; pointer-events:none; z-index:200; overflow:hidden; }
+  #inkfx .ink-splat { position:absolute; border-radius:50%; background:#15110c; will-change:transform,opacity; }
+  @keyframes inkOut { from{ transform:translate(-50%,-50%) scale(.25); opacity:.92 }
+    to{ transform:translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1); opacity:0 } }
+  @keyframes inkCore { from{ transform:translate(-50%,-50%) scale(.2); opacity:.85 }
+    to{ transform:translate(-50%,-50%) scale(1.7); opacity:0 } }
+  @keyframes inkRing { from{ transform:translate(-50%,-50%) scale(.2); opacity:.5 }
+    to{ transform:translate(-50%,-50%) scale(2.6); opacity:0 } }
+  #gameover { display:none; }
+  .title { color:#f3ecd8; font-size:clamp(38px,9vw,64px); letter-spacing:clamp(8px,2.4vw,16px);
+    text-shadow:0 4px 16px rgba(0,0,0,.6); }
+  .stitle { color:#c9bfa6; font-size:clamp(13px,1.8vw,16px); letter-spacing:clamp(3px,1vw,6px);
+    margin:clamp(10px,2vw,18px) 0 clamp(18px,3.6vw,34px); line-height:2.1; padding:0 14px; }
+  .btn { pointer-events:auto; cursor:pointer; color:#2e2820; font-size:clamp(15px,2.2vw,20px);
+    letter-spacing:clamp(3px,1vw,6px); padding:clamp(10px,1.6vw,12px) clamp(20px,4.6vw,42px);
+    background:linear-gradient(180deg,#f6f0e0,#e0d4b8); border:1px solid #b8a888;
+    border-radius:8px; box-shadow:0 6px 18px rgba(0,0,0,.4); transition:transform .12s;
+    min-height:44px; display:flex; align-items:center; justify-content:center; white-space:nowrap; }
+  .btn:hover { transform:translateY(-3px); }
+  .seal { color:#a44; font-size:13px; letter-spacing:3px; margin-top:clamp(14px,2.8vw,28px); opacity:.8; }
+  .btnrow { display:flex; gap:clamp(8px,1.6vw,16px); justify-content:center; flex-wrap:wrap; padding:0 12px; }
+  /* 靜觀面板底部的兩顆主鈕:與上方「重塑」框拉開間距、等寬平分、不換行也不溢出。
+     原本沿用全域 .btn 的大字級與大內距,在 430px 面板裡會頂到邊框。 */
+  #pausepanel .btnrow { margin-top:18px; padding:0; gap:10px; flex-wrap:nowrap; align-items:stretch; }
+  #pausepanel .btnrow .btn { flex:1 1 0; min-width:0; white-space:nowrap;
+    padding:12px 6px; font-size:clamp(14px,3.4vw,17px); letter-spacing:clamp(1px,0.8vw,4px); }
+  .btn.ghost { background:rgba(244,238,224,.12); color:#e6dcc4; border-color:rgba(230,220,196,.5); }
+
+  /* 暫停畫面的設定(宣紙卷軸質感,拉桿為墨條) */
+  #settings { width:100%; margin:0 auto 18px; padding:14px 16px 12px;
+    background:rgba(246,240,226,.93); border:1px solid #b8a888; border-radius:10px;
+    box-shadow:0 10px 30px rgba(0,0,0,.45); }
+  .sethead { font-size:13px; letter-spacing:6px; color:#7a5a2b; text-align:center;
+    border-bottom:1px solid rgba(120,100,70,.3); padding-bottom:6px; margin-bottom:12px; }
+  .setrow { display:flex; align-items:center; gap:10px; margin-bottom:11px; }
+  .setrow label { font-size:13.5px; letter-spacing:2px; color:#3a332a; width:56px; flex:0 0 auto; }
+  .setrow span { font-size:12.5px; color:#6b5d48; width:30px; text-align:right;
+    font-variant-numeric:tabular-nums; flex:0 0 auto; }
+  .setrow input[type=range] { -webkit-appearance:none; appearance:none; flex:1 1 auto;
+    height:5px; border-radius:3px; background:linear-gradient(90deg,#4a4038,#c9bda4);
+    outline:none; cursor:pointer; }
+  .setrow input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; appearance:none;
+    width:17px; height:17px; border-radius:50%; background:linear-gradient(180deg,#4a4038,#2b2620);
+    border:1.5px solid #f6f0e0; box-shadow:0 1px 4px rgba(0,0,0,.45); cursor:pointer; }
+  .setrow input[type=range]::-moz-range-thumb { width:17px; height:17px; border-radius:50%;
+    background:#3a332a; border:1.5px solid #f6f0e0; cursor:pointer; }
+  .setbtn { cursor:pointer; font-size:13px; letter-spacing:3px; padding:6px 18px; border-radius:6px;
+    border:1px solid #b8a888; background:linear-gradient(180deg,#f6f0e0,#e0d4b8); color:#2e2820; }
+  .setbtn.on { background:#8a7a5a; color:#f6f0e0; border-color:#7a6a4a; }
+  /* 四段選擇(震動強度) */
+  .segrow { display:flex; gap:6px; margin-bottom:12px; }
+  .seg { flex:1 1 0; cursor:pointer; text-align:center; font-size:14px; letter-spacing:2px;
+    padding:8px 0; min-height:38px; display:flex; align-items:center; justify-content:center;
+    border:1px solid #b8a888; border-radius:6px; color:#2e2820;
+    background:linear-gradient(180deg,#f6f0e0,#e0d4b8); transition:background .15s,color .15s; }
+  .seg.on { background:#8a7a5a; color:#f6f0e0; border-color:#7a6a4a; }
+  #sndbtn { min-height:44px; margin-bottom:14px; display:flex; align-items:center;
+    justify-content:center; padding:7px 8px; letter-spacing:2px; }
+  /* 洗點:重塑劍意 */
+  #respec { margin-top:14px; padding:12px 14px; border-radius:8px;
+    background:rgba(246,240,226,.93); border:1px solid #b8a888; }
+  #respecinfo { font-size:12.5px; line-height:1.65; color:#5a4e3c; letter-spacing:.5px; margin-bottom:10px; }
+  #respecinfo b { color:#7a5a2b; }
+  #respecinfo .warn { color:#a2422b; }
+  #respecbtn { display:block; text-align:center; min-height:36px; line-height:24px; }
+  #respecbtn.armed { background:#a2422b; border-color:#8a3520; color:#f6f0e0; }
+  #respecbtn.off { opacity:.45; cursor:default; }
+
+  /* 轉世閣 */
+  #meta { position:absolute; inset:0; display:none; align-items:center; justify-content:center; z-index:40;
+    background:rgba(20,18,14,.72); backdrop-filter:blur(3px); }
+  #meta.show { display:flex; }
+  /* 捲軸隱藏,靠滾輪/觸控/拖曳捲動 —— 與靜觀面板同一套做法 */
+  #metabox { width:min(680px,94vw); max-height:88dvh; overflow:auto; background:linear-gradient(180deg,#f6f0e0,#e6dcc4);
+    border:1px solid #b8a888; border-radius:12px; padding:clamp(16px,3vw,24px) clamp(14px,3vw,26px);
+    box-shadow:0 18px 50px rgba(0,0,0,.6);
+    scrollbar-width:none; -ms-overflow-style:none; touch-action:pan-y; overscroll-behavior:contain; }
+  #metabox::-webkit-scrollbar { width:0; height:0; display:none; }
+  /* 底部三顆鈕:等寬平分、不換行、字級統一,不再忽大忽小 */
+  #metabox .btnrow { display:flex; gap:10px; flex-wrap:nowrap; padding:0; align-items:stretch; }
+  #metabox .btnrow .btn { flex:1 1 0; min-width:0; white-space:nowrap;
+    padding:12px 6px; font-size:clamp(13px,2.4vw,16px); letter-spacing:clamp(1px,0.8vw,3px); }
+  /* .btn.ghost 原本是給深色底用的(淺字),放在轉世閣這種淺色面板上等於看不見。
+     面板內覆寫成深字淺底。 */
+  #metabox .btn.ghost { background:rgba(255,255,255,.45); color:#2e2820; border-color:#b8a888; }
+  #metabox h2 { font-size:clamp(20px,3.6vw,26px); letter-spacing:clamp(4px,1.4vw,8px); color:#2e2820; text-align:center; }
+  #metasouls { text-align:center; color:#7a5a2b; letter-spacing:2px; margin:6px 0 18px; font-size:15px; }
+  #metasouls b { font-size:22px; color:#c08a2e; }
+  .mrow { display:flex; align-items:center; gap:clamp(8px,1.4vw,14px); padding:11px 12px; border-radius:8px;
+    background:rgba(255,255,255,.4); border:1px solid rgba(120,100,70,.25); margin-bottom:9px; flex-wrap:wrap; }
+  .mrow .mi { flex:1; }
+  .mrow .mn { font-size:16px; font-weight:700; letter-spacing:2px; color:#2e2820; }
+  .mrow .md { font-size:12.5px; color:#5a4e3c; letter-spacing:.5px; margin-top:2px; }
+  .mrow .ml { font-size:12px; color:#8a7a5a; letter-spacing:1px; }
+  .mbuy { cursor:pointer; white-space:nowrap; font-size:clamp(12.5px,1.6vw,14px); letter-spacing:2px;
+    padding:8px clamp(10px,2vw,16px); min-height:38px;
+    border-radius:7px; border:1px solid #b8a888; background:linear-gradient(180deg,#f6f0e0,#e0d4b8); color:#2e2820; }
+  .mbuy:hover { transform:translateY(-2px); }
+  .mbuy[disabled] { opacity:.4; cursor:default; transform:none; }
+  .mbuy.done { background:#8aa06a; color:#233018; border-color:#6b7a55; }
+  /* 診斷面板(按 F 開關,或網址加 ?debug) */
+  #diag { position:absolute; right:10px; bottom:10px; max-width:340px; white-space:pre-wrap; z-index:60; display:none;
+    background:rgba(20,18,14,.86); color:#d8ceb4; border:1px solid rgba(200,180,140,.35);
+    border-radius:8px; padding:10px 13px; font:12px/1.65 ui-monospace,Menlo,Consolas,monospace;
+    white-space:pre; letter-spacing:0; pointer-events:none; min-width:210px; }
+  #diag.show { display:block; }
+  #diag b { color:#f0e2b8; font-weight:700; }
+  #diag .warn { color:#e0a050; }
+  #diag .bad { color:#e06a5a; }
+  .mhead { font-size:13px; letter-spacing:3px; color:#7a5a2b; margin:14px 0 8px; border-bottom:1px solid rgba(120,100,70,.3); padding-bottom:4px; }
+  #rotatehint { display:none; position:absolute; inset:0; z-index:80; align-items:center; justify-content:center;
+    padding:28px; text-align:center; color:#f3ecd8; background:rgba(25,22,18,.94);
+    font-size:18px; line-height:2; letter-spacing:4px; }
+
+  /* 手機直向直接使用完整可視高度；桌面仍維持 9:16 畫卷。 */
+  @media (max-width: 640px) and (orientation: portrait){
+    #wrap { width:100vw; height:100dvh; box-shadow:none; }
+    #hud { padding-left:8px; padding-right:8px; }
+    #scorewrap, #ctrls { right:8px; }
+    #barwrap { width:min(52vw,194px); }
+    #cardbox { padding:16px 10px calc(var(--scroll-bottom-safe) + 18px + env(safe-area-inset-bottom)); max-height:74dvh; }
+    #cards { grid-template-columns:repeat(3,minmax(0,1fr)); gap:7px; }
+    .card { height:172px; padding:11px 8px 10px; }
+    .card .rune { margin:0 0 5px; font-size:38px; }
+    .card .cname { margin:0 0 6px; font-size:15px; letter-spacing:1px; }
+    .card .cdesc { font-size:10px; line-height:1.5; }
+    #cardbox h2 { font-size:21px; margin-bottom:4px; }
+    #cardbox p.tip { margin-bottom:10px; font-size:11px; }
+    #rerollbtn { margin-top:10px; min-height:36px; }
+  }
+  @media (max-width: 520px){
+    #barwrap { width:min(52vw,184px); }
+    .ctl { letter-spacing:1px; padding:5px 8px; }
+    .sub { font-size:11px; }
+    .bar { height:7px; }
+    .label { font-size:11.5px; }
+    #pausepanel { padding:18px 12px 14px; }
+    #settings { padding:12px; }
+  }
+  @media (orientation: landscape) and (max-height:600px) and (pointer:coarse){
+    #rotatehint { display:flex; }
+  }
+  /* 手機橫置:高度吃緊,壓縮上方留白與卡片 */
+  @media (max-height: 460px){
+    #hud { padding-top:6px; }
+    .panel { padding:4px 8px; }
+    #cardbox h2 { font-size:19px; margin-bottom:2px; }
+    #cardbox p.tip { margin-bottom:8px; }
+    .card { height:150px; padding:8px 10px; }
+    .card .rune { font-size:26px; margin-bottom:4px; }
+    .title { font-size:34px; }
+    .stitle { margin:8px 0 14px; }
+  }
+  /* 觸控裝置不套用 hover 位移,避免點擊後卡在浮起狀態 */
+  @media (hover: none){
+    .card:hover, .btn:hover, .mbuy:hover { transform:none; }
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="depthpaper"></div>
+  <div id="paper"></div>
+  <canvas id="game"></canvas>
+  <div id="vig"></div>
+  <div id="opening" aria-hidden="true">
+    <div class="op-scroll top"></div>
+    <div class="op-scroll bottom"></div>
+  </div>
+
+  <div id="hud">
+    <div class="panel" id="barwrap">
+      <div class="label">神識 <span id="hptxt" class="sub"></span></div>
+      <div class="bar"><i id="hpfill"></i></div>
+      <div class="label" style="margin-top:8px;">劍意 <span id="mptxt" class="sub"></span></div>
+      <div class="bar"><i id="mpfill"></i></div>
+      <div class="label" style="margin-top:8px;">道行 · <span id="lvtxt">一</span> 重</div>
+      <div class="barrow"><div class="bar"><i id="xpfill"></i></div></div>
+    </div>
+    <div id="ctrls">
+      <button class="ctl inkbtn" id="autobtn" type="button" aria-label="自動御劍" aria-pressed="false"><span class="vt"><b>御</b><b>劍</b></span></button>
+      <button class="ctl inkbtn" id="pausebtn" type="button" aria-label="靜觀(暫停)"><span class="vt"><b>靜</b><b>觀</b></span><span class="pause-label">暫停</span></button>
+    </div>
+    <div class="panel" id="scorewrap">
+      <div class="big" id="killtxt">0</div>
+      <div class="sub">斬妖數</div>
+      <div class="divider"></div>
+      <div class="sub" id="wavetxt">第 一 波</div>
+    </div>
+  </div>
+
+  <div id="overlay"><div id="cardbox">
+    <h2>悟 · 選一道劍訣</h2>
+    <p class="tip">道行精進，天地賜法。點選一張以承其力。</p>
+    <p class="tip" id="lvqueue"></p>
+    <div id="cards"></div>
+    <button id="rerollbtn" type="button">重鑄</button>
+    <div id="rerollleft">剩餘次數：二</div>
+  </div></div>
+
+  <div id="splash">
+    <img id="splashlogo" src="assets/ui/logo.png?v=1" alt="墨劍訣 Inkblade">
+    <div class="tagline">一筆成劍　一墨斬妖</div>
+    <div class="splashspacer"></div>
+    <div class="btncol">
+      <div class="btn" id="startbtn">入 局</div>
+      <div class="btn ghost" id="splashmetabtn">轉世閣</div>
+      <div class="btn ghost" id="splashshopbtn">商城</div>
+    </div>
+  </div>
+
+  <div id="gameover">
+    <div class="title" style="font-size:52px;">隕 落</div>
+    <div class="stitle" id="finaltxt"></div>
+    <div class="btnrow">
+      <div class="btn" id="againbtn">重入畫卷</div>
+      <div class="btn ghost" id="metabtn">轉世閣</div>
+    </div>
+  </div>
+
+  <div id="pause">
+    <div id="pausepanel">
+      <div class="title" style="font-size:38px;">靜 觀</div>
+      <div class="stitle" style="margin:8px 0 14px;">劍勢暫歇，凝神再戰</div>
+      <div id="settings">
+      <div class="sethead">行 劍 設 定</div>
+      <div class="setbtn" id="sndbtn">♪ 音律：開</div>
+      <div class="setbtn" id="herobtn" style="min-height:38px;margin-bottom:12px;display:flex;align-items:center;justify-content:center;">墨形：劍客</div>
+      <div class="sethead" style="margin-top:14px;">震 動</div>
+      <div class="segrow" id="shakerow">
+        <div class="seg" data-shake="n">無</div><div class="seg" data-shake="s">小</div><div class="seg" data-shake="m">中</div><div class="seg" data-shake="l">大</div>
+      </div>
+      <div class="sethead" style="margin-top:14px;">畫 質</div>
+      <div class="segrow" id="qualrow">
+        <div class="seg" data-qual="low">低</div><div class="seg" data-qual="med">中</div><div class="seg" data-qual="high">高</div>
+      </div>
+      <div class="sethead" style="margin-top:14px;">幀 數</div>
+      <div class="segrow" id="fpsrow">
+        <div class="seg" data-fps="30">30</div><div class="seg" data-fps="60">60</div><div class="seg" data-fps="120">120</div><div class="seg" data-fps="0">不限</div>
+      </div>
+      <div class="sethead" style="margin-top:14px;">劍 訣 註 解</div>
+      <div class="segrow" id="cardtextrow">
+        <div class="seg" data-cardtext="text">文字</div><div class="seg" data-cardtext="effect">效果</div>
+      </div>
+      <div id="audioControls">
+      <div class="sethead">音 律</div>
+      <div class="setrow"><label for="volMaster">總音量</label>
+        <input type="range" id="volMaster" min="0" max="100" step="1"><span id="volMasterV">85</span></div>
+      <div class="setrow"><label for="volMusic">音 樂</label>
+        <input type="range" id="volMusic" min="0" max="100" step="1"><span id="volMusicV">62</span></div>
+      <div class="setrow"><label for="volSfx">音 效</label>
+        <input type="range" id="volSfx" min="0" max="100" step="1"><span id="volSfxV">75</span></div>
+      </div>
+      </div>
+      <div id="respec">
+      <div class="sethead">重 塑 劍 意</div>
+      <div id="respecinfo"></div>
+      <div class="setbtn" id="respecbtn">重 塑</div>
+      </div>
+      <div class="btnrow">
+        <div class="btn" id="resumebtn">繼 續</div>
+        <div class="btn ghost" id="pausequitbtn">重入畫卷</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="meta"><div id="metabox">
+    <h2>轉 世 閣</h2>
+    <div id="metasouls"></div>
+    <div id="metabonus"></div>
+    <div id="metaoffline"></div>
+    <div class="mhead" id="mhead1">築基 · 永久數值</div>
+    <div id="metalist"></div>
+    <div class="mhead" id="mhead2">心法 · 改變節奏</div>
+    <div id="metaunlock"></div>
+    <div class="mhead" id="mhead3">傳承 · 開啟悟道池</div>
+    <div id="metainherit"></div>
+    <div class="btnrow" style="margin-top:20px;">
+      <div class="btn" id="metaplaybtn">重入畫卷</div>
+      <div class="btn ghost" id="metashopbtn">商城</div>
+      <div class="btn ghost" id="metaclosebtn">返回</div>
+    </div>
+  </div></div>
+
+  <div id="diag"></div>
+  <div id="rotatehint">請將裝置轉為直向<br><span style="font-size:13px;color:#c9bfa6;letter-spacing:2px;">畫卷將以直向展開</span></div>
+
+  <div id="shop"><div id="shopbox">
+    <h2>商 城</h2>
+    <div id="shopgems"></div>
+    <div class="shopnote">※ 課金點示範:此處不實際扣款,「購買」僅模擬發放靈石。設計上只賣加速與外觀,不賣數值唯一解。</div>
+    <div class="mhead">靈石加值 · 課金點</div>
+    <div id="shopiap"></div>
+    <div class="mhead">靈石消費</div>
+    <div id="shopspend"></div>
+    <div class="btnrow" style="margin-top:20px;">
+      <div class="btn ghost" id="shopclosebtn">返回</div>
+    </div>
+  </div></div>
+</div>
+
+<script src="data/game-config.js"></script>
+<script src="data/sound-system.js"></script>
+<script>
+(function(){
+'use strict';
+const cv = document.getElementById('game');
+const ctx = cv.getContext('2d');
+let W=0,H=0,DPR=Math.min(window.devicePixelRatio||1,2), booted=false;
+let jianSprite=null, jianKey='', jianOX=0, jianOY=0;   // 劍身貼圖(在 resize 前就會被參照)
+
+// 畫質檔位:控制 DPR 上限、裝飾層開關、以及墨滴/粒子的同屏上限。
+// 低檔刻意保留 trail 與潑墨 —— 那兩個是打擊回饋,砍掉會變得沒手感,不是「畫質」。
+const QUALITY={
+  low : { dpr:1,   fx:{bg:true,vig:false,trail:true,ink:false,part:false,glow:false}, ink:0,   part:0   },
+  med : { dpr:1.5, fx:{bg:true,vig:true, trail:true,ink:true, part:true, glow:false}, ink:90,  part:120 },
+  high: { dpr:2,   fx:{bg:true,vig:true, trail:true,ink:true, part:true, glow:true }, ink:220, part:300 }
+};
+// resize() 會在腳本頂層先跑一次,那時 meta 還在 TDZ —— 故取值一律走防呆。
+function qual(){
+  try{ return QUALITY[meta.quality] || QUALITY.high; }catch(_){ return QUALITY.high; }
+}
+function applyQuality(){
+  const q=qual();
+  Object.assign(FX,q.fx);
+  DPR=Math.min(window.devicePixelRatio||1, q.dpr);
+  if(cv && W && H){ cv.width=W*DPR; cv.height=H*DPR; ctx.setTransform(DPR,0,0,DPR,0,0); jianSprite=null; }
+  paperDone=false;
+}
+
+function resize(){
+  // 以畫布實際佔位為準(而非 innerWidth),手機瀏覽器工具列伸縮時才不會偏移
+  const r=cv.getBoundingClientRect();
+  W=Math.max(1,Math.round(r.width)||window.innerWidth);
+  H=Math.max(1,Math.round(r.height)||window.innerHeight);
+  DPR=Math.min(window.devicePixelRatio||1,(typeof qual==='function'?qual().dpr:2),DPR||2);   // 已降階過就不再升回;上限由畫質決定
+  cv.width=W*DPR; cv.height=H*DPR; ctx.setTransform(DPR,0,0,DPR,0,0);
+  jianSprite=null;
+  if(booted && G.player){ G.player.x=W/2; G.player.y=H/2; }   // 尺寸變動時靈石重新歸中
+}
+window.addEventListener('resize',resize);
+window.addEventListener('orientationchange',()=>setTimeout(resize,150));
+if(window.visualViewport) window.visualViewport.addEventListener('resize',resize);
+window.addEventListener('load',()=>setTimeout(resize,60));
+resize();
+
+// ---------- 音律 ----------
+// 背景樂:assets/audio/bgm/battle01.mp3,雙元素等功率交叉淡入淡出循環。
+// 音效:WebAudio 程序化合成(五聲音階撥弦 + 噪音掃頻 + 低頻悶擊),無外部音檔。
+const SND_LEGACY=(function(){
+  const S={ on:true, music:true };
+  let ac=null, master=null, sg=null, rvg=null, noiseBuf=null;
+
+  function makeNoise(sec){
+    const b=ac.createBuffer(1,(ac.sampleRate*sec)|0,ac.sampleRate), d=b.getChannelData(0);
+    for(let i=0;i<d.length;i++) d[i]=Math.random()*2-1;
+    return b;
+  }
+  function impulse(sec,decay){
+    const n=(ac.sampleRate*sec)|0, b=ac.createBuffer(2,n,ac.sampleRate);
+    for(let c=0;c<2;c++){ const d=b.getChannelData(c);
+      for(let i=0;i<n;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/n,decay); }
+    return b;
+  }
+  function init(){
+    if(ac) return true;
+    const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return false;
+    try{ ac=new AC(); }catch(e){ return false; }
+    master=ac.createGain(); master.gain.value=0.85; master.connect(ac.destination);
+    const rv=ac.createConvolver(); rv.buffer=impulse(1.05,2.6);   // 縮短:長卷積在弱機上很貴
+    rvg=ac.createGain(); rvg.gain.value=0.30; rv.connect(rvg); rvg.connect(master);
+    sg=ac.createGain(); sg.gain.value=0.72; sg.connect(master); sg.connect(rv);
+    noiseBuf=makeNoise(2);
+    api.applyVol();
+    return true;
+  }
+  function resume(){ if(ac&&ac.state==='suspended') ac.resume(); }
+  const now=()=>ac.currentTime;
+
+  // 撥弦(古箏感:基音 + 微失諧泛音 + 極短起音)
+  function pluck(f,t,dur,vol,dest){
+    const g=ac.createGain(); g.connect(dest||sg);
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(vol,t+0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    const o=ac.createOscillator(); o.type='triangle'; o.frequency.setValueAtTime(f,t);
+    o.frequency.exponentialRampToValueAtTime(f*0.997,t+dur);
+    const o2=ac.createOscillator(); o2.type='sine'; o2.frequency.setValueAtTime(f*2.008,t);
+    const g2=ac.createGain(); g2.gain.setValueAtTime(0.0001,t);
+    g2.gain.exponentialRampToValueAtTime(vol*0.4,t+0.004);
+    g2.gain.exponentialRampToValueAtTime(0.0001,t+dur*0.45);
+    o.connect(g); o2.connect(g2); g2.connect(g);
+    o.start(t); o2.start(t); o.stop(t+dur+0.05); o2.stop(t+dur+0.05);
+  }
+  // 噪音掃頻(劍風、墨爆)
+  function noise(t,dur,vol,f0,f1,q,type){
+    const src=ac.createBufferSource(); src.buffer=noiseBuf; src.loop=true;
+    const bp=ac.createBiquadFilter(); bp.type=type||'bandpass'; bp.Q.value=q||1.2;
+    bp.frequency.setValueAtTime(f0,t); bp.frequency.exponentialRampToValueAtTime(Math.max(60,f1),t+dur);
+    const g=ac.createGain();
+    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(vol,t+0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    src.connect(bp); bp.connect(g); g.connect(sg);
+    src.start(t); src.stop(t+dur+0.05);
+  }
+  // 低頻悶擊(受傷、鐘鳴底)
+  function thud(t,dur,vol,f0,f1){
+    const o=ac.createOscillator(); o.type='sine';
+    o.frequency.setValueAtTime(f0,t); o.frequency.exponentialRampToValueAtTime(f1,t+dur);
+    const g=ac.createGain();
+    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(vol,t+0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    o.connect(g); g.connect(sg); o.start(t); o.stop(t+dur+0.05);
+  }
+
+  // 五聲音階:D 羽調 —— 半音位移 0,2,5,7,10(宮商角徵羽)
+  const PENT=[0,2,5,7,10];
+  const ROOT=146.83; // D3
+  function deg(i){ // i 為音階級數(可跨八度,支援負數)
+    const o=Math.floor(i/5), s=((i%5)+5)%5;
+    return ROOT*Math.pow(2,o+PENT[s]/12);
+  }
+
+  // ===== 背景樂:mp3 循環(雙元素等功率交叉淡入淡出,接縫無空隙) =====
+  // 不走 WebAudio(MediaElementSource 在 file:// 下會被視為跨來源而靜音),
+  // 直接操作 HTMLAudioElement.volume,雙擊開啟本機檔也能正常播放。
+  const BGM=(function(){
+    const TRACK='assets/audio/bgm/battle01.mp3';
+    const XF=2.8;            // 交叉淡入淡出秒數(曲首曲尾各一段)
+    let BASE=0.62;           // 背景樂基準音量(由設定的 總音量 × 音樂 決定)
+    let els=null, cur=0, gate=0, gateTo=0, gateSpd=1, raf=null, want=false, ok=true;
+
+    function make(){
+      const el=new Audio(); el.preload='auto'; el.loop=false; el.volume=0;
+      el.addEventListener('error',()=>{ ok=false; },{once:true});   // 找不到音檔就靜靜略過,不影響音效
+      el.src=TRACK;
+      return el;
+    }
+    function ensure(){ if(!els) els=[make(),make()]; }
+    // 等功率淡變:線性權重會在交叉點掉約 6dB,改用 sin 曲線維持音量感一致
+    const shape=w=>Math.sin(Math.max(0,Math.min(1,w))*Math.PI/2);
+    function weight(el){
+      const d=el.duration;
+      if(!d||!isFinite(d)) return 1;
+      const t=el.currentTime;
+      return Math.min(1, t/XF, (d-t)/XF);
+    }
+    let last=0;
+    function tick(){
+      const ts=performance.now();
+      const dt=Math.min(0.2,(ts-last)/1000||0.05); last=ts;
+      // 總開關的淡入淡出
+      if(gate<gateTo) gate=Math.min(gateTo,gate+dt/gateSpd);
+      else if(gate>gateTo) gate=Math.max(gateTo,gate-dt/gateSpd);
+      if(!els) return;
+      for(const el of els){
+        if(el.paused) continue;
+        const v=Math.max(0,Math.min(1, BASE*gate*shape(weight(el)) ));
+        if(Math.abs(v-el.volume)>0.004) el.volume=v;   // 變化太小就不寫,省媒體管線往返
+      }
+      // 排程接曲:現行曲目剩餘不足 XF 時,另一軌從頭淡入
+      const a=els[cur], b=els[1-cur];
+      if(!a.paused && a.duration && isFinite(a.duration)){
+        if(a.duration-a.currentTime<=XF && b.paused){
+          try{ b.currentTime=0; b.volume=0; b.play(); cur=1-cur; }catch(e){}
+        }
+      }
+      // 淡出完畢就真的停住,不留背景解碼
+      if(gateTo===0 && gate<=0.001){
+        for(const el of els) if(!el.paused) el.pause();
+        clearInterval(raf); raf=null;
+      }
+    }
+    function loop(){ if(raf==null){ last=performance.now(); raf=setInterval(tick,50); } }
+    return {
+      play(fade){
+        want=true; ensure(); if(!ok) return;
+        gateTo=1; gateSpd=fade||1.8;
+        const a=els[cur];
+        if(a.paused){ a.volume=0; const pr=a.play(); if(pr&&pr.catch) pr.catch(()=>{}); }
+        loop();
+      },
+      stop(fade){
+        want=false; gateTo=0; gateSpd=fade||0.5;
+        if(els) loop();
+      },
+      kill(){ want=false; gate=gateTo=0;
+        if(els){ for(const el of els){ try{el.pause();}catch(e){} el.volume=0; } }
+        if(raf!=null){ clearInterval(raf); raf=null; } },
+      setBase(v){ BASE=v;
+        if(els) for(const el of els) if(!el.paused)
+          el.volume=Math.max(0,Math.min(1, BASE*gate*shape(weight(el)) )); },
+      get wanted(){ return want; },
+    };
+  })();
+
+  function startMusic(){ if(S.music) BGM.play(1.8); }
+  function stopMusic(fade){ BGM.stop(fade||0.5); }
+
+  const api={
+    get on(){return S.on;},
+    setOn(v){ S.on=v;
+              if(!v){ BGM.kill(); if(master) master.gain.value=0; }
+              else { api.applyVol(); } },
+    // 三軌音量:總音量分別乘到音樂與音效上
+    applyVol(){
+      const V=(meta&&meta.vol)||{master:0.85,music:0.62,sfx:0.75};
+      const on=S.on && !(meta&&meta.mute);
+      if(master) master.gain.value = on ? V.master*V.sfx*1.15 : 0;
+      BGM.setBase(on ? V.master*V.music : 0);
+    },
+    unlock(){ if(init()) resume(); api.applyVol(); },
+    hardMute(v){                       // 診斷用:徹底切斷音訊管線
+      if(v){ BGM.kill(); if(ac&&ac.suspend) ac.suspend(); }
+      else { if(ac&&ac.resume) ac.resume(); if(S.on&&S.music) BGM.play(0.8); } },
+    music(v){ S.music=v; if(v) startMusic(); else stopMusic(); },
+    startMusic(){ if(S.on&&S.music){ init(); resume(); startMusic(); } },
+    stopMusic(f){ stopMusic(f); },
+    duck(){},                       // 保留介面;現行設計為暫停即完全停止
+    intensity(){},                  // 預留:日後依波次切換 battle02/03 或 boss01
+
+    cast(len){ if(!S.on||!ac)return; const t=now();
+      const l=Math.min(1,len/600);
+      noise(t,0.16+l*0.14,0.16,900+l*900,260,1.6);
+      pluck(deg(9+Math.floor(l*3)),t,0.5,0.075); },
+    hit(){ if(!S.on||!ac)return; const t=now();
+      noise(t,0.07,0.13,1800,600,2.2); thud(t,0.08,0.10,190,90); },
+    crit(){ if(!S.on||!ac)return; const t=now();
+      noise(t,0.10,0.16,3200,900,3.0); pluck(deg(14),t,0.6,0.12); pluck(deg(16),t+0.03,0.5,0.09); },
+    kill(tier){ if(!S.on||!ac)return; const t=now();
+      noise(t,0.22+tier*0.05,0.15,700-tier*180,120,0.9,'lowpass');
+      thud(t,0.20+tier*0.08,0.13,150-tier*30,52); },
+    boom(){ if(!S.on||!ac)return; const t=now();
+      noise(t,0.42,0.22,1400,120,0.8,'lowpass'); thud(t,0.38,0.20,120,38); },
+    hurt(){ if(!S.on||!ac)return; const t=now();
+      thud(t,0.34,0.26,120,44); noise(t,0.18,0.12,420,110,0.8,'lowpass'); },
+    nomana(){ if(!S.on||!ac)return; const t=now();
+      pluck(deg(2),t,0.22,0.07); noise(t,0.08,0.05,320,180,1.0); },
+    level(){ if(!S.on||!ac)return; const t=now();
+      [7,9,11,14].forEach((d,i)=>pluck(deg(d),t+i*0.075,1.6,0.15)); },
+    pick(){ if(!S.on||!ac)return; const t=now();
+      pluck(deg(12),t,0.9,0.13); pluck(deg(16),t+0.05,0.8,0.09); },
+    wave(){ if(!S.on||!ac)return; const t=now();      // 磬鳴
+      thud(t,1.6,0.20,138,66); pluck(deg(0),t,2.2,0.14); pluck(deg(2),t+0.02,2.0,0.09);
+      noise(t,0.5,0.06,2600,700,1.2); },
+    over(){ stopMusic(1.6); if(!S.on||!ac)return; const t=now();
+      [11,9,7,4,0].forEach((d,i)=>pluck(deg(d),t+i*0.16,2.0,0.16));
+      thud(t+0.1,2.2,0.18,110,40); },
+    ui(){ if(!S.on||!ac)return; pluck(deg(11),now(),0.4,0.08); },
+  };
+  return api;
+})();
+
+// ---------- 角色美術 ----------
+// 原稿是一張白底剪影,已離線切成「身體」與「劍」兩張透明貼圖,
+// 讓劍能獨立揮舞;身體則在遊戲中以逐列橫切位移做出衣袂與髮絲的風動。
+const ART={ body:new Image(), sword:new Image(), n:0, ok:false };
+['body','sword'].forEach(k=>{
+  ART[k].onload=()=>{ if(++ART.n===2) ART.ok=true; };
+  ART[k].onerror=()=>{ ART.ok=false; };          // 找不到圖就退回原本的靈石畫法
+});
+ART.body.src='assets/art/hero-body.png';
+ART.sword.src='assets/art/mo-jian.png';   // Master Sword 墨劍,唯一武器
+// 主角 sprite:待機 9 幀(不同姿態變體,慢速交叉淡入)+ 受擊 4 幀(連續播放一次)。
+// 全部在同一張畫布上以「主體中心 x / 腳底 y」對位,切換不會跳。找不到圖 → 回退舊的程序化剪影。
+const HEROSPR={ idle:[], hurt:[], cast:[], death:[], ok:false, aspect:0.9917, foot:0.9906, n:0, need:26 };
+(function loadHero(){
+  const add=(arr,src)=>{ const im=new Image();
+    im.onload=()=>{ HEROSPR.aspect=im.naturalWidth/im.naturalHeight;
+                    if(++HEROSPR.n>=HEROSPR.need) HEROSPR.ok=true; };
+    im.onerror=()=>{ HEROSPR.ok=false; };
+    im.src=src; arr.push(im); };
+  const pad=i=>String(i).padStart(2,'0');
+  for(let i=1;i<=9;i++) add(HEROSPR.idle,'assets/hero/HERO_idle_'+pad(i)+'.png');
+  for(let i=1;i<=4;i++) add(HEROSPR.hurt,'assets/hero/HERO_hurt_'+pad(i)+'.png');
+  for(let i=1;i<=6;i++) add(HEROSPR.cast,'assets/hero/HERO_cast_'+pad(i)+'.png');
+  for(let i=1;i<=7;i++) add(HEROSPR.death,'assets/hero/HERO_death_'+pad(i)+'.png');
+})();
+// 女修士:單張「無劍身體」+ 獨立配劍,動態全部程序化。
+// 原 7 幀 idle 其實身體幾乎一模一樣,只有配劍位置不同 —— 交叉淡入會讓劍在空中瞬移。
+// 故離線以「7 幀 alpha 中位數」合成出乾淨的無劍身體(劍在每幀位置不同,中位數自然把它濾掉),
+// 配劍則從殘差取出並做主軸正規化(刀身水平、劍尖朝 +X、護手在 grip 比例處)。
+// 身體靠逐列風動+呼吸活起來,配劍與墨痕沿橢圓軌道環繞 → 旋渦感。缺圖時自動退回舊的 7 幀。
+const HEROF={ idle:[], ok:false, proc:false, aspect:0.9944, foot:0.9833, n:0, need:7,
+              body:null, sword:null, swGrip:0.2013, swAspect:5.2 };
+(function loadHeroF(){
+  const body=new Image();
+  body.onload=()=>{ HEROF.body=body; HEROF.aspect=body.naturalWidth/body.naturalHeight;
+                    HEROF.proc=true; HEROF.ok=true; };
+  body.src='assets/hero-f/HEROF_body.png';
+  const sw=new Image();
+  sw.onload=()=>{ HEROF.sword=sw; HEROF.swAspect=sw.naturalWidth/sw.naturalHeight; };
+  sw.src='assets/hero-f/HEROF_sword.png';
+  for(let i=1;i<=7;i++){ const im=new Image();          // 回退用:舊的 7 幀
+    im.onload=()=>{ if(!HEROF.proc){ HEROF.aspect=im.naturalWidth/im.naturalHeight;
+                    if(++HEROF.n>=HEROF.need) HEROF.ok=true; } };
+    im.src='assets/hero-f/HEROF_idle_'+String(i).padStart(2,'0')+'.png';
+    HEROF.idle.push(im); }
+})();
+// 墨劍 sprite:待機 8 幀 + 攻擊 6 幀。素材已離線做「主軸正規化」——
+// 刀身水平、劍尖朝 +X、護手固定在畫布 grip 比例處,所以引擎只要照 s.ang 旋轉即可。
+const SWDSPR={ idle:[], atk:[], ok:false, aspect:2.504, grip:0.22, blade:0.645, n:0, need:14 };
+(function loadSword(){
+  const add=(arr,src)=>{ const im=new Image();
+    im.onload=()=>{ SWDSPR.aspect=im.naturalWidth/im.naturalHeight;
+                    if(++SWDSPR.n>=SWDSPR.need) SWDSPR.ok=true; };
+    im.onerror=()=>{ SWDSPR.ok=false; }; im.src=src; arr.push(im); };
+  const pad=i=>String(i).padStart(2,'0');
+  for(let i=1;i<=8;i++) add(SWDSPR.idle,'assets/sword/SWORD_idle_'+pad(i)+'.png');
+  for(let i=1;i<=6;i++) add(SWDSPR.atk,'assets/sword/SWORD_atk_'+pad(i)+'.png');
+})();
+// 敵人/Boss sprite 載入器:偵測到真透明 PNG 就用,否則回退程序化墨團(見敵人繪製)。
+// 檔名對應 docs/ch1-asset-library.md;放進對應資料夾即自動生效,無需改碼。
+const ENESPR = { inkling:{frames:[],ok:false}, blade:{frames:[],ok:false}, boss:{frames:[],ok:false} };
+(function(){
+  const srcs={
+    inkling:['assets/enemies/ENE_INKLING_move_01.png','assets/enemies/ENE_INKLING_move_02.png',
+             'assets/enemies/ENE_INKLING_move_03.png','assets/enemies/ENE_INKLING_move_04.png'],
+    blade:['assets/enemies/ENE_BLADE_walk_01.png','assets/enemies/ENE_BLADE_walk_02.png',
+           'assets/enemies/ENE_BLADE_walk_03.png','assets/enemies/ENE_BLADE_walk_04.png',
+           'assets/enemies/ENE_BLADE_walk_05.png','assets/enemies/ENE_BLADE_walk_06.png',
+           'assets/enemies/ENE_BLADE_walk_07.png','assets/enemies/ENE_BLADE_walk_08.png',
+           'assets/enemies/ENE_BLADE_walk_09.png'],
+    boss:['assets/boss/BOSS_MOSHOU_idle_01.png']
+  };
+  for(const k in ENESPR){ const grp=ENESPR[k];
+    srcs[k].forEach((s,i)=>{ const img=new Image();
+      img.onload=()=>{ grp.frames[i]=img; grp.ok=grp.frames.filter(Boolean).length>0; };
+      img.onerror=()=>{}; img.src=s; });
+  }
+})();
+// 貼圖上的錨點(比例):手握位置、劍柄位置
+// gripX 取在護手位置,劍身自此往 +x 延伸
+const HERO={ handX:0.9652, handY:0.5097, gripX:0.279, gripY:0.50,
+             aspect:417/620, swAspect:45/520 };
+
+// ---------- 遊戲狀態 ----------
+const G = {
+  running:false, paused:false, t:0,
+  player:null, enemies:[], swords:[], particles:[], inks:[], texts:[], stains:[], splashes:[],
+  kills:0, wave:1, waveTimer:0, spawnAcc:0,
+  xp:0, xpNeed:6, level:1, pendingLevels:0,
+  shake:0, hitstop:0, flash:0, flashC:'255,255,255', banner:null,
+  aim:0.85, facing:1, intent:0, streaks:[], cuts:[], firstStrikeDone:false, respecWave:0,
+  hurtT:0, castT:0, deathT:0, deathMax:56, heroPhase:0,
+};
+booted=true;
+
+// 詞條(可堆疊)
+const stat = {
+  count:1,          // 同時飛出的劍數
+  formation:'fan',  // 陣型:fan 扇形 / parallel 平行 / inline 連珠
+  damage:24,        // 單劍傷害
+  size:9,           // 劍氣寬度
+  speed:11,         // 飛行速度
+  pierce:1,         // 可貫穿敵人數
+  homing:0,         // 追蹤強度
+  explode:0,        // 爆裂範圍
+  element:'none',   // 劍的元素:none/fire/ice
+  ember:0,          // 業火:灼燒層數
+  ice:0,            // 寒霜:冰緩層數
+  life:1.35,        // 劍存活秒數
+  ret:0,            // 迴劍
+  crit:0.05,        // 暴擊率
+  regen:0,          // 每斬回靈
+  cap:6,            // 同屏飛劍數上限
+  manaMax:100,      // 劍意上限
+  manaRegen:0.34,   // 每幀劍意回復
+  costBase:6,       // 出劍基礎劍意(開局值由 config.baseRunState.stats.manaCostBase 決定)
+  costPerPx:0.13,   // 每單位劍痕長度的劍意(同上 manaCostPerPixel;滿劍意約可畫 700px)
+};
+
+// ---------- 轉世 · 永久進度(存本機) ----------
+// 轉世閣資料改由共用設定檔提供(data/game-config.js)
+// (legacy metaUp/metaUnlock 已不再使用:轉世閣改走 runtime 的 getRebirthView/purchaseRebirth)
+let meta = { souls:0, best:{kills:0,wave:1,level:1}, up:{}, unlock:{},
+             lastSeen:Date.now(), gems:0, offCap:8, skin:'none', mute:false, inkPills:0,
+             vol:{ master:0.85, music:0.62, sfx:0.75 } };
+window.getInkAudioSettings=()=>meta.vol;
+function loadMeta(){
+  try{ const s=localStorage.getItem('inkjian_meta'); if(s){ meta=Object.assign(meta,JSON.parse(s)); } }catch(e){}
+  meta.up=meta.up||{}; meta.unlock=meta.unlock||{}; meta.best=meta.best||{kills:0,wave:1,level:1};
+  meta.gems=meta.gems||0; meta.offCap=meta.offCap||8; meta.skin=meta.skin||'none';
+  meta.mute=!!meta.mute; meta.heroSkin = (meta.heroSkin==='m')?'m':'f';   // 預設女修
+  if(!['n','s','m','l'].includes(meta.shake)) meta.shake='m';            // 震動強度,預設中
+  if(!['low','med','high'].includes(meta.quality)) meta.quality='high'; // 畫質,預設高
+  if(![30,60,120,0].includes(meta.fps)) meta.fps=60;                    // 幀數上限,0=不限
+  if(!['text','effect'].includes(meta.cardText)) meta.cardText='text';  // 劍訣註解:文字/效果
+  meta.vol=Object.assign({master:0.85,music:0.62,sfx:0.75}, meta.vol||{});
+  for(const k of ['master','music','sfx'])
+    meta.vol[k]=Math.max(0,Math.min(1, isFinite(meta.vol[k])?meta.vol[k]:0.7));
+  migrateMetaToRuntime();
+}
+function saveMeta(){ try{ localStorage.setItem('inkjian_meta',JSON.stringify(meta)); }catch(e){} }
+loadMeta();
+SND.setOn(!meta.mute);
+// 離開時記錄時間,供閉關(離線)收益計算
+function stamp(){ meta.lastSeen=Date.now(); saveMeta(); }
+window.addEventListener('beforeunload',stamp);
+document.addEventListener('visibilitychange',()=>{ if(document.hidden) stamp(); });
+
+// 閉關修煉:離線依歷史最佳波次被動生墨魂(封頂 meta.offCap 小時)
+function offlineRate(){ return 5 + meta.best.wave*2; }         // 每小時墨魂
+function offlinePending(){
+  const hrs=Math.min(meta.offCap, Math.max(0,(Date.now()-(meta.lastSeen||Date.now()))/3600000));
+  return Math.floor(hrs*offlineRate());
+}
+function claimOffline(){ const g=offlinePending(); if(g>0){ meta.souls+=g; } meta.lastSeen=Date.now(); saveMeta(); return g; }
+
+// 課金點(示範,不實際扣款) —— 靈石為硬通貨
+const SHOP_IAP=[
+  {id:'g100', name:'靈石 ×100',  price:'NT$ 60',  gems:100},
+  {id:'g600', name:'靈石 ×600',  price:'NT$ 330', gems:600, tag:'超值'},
+  {id:'pass', name:'修行月卡',    price:'NT$ 170', gems:300, note:'每日登入贈墨魂(示範:此處直接給等值靈石)'},
+];
+const SHOP_SPEND=[
+  {id:'souls', name:'墨魂補給 ×200', desc:'靈石兌換墨魂,加速轉世修為', cost:50, repeat:true, grant:()=>{ meta.souls+=200; }},
+  {id:'offcap',name:'閉關上限 +4 時', desc:'離線收益封頂提高(現 '+'', cost:80, grant:()=>{ meta.offCap+=4; }, capField:true},
+  {id:'skin',  name:'外觀 · 墨金劍痕', desc:'預設墨痕染金芒(純外觀,不影響數值)', cost:120, once:true, grant:()=>{ meta.skin='gold'; }},
+  {id:'pill',  name:'洗墨丹 ×1', desc:'重塑劍意時抵免墨魂耗費(局內暫停可用)', cost:40, repeat:true, pillField:true, grant:()=>{ meta.inkPills=(meta.inkPills||0)+1; }},
+];
+
+// ---------- 玩家(中央靈石) ----------
+function Player(){
+  // 神識上限改由 config 決定(轉世閣「識海初開」可加)。start() 已先跑 syncStat,故 stat.hpMax 必有值。
+  const hp = (stat && stat.hpMax) || 100;
+  this.x=W/2; this.y=H/2; this.r=26; this.hp=hp; this.max=hp; this.pulse=0;
+}
+
+// ---------- 敵人 ----------
+// 是否在畫面可視範圍內(自動瞄準 / 追蹤 / 角色朝向都只看得見的目標)
+function onScreen(en){ return en.x>=-en.r && en.x<=W+en.r && en.y>=-en.r && en.y<=H+en.r; }
+function spawnEnemy(){
+  // 生成點貼著畫面邊緣(略微外推一個身位,入場即可見)——原本在畫面外 30px,
+  // 會出現「打得到但看不到」的怪,自動御劍也會朝畫面外出劍。
+  const edge=Math.floor(Math.random()*4); let x,y;
+  const M=8;
+  if(edge===0){x=Math.random()*W;y=M;}
+  else if(edge===1){x=W-M;y=Math.random()*H;}
+  else if(edge===2){x=Math.random()*W;y=H-M;}
+  else {x=M;y=Math.random()*H;}
+  const tier = G.wave>=6&&Math.random()<0.16 ? 2 : (G.wave>=3&&Math.random()<0.28?1:0);
+  const base=[{hp:14,r:15,sp:0.9,c:'#4a3b3b'},{hp:34,r:20,sp:0.72,c:'#3b2f4a'},{hp:80,r:28,sp:0.55,c:'#2f3b3b'}][tier];
+  const scale=1+(G.wave-1)*0.11;
+  G.enemies.push({x,y,r:base.r,hp:base.hp*scale,max:base.hp*scale,sp:base.sp+G.wave*0.02,
+    c:base.c,tier,type:tier===0?'inkling':'blade',anim:Math.random()*1000,ember:0,emberT:0,chill:0,hit:0,wob:Math.random()*7,st:{}});
+}
+
+// ---------- 劍 ----------
+function pathLen(path){ let L=0; for(let i=1;i<path.length;i++) L+=Math.hypot(path[i].x-path[i-1].x,path[i].y-path[i-1].y); return L; }
+// 平行陣:整條墨痕沿各點法線平移 d
+function offsetPath(path,d){
+  const out=[];
+  for(let i=0;i<path.length;i++){
+    const a=path[Math.max(0,i-1)], b=path[Math.min(path.length-1,i+1)];
+    let nx=-(b.y-a.y), ny=(b.x-a.x); const L=Math.hypot(nx,ny)||1; nx/=L; ny/=L;
+    out.push({x:path[i].x+nx*d, y:path[i].y+ny*d});
+  }
+  return out;
+}
+// 扇形陣:整條墨痕繞起點旋轉 ang
+function rotatePath(path,ang){
+  const o=path[0], c=Math.cos(ang), s=Math.sin(ang), out=[];
+  for(const pt of path){ const dx=pt.x-o.x, dy=pt.y-o.y;
+    out.push({x:o.x+dx*c-dy*s, y:o.y+dx*s+dy*c}); }
+  return out;
+}
+function launchSword(path){
+  if(path.length<2) return;
+  const len=pathLen(path);
+  const cost=stat.costBase + len*stat.costPerPx;
+  const s0=path[0];
+  if(G.mana < cost){
+    floatText(s0.x,s0.y-14,'劍意不足','#c08a2e'); burst(s0.x,s0.y,'#8a7a5a',5); SND.nomana(); return;
+  }
+  G.mana -= cost;
+  SND.cast(len);
+  G.castT=24;                                      // 施放 6 幀 × 4 影格
+  G.intent=1;                                      // 意念起 —— 只反映在腳下法陣,身體不動
+  { const P=G.player, p1=path[Math.min(3,path.length-1)];
+    G.aim=Math.atan2(p1.y-P.y, p1.x-P.x);
+    // 赴筆:劍意自修士身側掠至落筆處,留一道細墨痕
+    const h=P.r*4.7, feet=P.y+P.r*1.05;
+    G.streaks.push({x1:P.x+G.facing*h*0.10, y1:feet-h*0.55,
+                    x2:s0.x, y2:s0.y, life:1}); }
+  // 同屏上限:優先淘汰最舊的劍
+  const n=stat.count;
+  let room=stat.cap - G.swords.length;
+  if(room<n){ G.swords.splice(0, Math.min(G.swords.length, n-Math.max(room,0))); }
+  const mid=(n-1)/2;
+  const extraLife = len/(stat.speed*60); // 沿線飛完所需的額外壽命
+  for(let i=0;i<n;i++){
+    // 依陣型產生各自的飛行路徑
+    let p2;
+    if(n===1) p2=path.slice();
+    else if(stat.formation==='parallel') p2=offsetPath(path,(i-mid)*(stat.size*2.2+10));
+    else if(stat.formation==='fan'){
+      const spread=Math.min(0.55,0.14*(n-1));
+      p2=rotatePath(path, (i/(n-1)-0.5)*spread*2);
+    } else p2=path.slice(); // inline 連珠:同一條線,靠延遲拉開前後
+    const st=p2[0];
+    const d0=Math.atan2(p2[1].y-st.y, p2[1].x-st.x);
+    G.swords.push({
+      x:st.x, y:st.y, path:p2, seg:1, onPath:true,
+      vx:Math.cos(d0)*stat.speed, vy:Math.sin(d0)*stat.speed, ang:d0,
+      life:stat.life+extraLife, pierceLeft:stat.pierce, hitSet:new Set(),
+      trail:[], age:0, seed:Math.random()*8, delay: stat.formation==='inline' ? i*7 : 0
+    });
+  }
+  // 起手墨爆
+  for(let i=0;i<10;i++) ink(s0.x,s0.y, (Math.random()-.5)*3,(Math.random()-.5)*3, 8+Math.random()*10);
+}
+
+// ---------- 粒子 / 墨 ----------
+function ink(x,y,vx,vy,r){ const cap=qual().ink; if(cap<=0) return;
+  if(G.inks.length>=cap) G.inks.shift();
+  G.inks.push({x,y,vx,vy,r,a:0.5,life:1}); }
+function burst(x,y,c,n){ const cap=qual().part; if(cap<=0) return;
+  for(let i=0;i<n;i++){const a=Math.random()*6.28,s=1+Math.random()*4;
+    if(G.particles.length>=cap) G.particles.shift();
+    G.particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:1,c});}}
+// 潑墨(Ink Engine Splash primitive 內嵌版):不規則墨團 + 徑向墨刺 + 飛濺墨滴。取代圓形爆裂粒子。
+function splash(x,y,c,power){
+  power=power||1;
+  const spikes=[], nSp=5+((Math.random()*6)|0);
+  for(let i=0;i<nSp;i++) spikes.push({ang:Math.random()*6.283, len:0.8+Math.random()*1.0, w:0.05+Math.random()*0.11, broken:Math.random()<0.4});
+  const corners=[], nC=12+((Math.random()*10)|0);
+  for(let i=0;i<nC;i++) corners.push(0.6+Math.random()*0.55);
+  G.splashes.push({x,y,r:16+power*10, dur:28, age:0, c, spikes, corners, rot:Math.random()*6.283});
+  if(G.splashes.length>16) G.splashes.shift();     // 溢位丟最舊
+  burst(x,y,c, 4+((power*3)|0));                    // 墨滴飛濺沿用粒子系統
+}
+function drawSplash(ctx,sp){
+  const t=sp.age/sp.dur;
+  const grow=t<0.15?(t/0.15):1;                     // 0-15% 快速擴張
+  const a=(t<0.6?1:Math.max(0,1-(t-0.6)/0.4));      // 60-100% 淡出
+  const R=sp.r*(0.6+grow*0.4);
+  ctx.save(); ctx.translate(sp.x,sp.y); ctx.rotate(sp.rot);
+  ctx.globalAlpha=a*0.85; ctx.fillStyle=sp.c;
+  const nC=sp.corners.length;                        // 中央不規則墨團
+  ctx.beginPath();
+  for(let i=0;i<nC;i++){ const th=i/nC*6.283, r=R*0.5*sp.corners[i];
+    const px=Math.cos(th)*r, py=Math.sin(th)*r; i===0?ctx.moveTo(px,py):ctx.lineTo(px,py); }
+  ctx.closePath(); ctx.fill();
+  for(const s of sp.spikes){                         // 徑向墨刺(長短寬窄不一、部分斷裂)
+    const len=R*s.len, midR=s.broken?len*0.6:len;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(s.ang-s.w)*R*0.4, Math.sin(s.ang-s.w)*R*0.4);
+    ctx.lineTo(Math.cos(s.ang)*midR, Math.sin(s.ang)*midR);
+    ctx.lineTo(Math.cos(s.ang+s.w)*R*0.4, Math.sin(s.ang+s.w)*R*0.4);
+    ctx.closePath(); ctx.fill();
+  }
+  ctx.restore(); ctx.globalAlpha=1;
+}
+function floatText(x,y,txt,c){
+  const raw=String(txt);
+  const damage=/^-?\d/.test(raw) || /^-\d/.test(raw) || /^[-]?\d+!?$/.test(raw);
+  const crit=damage && raw.includes('!');
+  // 傷害數值改中文:抓出數字部分翻譯,保留負號與暴擊的「!」
+  let show=raw;
+  if(damage){
+    const m=raw.match(/^(-?)(\d+)(!?)$/);
+    if(m) show = num2cn(+m[2]) + (m[3]||'');   // 參考稿的傷害只寫「廿四」,不帶負號(紅字本身就是扣血)
+  }
+  G.texts.push({x,y,txt:show,c,life:1,age:0,vy:damage?-1.45:-0.75,
+    dx:damage?(Math.random()-.5)*0.32:0,damage,crit});
+}
+// 毛筆劍氣拖尾(Ink Engine 筆劃 primitive 的內嵌版):帶錐度毛邊的填充墨緞帶 + 濃芯 + 飛白
+function inkTrail(ctx, tr, size, rgb){
+  const n=tr.length; if(n<2) return;
+  ctx.lineCap='round'; ctx.lineJoin='round';
+  // 1) 主墨緞帶:沿軌跡法線外擴成寬窄變化的封閉形,近劍身寬、末端急收,邊緣加毛邊抖動
+  const left=[], right=[];
+  for(let i=0;i<n;i++){
+    const p=tr[i], a=tr[Math.max(0,i-1)], b=tr[Math.min(n-1,i+1)];
+    let nx=-(b.y-a.y), ny=(b.x-a.x); const L=Math.hypot(nx,ny)||1; nx/=L; ny/=L;
+    const t=i/(n-1), ease=t*t;                       // 0 尾 → 1 頭
+    const w=size*0.95*ease;
+    const j=0.8+(Math.sin(i*12.9898)*0.5+0.5)*0.4;   // 0.8~1.2 毛邊
+    left.push({x:p.x+nx*w*j, y:p.y+ny*w*j});
+    right.push({x:p.x-nx*w*j, y:p.y-ny*w*j});
+  }
+  ctx.fillStyle='rgba('+rgb+',0.48)';
+  ctx.beginPath(); ctx.moveTo(left[0].x,left[0].y);
+  for(let i=1;i<n;i++) ctx.lineTo(left[i].x,left[i].y);
+  for(let i=n-1;i>=0;i--) ctx.lineTo(right[i].x,right[i].y);
+  ctx.closePath(); ctx.fill();
+  // 2) 濃芯線:中央更深一道,讓墨色有濃淡
+  ctx.strokeStyle='rgba('+rgb+',0.5)';
+  for(let i=1;i<n;i++){ const e=(i/(n-1))*(i/(n-1)); ctx.lineWidth=Math.max(0.5,size*0.5*e);
+    ctx.beginPath(); ctx.moveTo(tr[i-1].x,tr[i-1].y); ctx.lineTo(tr[i].x,tr[i].y); ctx.stroke(); }
+  // 3) 飛白:頭段乾筆斷白絲(真缺段,非半透明整線)
+  for(let s=0;s<3;s++){
+    const off=(s-1)*size*0.4;
+    for(let i=Math.max(1,n-6);i<n;i++){
+      if(((i*7+s*13)%3)===0) continue;               // 隨機缺段
+      const p=tr[i], a=tr[i-1];
+      let nx=-(p.y-a.y), ny=(p.x-a.x); const L=Math.hypot(nx,ny)||1; nx/=L; ny/=L;
+      const e=(i/(n-1))*(i/(n-1));
+      ctx.strokeStyle='rgba(250,246,236,'+(e*0.26)+')'; ctx.lineWidth=Math.max(0.5,size*0.14*e);
+      ctx.beginPath(); ctx.moveTo(a.x+nx*off,a.y+ny*off); ctx.lineTo(p.x+nx*off,p.y+ny*off); ctx.stroke();
+    }
+  }
+}
+// 畫面震動 / 頓幀 / 閃光 —— 打擊感三件套
+// 震動強度可在靜觀調整:無 / 小 / 中 / 大。大震動會讓戰場很亂,交給玩家自己決定。
+const SHAKE_MUL={ n:0, s:0.45, m:1, l:1.7 };
+function shakeMul(){ return SHAKE_MUL[meta.shake] != null ? SHAKE_MUL[meta.shake] : 1; }
+function shake(v){ const k=shakeMul(); if(k<=0){ G.shake=0; return; } G.shake=Math.min(22,G.shake+v*k); }
+function hitstop(f){ G.hitstop=Math.max(G.hitstop,f); }
+function flash(a,c){ G.flash=Math.max(G.flash,a); G.flashC=c||'255,255,255'; }
+// 宣紙墨漬:斬妖留痕,用預烘貼圖繪製,可保留緩緩滲淡
+function stain(x,y,r,c){
+  if(!blots) buildBlots();
+  if(G.stains.length>70) G.stains.shift();
+  G.stains.push({x,y,r:r*1.6,rot:Math.random()*6.283,
+                 im:blots[(Math.random()*blots.length)|0], a:0.20});
+}
+
+// ---------- 詞條池 ----------
+// 詞條池與稀有度改由共用設定檔提供(data/game-config.js)
+const RARW = window.INK_CONFIG.rarity.weight;
+const RARNAME = window.INK_CONFIG.rarity.name;
+// (legacy applyAffix 已移除:升級選卡自 Slice 1 起改走 runtime.applyInsight)
+// ===== Runtime 遷移橋接(Slice 1)=====
+let runState = null;
+const RAR2LEG = { awakening:'n', clarity:'r', penetration:'e', truth:'l' };
+// 遊戲永久存檔 meta → runtime permanentSave
+function buildPermanentSave(){
+  const unlocks = meta.unlock ? Object.keys(meta.unlock).filter(k=>meta.unlock[k]) : [];
+  return INK_CONFIG.runtime.migratePermanentSave({
+    insight: meta.souls||0, ranks: Object.assign({}, meta.up||{}), permanentUnlocks: unlocks });
+}
+// runtime permanentSave → 遊戲存檔(purchaseRebirth 回傳的新狀態寫回 meta)
+function storePermanentSave(p){
+  meta.souls = Math.max(0, Math.round(p.insight||0));
+  meta.up = Object.assign({}, p.ranks||{});
+  meta.unlock = {};
+  (p.permanentUnlocks||[]).forEach(id=>{ meta.unlock[id]=true; });
+  saveMeta();
+}
+// 舊存檔遷移:心法/傳承原本存成 meta.unlock 布林,改記於 meta.up 階數;
+// meta.unlock 之後只保存 runtime 的 permanentUnlocks(由已購節點的 unlock 效果推導)。
+function migrateMetaToRuntime(){
+  const RB = INK_CONFIG.rebirthById;
+  const up = meta.up || {}, un = meta.unlock || {};
+  Object.keys(un).forEach(id=>{ if(un[id] && RB[id] && !up[id]) up[id]=1; });
+  const derived = {};
+  Object.keys(up).forEach(id=>{
+    const node = RB[id]; if(!node || !up[id]) return;
+    node.effects.forEach(e=>{ if(e.op==='unlock' && e.path==='permanentUnlocks') derived[e.value]=true; });
+  });
+  meta.up = up; meta.unlock = derived;
+  if(typeof meta.inkPills !== 'number') meta.inkPills = 0;
+}
+// 把 runState 數值映射回遊戲沿用的 stat.*(其餘遊戲程式碼不必改動)
+function syncStat(){
+  if(!runState) return;
+  const s=runState.stats, m=runState.mechanics;
+  stat.count=s.swordCount; stat.damage=s.damage; stat.size=s.swordWidth; stat.speed=s.swordSpeed;
+  stat.life=s.swordLife; stat.pierce=s.pierce; stat.crit=s.critChance; stat.critMul=s.critMultiplier;
+  stat.homing=m.homingStrength; stat.homingCanCrit=(m.homingCanCrit!==false);
+  stat.explode=m.splashRadius; stat.splashDamage=m.splashDamage;
+  stat.ret=m.returnEnabled?1:0; stat.returnHits=m.returnHits;
+  stat.hpMax=s.hpMax; stat.cap=s.swordCap; stat.manaMax=s.manaMax; stat.manaRegen=s.manaRegen; stat.regen=s.manaOnKill;
+  stat.formation = (runState.formation && runState.formation!=='single') ? runState.formation : 'fan';
+  // 遊戲專屬、config 未涵蓋的欄位
+  stat.element='none'; stat.ember=0; stat.ice=0;
+  stat.costBase=s.manaCostBase; stat.costPerPx=s.manaCostPerPixel;   // 耗魔常數改由 config 提供
+  // ===== Slice 2:劍意狀態 + 心法 flags(由 getCombatSnapshot 聚合)=====
+  const snap = INK_CONFIG.runtime.getCombatSnapshot(runState);
+  stat.statuses      = runState.statuses || {};             // erosion 蝕 / suppression 鎮
+  stat.statusScale   = snap.statusTimeScale || 1;           // 狀態持續時間倍率
+  stat.firstStrike   = !!snap.crit.firstStrikeGuaranteed;   // 明心一斬:每局首劍必暴
+  stat.criticalEcho  = !!snap.crit.criticalEcho;            // 飛白千峰:暴擊生殘鋒
+  stat.whiteCut      = !!snap.crit.whiteCutOnCrit;          // 斷意/飛白:暴擊留白
+  stat.splashOnKill  = !!snap.globalFlags.splashOnKill;     // 破墨心訣/墨海無涯
+  stat.returnDry     = !!snap.returnBlade.leaveDryBrush;    // 歸念/歸藏無痕:折返飛白
+  stat.returnDmgMul  = snap.returnBlade.damageMultiplier||1;
+  // ===== 小成/大成/圓滿:新增的 mechanics 與行為旗標 =====
+  stat.hitPadding  = m.hitPadding||0;      // 展鋒·大成:命中判定加寬
+  stat.manaRefund  = m.manaRefund||0;      // 納息·大成:御劍返還比例
+  stat.splashChain = m.splashChain||0;     // 破墨·圓滿:潑墨連鎖層數
+  stat.tierFlags   = runState.flags||{};   // 其餘行為旗標,由各玩法位置自行判讀
+}
+// 命中時把劍意狀態掛到墨獸身上(每次命中疊「該劍意階數」層,封頂 maxStacks,並刷新時間)
+function applyIntent(en){
+  const defs = stat.statuses; if(!defs) return;
+  if(!en.st) en.st={};
+  for(const key in defs){
+    const cfg = defs[key]; if(!cfg) continue;
+    const rank = cfg.rank || 1;
+    const maxS = cfg.maxStacks || 6;
+    const cur  = en.st[key] || (en.st[key]={stk:0,t:0,acc:0});
+    cur.stk = Math.min(maxS, cur.stk + (cfg.stacks||1) * rank);
+    cur.t   = Math.round((cfg.duration||3) * 60 * (stat.statusScale||1));
+  }
+}
+// 留白(飛白斷鋒):暴擊時沿劍身方向刮出一道白痕
+function whiteCut(x,y,ang){
+  G.cuts.push({x,y,ang,life:1,len:26+Math.random()*22});
+}
+// (legacy affixWeight 已移除:稀有度權重與傳承加權由 runtime.rollInsights 處理)
+let levelChoiceLocked=false, levelRerolls=2;
+function levelChoiceOpen(){ return document.getElementById('overlay').classList.contains('show'); }
+function renderReroll(){
+  const b=document.getElementById('rerollbtn');
+  b.disabled=levelRerolls<=0 || levelChoiceLocked;
+  document.getElementById('rerollleft').textContent='剩餘次數：'+num2cn(levelRerolls);
+}
+// 劍訣註解「效果」模式:把宣告式 effects 翻成一行一句的直觀敘述。
+// 找不到對照的操作(旗標、狀態、真意標記)不列 —— 那些沒有數值,講不清楚就不講。
+const EFFECT_LABEL={
+  'stats.hpMax':'神識上限','stats.damage':'傷害','stats.swordWidth':'劍寬','stats.swordSpeed':'劍速',
+  'stats.swordLife':'滯空','stats.pierce':'穿透','stats.critChance':'暴擊率','stats.critMultiplier':'暴擊倍率',
+  'stats.manaMax':'劍意上限','stats.manaRegen':'劍意回復','stats.manaOnKill':'斬妖回劍意',
+  'stats.swordCap':'劍匣席次','stats.swordCount':'飛劍數','stats.costMultiplier':'劍意消耗',
+  'stats.manaCostBase':'起手劍意','stats.manaCostPerPixel':'每寸劍意',
+  'mechanics.homingStrength':'追蹤','mechanics.returnHits':'折返次數','mechanics.splashRadius':'潑墨範圍',
+  'mechanics.splashDamage':'潑墨傷害','mechanics.statusDuration':'狀態持續','mechanics.trailOpacity':'墨痕濃度',
+  'mechanics.hitPadding':'命中範圍','mechanics.manaRefund':'劍意返還','mechanics.splashChain':'潑墨連鎖'
+};
+const EFFECT_PCT=new Set(['stats.critChance','mechanics.homingStrength','mechanics.manaRefund']);
+const FORMATION_CN={fan:'扇形',parallel:'平行',inline:'連珠'};
+function fmtNum(v){ return (Math.round(v*100)/100).toString(); }
+function effectLines(item){
+  const out=[];
+  for(const e of item.effects){
+    const L=EFFECT_LABEL[e.path];
+    if(e.op==='add' && L){
+      const v=Number(e.value)||0, neg=v<0, a=Math.abs(v);
+      out.push(L+' '+(neg?'−':'+')+(EFFECT_PCT.has(e.path)?Math.round(a*100)+'%':fmtNum(a)));
+    } else if(e.op==='mul' && L){
+      const d=Math.round((Number(e.value)-1)*100);
+      if(d!==0) out.push(L+' '+(d>0?'+':'−')+Math.abs(d)+'%');
+    } else if(e.op==='set' && e.path==='formation'){
+      out.push('陣型 · '+(FORMATION_CN[e.value]||e.value));
+    } else if(e.op==='set' && e.path==='stats.swordCount'){
+      out.push('飛劍數 = '+e.value);
+    } else if(e.op==='max' && e.path==='stats.mana'){
+      out.push('立即補滿劍意');
+    } else if(e.op==='status'){
+      // 敵方狀態(蝕/鎮):把實際數值寫出來,否則玩家只看得到意境卻不知道緩速多少
+      const v=e.value||{};
+      if(v.slow) out.push('敵方緩速 '+Math.round(v.slow*100)+'%');
+      if(v.damagePerSecond) out.push('敵方每秒 −'+fmtNum(v.damagePerSecond)
+        +(v.duration?(',續 '+fmtNum(v.duration)+' 秒'):''));
+      else if(v.duration) out.push('持續 '+fmtNum(v.duration)+' 秒');
+      if(v.maxStacks) out.push('最多 '+v.maxStacks+' 層');
+    }
+  }
+  return out;
+}
+function cardBody(item){
+  if(meta.cardText!=='effect') return '<div class="cdesc">'+item.description+'</div>';
+  const lines=effectLines(item);
+  if(!lines.length) return '<div class="cdesc">'+item.description+'</div>';   // 純機制型:回退文字
+  return '<div class="cfx">'+lines.map(t=>'<span>'+t+'</span>').join('')+'</div>';
+}
+function drawCards(isReroll=false){
+  if(!G.running) return;
+  if(!isReroll) levelRerolls=2;
+  levelChoiceLocked=false;
+  drawing=false; path=[]; curLen=0; maxed=false;
+  // 抽三張候選 —— 由 runtime 處理稀有度權重/互斥/解鎖/聽墨(取代舊的手動加權)
+  const pick = INK_CONFIG.runtime.rollInsights(runState, 3);
+  const box=document.getElementById('cards'); box.innerHTML='';
+  pick.forEach(a=>{
+    const leg = RAR2LEG[a.rarity] || 'n';               // 稀有度→舊字母,供卡片配色/邊框樣式
+    const el=document.createElement('div');
+    el.className='card lv-'+leg;
+    el.innerHTML=`<div class="rune">${a.rune}</div>
+      <div class="cname rar-${leg}">${a.name}</div>
+      ${cardBody(a)}`;
+    el.onclick=()=>{
+      if(levelChoiceLocked || !G.running) return;
+      levelChoiceLocked=true; SND.pick();
+      INK_CONFIG.runtime.applyInsight(runState, a.id);  // 真意/劍式互斥回滾由 runtime 處理
+      syncStat();
+      closeLevelUp();
+    };
+    box.appendChild(el);
+  });
+  // 連升多重時,標示還剩幾次可選
+  const q=document.getElementById('lvqueue');
+  q.textContent = G.pendingLevels>1 ? '連升 '+num2cn(G.pendingLevels)+' 重 · 尚餘 '+num2cn(G.pendingLevels-1)+' 次待選' : '';
+  renderReroll();
+  document.getElementById('overlay').classList.add('show');
+}
+function rerollCards(){
+  if(!G.running || levelChoiceLocked || levelRerolls<=0 || !levelChoiceOpen()) return;
+  levelRerolls--; SND.ui(); drawCards(true);
+}
+// 每選一張消耗一次待選；戰鬥中新得到的升級會留在佇列，直到全部選完。
+function closeLevelUp(){
+  if(G.pendingLevels>0) G.pendingLevels--;
+  if(G.pendingLevels>0 && G.running){ drawCards(); return; }
+  document.getElementById('overlay').classList.remove('show');
+  levelChoiceLocked=false;
+  G.paused=pausedByUser;
+}
+// 統一入口:有待選且沒被玩家暫停時才開啟
+function tryLevelUp(){
+  if(!G.running || G.pendingLevels<=0) return;
+  if(pausedByUser) return;                                   // 暫停中先不打擾,繼續時再補
+  if(document.getElementById('overlay').classList.contains('show')) return;
+  drawCards();
+}
+
+// ---------- 升級 ----------
+function gainXP(n){
+  G.xp+=n;
+  let gained=0;
+  while(G.xp>=G.xpNeed){
+    G.xp-=G.xpNeed; G.level++; G.xpNeed=Math.round(G.xpNeed*1.35+3);
+    G.pendingLevels++; gained++;
+  }
+  if(gained){
+    SND.level(); flash(0.20,'246,240,214');
+    for(let k=0;k<14;k++){ const a=Math.random()*6.283;
+      ink(G.player.x,G.player.y,Math.cos(a)*3.4,Math.sin(a)*3.4,10+Math.random()*12); }
+    tryLevelUp();
+  }
+  updateHUD();
+}
+
+// ---------- 輸入:畫線 ----------
+let drawing=false, path=[], curLen=0, maxed=false;
+function pos(e){
+  const r=cv.getBoundingClientRect();
+  const p=e.touches?e.touches[0]:e;
+  return {x:p.clientX-r.left, y:p.clientY-r.top};
+}
+// 目前劍意還能畫多長的墨痕
+function allowedLen(){ return Math.max(0,(G.mana-stat.costBase)/stat.costPerPx); }
+function down(e){ if(!G.running||G.paused||levelChoiceOpen())return; e.preventDefault(); drawing=true; path=[pos(e)]; curLen=0; maxed=false; }
+function move(e){ if(!drawing)return; e.preventDefault(); const p=pos(e);
+  const last=path[path.length-1]; const seg=Math.hypot(p.x-last.x,p.y-last.y);
+  if(seg>4){
+    if(curLen+seg <= allowedLen()){ path.push(p); curLen+=seg; }
+    else { maxed=true; } // 劍意見底,墨痕凍結
+  }
+}
+function up(e){ if(!drawing)return; e.preventDefault(); drawing=false; launchSword(path); path=[]; maxed=false; }
+cv.addEventListener('mousedown',down); cv.addEventListener('mousemove',move); window.addEventListener('mouseup',up);
+cv.addEventListener('touchstart',down,{passive:false}); cv.addEventListener('touchmove',move,{passive:false}); window.addEventListener('touchend',up,{passive:false});
+
+// ---------- 更新 ----------
+function update(){
+  G.t++;
+  const P=G.player;
+  // 隕落動畫期間:戰鬥全部凍結,只推進動畫與特效計時
+  if(G.deathT>0){
+    G.deathT--;
+    if(G.shake>0) G.shake*=0.86;
+    if(G.flash>0) G.flash-=0.035;
+    for(let i=G.splashes.length-1;i>=0;i--){const sp=G.splashes[i];sp.age++;if(sp.age>=sp.dur)G.splashes.splice(i,1);}
+    // 程式消散期間:續噴墨滴、推進墨/潑墨/浮字,讓角色化為一攤散墨
+    const hasDeath=(()=>{const S=heroSet();return !!(S.death&&S.death.length);})();
+    if(!hasDeath){
+      const P=G.player;
+      if(G.deathT>G.deathMax*0.45 && G.t%2===0)
+        ink(P.x+(Math.random()-.5)*30, P.y-P.r*1.4+(Math.random()-.5)*60,
+            (Math.random()-.5)*4.5,(Math.random()-.5)*4.5-0.5, 8+Math.random()*16);
+      for(let i=G.inks.length-1;i>=0;i--){const p=G.inks[i];p.x+=p.vx;p.y+=p.vy;p.vx*=0.9;p.vy*=0.9;p.r*=1.02;p.a-=0.012;p.life-=0.01;if(p.a<=0)G.inks.splice(i,1);}
+      for(let i=G.texts.length-1;i>=0;i--){const t=G.texts[i];t.age++;t.x+=t.dx||0;t.y+=t.vy||-0.7;if(t.damage)t.vy*=0.94;t.life-=t.damage?0.026:0.02;if(t.life<=0)G.texts.splice(i,1);}
+    }
+    if(G.deathT<=0) gameOver();
+    return;
+  }
+  // 劍意回復
+  if(G.mana<stat.manaMax){ G.mana=Math.min(stat.manaMax,G.mana+stat.manaRegen); }
+  // 自動御劍:定時朝最近之敵直射(收益打折、不計紀錄)
+  if(G.auto){
+    G.autoTimer++;
+    if(G.autoTimer>=34){
+      let best=null,bd=1e9;
+      for(const en of G.enemies){ if(!onScreen(en)) continue;      // 不朝畫面外的墨獸出劍
+        const dd=(en.x-P.x)**2+(en.y-P.y)**2; if(dd<bd){bd=dd;best=en;} }
+      if(best){
+        const aim=Math.atan2(best.y-P.y,best.x-P.x);
+        let ang=aim;
+        // 陣型補正:扇形/平行在偶數劍數時左右分岔,原本會夾住目標而全部落空。
+        // 這裡反算出「最接近中線的那把劍」的偏移量,預先反向補償,保證它正中目標。
+        const n=stat.count; let shift=0;
+        if(n>1 && stat.formation==='fan'){
+          const spread=Math.min(0.55,0.14*(n-1));
+          let bo=1e9;
+          for(let i=0;i<n;i++){ const o=(i/(n-1)-0.5)*spread*2; if(Math.abs(o)<Math.abs(bo)) bo=o; }
+          ang-=bo;                                   // 反向預旋
+        } else if(n>1 && stat.formation==='parallel'){
+          const mid=(n-1)/2, gap=stat.size*2.2+10;
+          let bo=1e9;
+          for(let i=0;i<n;i++){ const o=(i-mid)*gap; if(Math.abs(o)<Math.abs(bo)) bo=o; }
+          shift=-bo;                                 // 反向預移(沿法線)
+        }
+        // 出鞘點沿「真實瞄準線」擺放(扇形繞起點旋轉,起點在線上才能完全歸零誤差)
+        const nx=-Math.sin(ang)*shift, ny=Math.cos(ang)*shift;
+        const ox=P.x+Math.cos(aim)*P.r+nx, oy=P.y+Math.sin(aim)*P.r+ny;
+        const path=[{x:ox, y:oy},
+                    {x:ox+Math.cos(ang)*90, y:oy+Math.sin(ang)*90}];
+        const before=G.mana; launchSword(path);
+        if(G.mana<before){ G.autoUsed=true; G.autoTimer=0; } else { G.autoTimer=28; }
+      }
+    }
+  }
+  // 波次與生成
+  G.waveTimer++;
+  if(G.waveTimer> 60*14){ G.waveTimer=0; G.wave++; updateHUD();
+    SND.wave(); SND.intensity(G.wave); flash(0.14,'250,244,226');
+    G.banner={txt:'第 '+num2cn(G.wave)+' 境', life:1}; }
+  G.spawnAcc += (0.55 + G.wave*0.14);
+  while(G.spawnAcc>=60){ G.spawnAcc-=60; if(G.enemies.length<70) spawnEnemy(); }
+
+  // 敵人
+  for(let i=G.enemies.length-1;i>=0;i--){
+    const en=G.enemies[i];
+    // 波及傷害(潑墨/破墨)可能已把血打光,統一在此收屍
+    if(en.hp<=0){ killEnemy(i); continue; }
+    const dx=P.x-en.x, dy=P.y-en.y, d=Math.hypot(dx,dy)||1;
+    let sp=en.sp; if(en.chill>0){ en.chill--; sp*=0.45; } // 寒霜冰緩(舊元素系統,現休眠)
+    // ===== 劍意狀態:蝕(持續潰散)/ 鎮(行止遲滯 + 微幅損血)=====
+    if(en.st){
+      let slow=0, dead=false;
+      for(const key in en.st){
+        const e=en.st[key]; if(!e || e.t<=0) continue;
+        const cfg = stat.statuses && stat.statuses[key];
+        if(!cfg){ e.t=0; e.stk=0; continue; }            // 洗點後劍意消失 → 場上狀態一併失效
+        e.t--;
+        if(cfg.slow) slow = Math.max(slow, cfg.slow * e.stk);
+        if(cfg.damagePerSecond){
+          e.acc += cfg.damagePerSecond * e.stk / 60;
+          if(e.acc>=1){
+            const hurt=Math.floor(e.acc); e.acc-=hurt; en.hp-=hurt;
+            if(G.t%20===0) floatText(en.x,en.y-en.r, key==='erosion'?'蝕':'鎮',
+                                     key==='erosion'?'#7a6a58':'#5a6a80');
+            if(en.hp<=0){ dead=true; break; }
+          }
+        }
+        if(e.t<=0) e.stk=0;
+      }
+      if(dead){ killEnemy(i); continue; }
+      if(slow>0) sp *= (1 - Math.min(0.7, slow));
+    }
+    en.x+=dx/d*sp; en.y+=dy/d*sp;
+    en.wob+=0.1;
+    if(en.hit>0)en.hit--;
+    // 業火灼燒
+    if(en.ember>0){ en.emberT++; if(en.emberT%18===0){ en.hp-=2*en.ember;
+      floatText(en.x,en.y-en.r,'焱','#c0662e'); if(en.hp<=0){killEnemy(i);continue;} } }
+    // 寒霜霜傷
+    if(en.chill>0){ if(en.chill%22===0){ en.hp-=1.5*stat.ice;
+      floatText(en.x,en.y-en.r,'凍','#5a9cc0'); if(en.hp<=0){killEnemy(i);continue;} } }
+    // 觸及靈石
+    if(d < en.r+P.r){
+      P.hp -= en.tier===2?18:en.tier===1?11:7; P.pulse=1; G.hurtT=20;   // 受擊 4 幀 × 5 影格
+      splash(en.x,en.y,en.c,1); G.enemies.splice(i,1); updateHUD();
+      SND.hurt(); shake(9+en.tier*3); flash(0.22,'176,64,48'); hitstop(4);
+      if(P.hp<=0){ beginDeath(); return; }
+    }
+  }
+
+  // 劍
+  for(let i=G.swords.length-1;i>=0;i--){
+    const s=G.swords[i];
+    // 連珠延遲:尚未出鞘,原地蓄勢
+    if(s.delay>0){ s.delay--; s.trail.length=0; continue; }
+    s.age++; s.life-=1/60;
+    if(s.onPath){
+      // 沿墨痕逐段前進(每幀消耗 speed 的行程)
+      let budget=stat.speed;
+      while(budget>0 && s.onPath){
+        const tgt=s.path[s.seg];
+        const dx=tgt.x-s.x, dy=tgt.y-s.y, d=Math.hypot(dx,dy)||0.0001;
+        if(d<=budget){
+          s.x=tgt.x; s.y=tgt.y; budget-=d; s.seg++;
+          if(s.seg>=s.path.length){ // 抵達墨痕盡頭,轉為續飛
+            s.onPath=false;
+            const a=s.path[s.path.length-2], b=s.path[s.path.length-1];
+            s.ang=Math.atan2(b.y-a.y,b.x-a.x);
+            s.vx=Math.cos(s.ang)*stat.speed; s.vy=Math.sin(s.ang)*stat.speed;
+            s.x+=s.vx/stat.speed*budget; s.y+=s.vy/stat.speed*budget; budget=0;
+          }
+        } else { s.x+=dx/d*budget; s.y+=dy/d*budget; s.ang=Math.atan2(dy,dx); budget=0; }
+      }
+    } else {
+      // 續飛階段:追蹤 / 折返生效
+      if(stat.homing>0){
+        let best=null,bd=1e9;
+        for(const en of G.enemies){ if(!onScreen(en)) continue;    // 追蹤同樣不追出畫面
+          const dd=(en.x-s.x)**2+(en.y-s.y)**2; if(dd<bd){bd=dd;best=en;} }
+        if(best){ const ta=Math.atan2(best.y-s.y,best.x-s.x); let da=ta-s.ang;
+          while(da>Math.PI)da-=6.283; while(da<-Math.PI)da+=6.283;
+          s.ang+=da*stat.homing; const sp=Math.hypot(s.vx,s.vy);
+          s.vx=Math.cos(s.ang)*sp; s.vy=Math.sin(s.ang)*sp; }
+      }
+      s.x+=s.vx; s.y+=s.vy;
+      if(stat.ret){
+        // 折返:回程重新計算命中(可再斬同一隻),次數上限 = mechanics.returnHits
+        const bounce=()=>{ s.returned=true;
+          if((s.retCount||0) < (stat.returnHits||1)){ s.retCount=(s.retCount||0)+1; s.hitSet.clear(); s.pierceLeft=stat.pierce; } };
+        if((s.x<0&&s.vx<0)||(s.x>W&&s.vx>0)){s.vx*=-1;s.ang=Math.atan2(s.vy,s.vx);bounce();}
+        if((s.y<0&&s.vy<0)||(s.y>H&&s.vy>0)){s.vy*=-1;s.ang=Math.atan2(s.vy,s.vx);bounce();}
+      }
+    }
+    s.trail.push({x:s.x,y:s.y}); if(s.trail.length>18)s.trail.shift();
+    // 命中
+    for(let j=G.enemies.length-1;j>=0;j--){
+      const en=G.enemies[j];
+      if(s.hitSet.has(en)) continue;
+      if(Math.hypot(en.x-s.x,en.y-s.y) < en.r+stat.size+(stat.hitPadding||0)){
+        // 追蹤降傷已由 config 的 mul 併入 stat.damage(不再另扣);暴擊倍率讀 critMul;可否暴擊看 homingCanCrit
+        let dmg=stat.damage;
+        let isCrit = (stat.homingCanCrit!==false) && Math.random()<stat.crit;
+        // 明心一斬:每局第一道打中的劍痕必定暴擊(不受追蹤禁暴限制)
+        if(stat.firstStrike && !G.firstStrikeDone){ isCrit=true; G.firstStrikeDone=true; }
+        if(isCrit) dmg*=(stat.critMul||2);
+        if(s.returned) dmg*=(stat.returnDmgMul||1);      // 歸藏無痕:回程傷害加成
+        if(s.echo) dmg*=0.5;                              // 殘鋒(criticalEcho)為半傷
+        en.hp-=dmg; en.hit=6; s.hitSet.add(en);
+        applyIntent(en);                                  // 劍意:蝕 / 鎮
+        if(stat.ember>0){ en.ember=Math.max(en.ember,stat.ember); }
+        if(stat.ice>0){ en.chill=100; }
+        floatText(en.x,en.y-en.r-10, '-'+Math.round(dmg)+(isCrit?'!':''), isCrit?'#f1d18a':'#fffaf0');
+        splash(s.x,s.y,(ELEM[stat.element]||ELEM.none).hit,1);
+        if(isCrit){ SND.crit(); shake(4); hitstop(3); flash(0.12,'240,220,160');
+          if(stat.whiteCut) whiteCut(s.x,s.y,s.ang);      // 斷意/飛白:暴擊留白
+          // 飛白千峰:暴擊後再生一道殘鋒(半傷、不再遞迴生殘鋒)
+          if(stat.criticalEcho && !s.echo && G.swords.length<stat.cap+3){
+            const ea=s.ang+(Math.random()-0.5)*0.9;
+            G.swords.push({ x:s.x, y:s.y, path:null, seg:1, onPath:false,
+              vx:Math.cos(ea)*stat.speed*0.9, vy:Math.sin(ea)*stat.speed*0.9, ang:ea,
+              life:Math.min(0.6,stat.life*0.5), pierceLeft:1, hitSet:new Set([en]),
+              trail:[], age:0, delay:0, echo:true });
+          }
+        }
+        else { SND.hit(); shake(1.1); }
+        if(stat.explode>0){
+          splash(s.x,s.y,'#c0662e',2.2); SND.boom(); shake(7); stain(s.x,s.y,stat.explode*0.5,'170,90,40');
+          for(const e2 of G.enemies){ if(e2!==en && Math.hypot(e2.x-s.x,e2.y-s.y)<stat.explode){
+            e2.hp-=stat.damage*0.6; e2.hit=6; }}
+          for(let k=0;k<8;k++)ink(s.x,s.y,(Math.random()-.5)*4,(Math.random()-.5)*4,10+Math.random()*14);
+        }
+        if(en.hp<=0){ killEnemy(j); }
+        s.pierceLeft--; if(s.pierceLeft<=0){ s.life=0; break; }
+      }
+    }
+    // 飛出畫面即消散(有迴劍時會先在邊界折返,所以不受影響)
+    const OUT=40;
+    if(!stat.ret && (s.x<-OUT || s.x>W+OUT || s.y<-OUT || s.y>H+OUT)){ s.life=0; }
+    if(s.life<=0 || s.age>600){ G.swords.splice(i,1); }
+  }
+
+  // 粒子/墨/浮字
+  for(let i=G.particles.length-1;i>=0;i--){const p=G.particles[i];p.x+=p.vx;p.y+=p.vy;p.vx*=0.92;p.vy*=0.92;p.life-=0.03;if(p.life<=0)G.particles.splice(i,1);}
+  for(let i=G.splashes.length-1;i>=0;i--){const sp=G.splashes[i];sp.age++;if(sp.age>=sp.dur)G.splashes.splice(i,1);}
+  for(let i=G.inks.length-1;i>=0;i--){const p=G.inks[i];p.x+=p.vx;p.y+=p.vy;p.vx*=0.9;p.vy*=0.9;p.r*=1.02;p.a-=0.012;p.life-=0.01;if(p.a<=0)G.inks.splice(i,1);}
+  for(let i=G.texts.length-1;i>=0;i--){const t=G.texts[i];t.age++;t.x+=t.dx||0;t.y+=t.vy||-0.7;
+    if(t.damage)t.vy*=0.94;t.life-=t.damage?0.026:0.02;if(t.life<=0)G.texts.splice(i,1);}
+  for(let i=G.stains.length-1;i>=0;i--){const st=G.stains[i];st.a-=0.00035;if(st.a<=0)G.stains.splice(i,1);}
+  for(let i=G.cuts.length-1;i>=0;i--){const c=G.cuts[i];c.life-=0.09;if(c.life<=0)G.cuts.splice(i,1);}
+  if(G.shake>0) G.shake*=0.86; if(G.shake<0.2) G.shake=0;
+  if(G.flash>0) G.flash-=0.035;
+  if(G.banner){ G.banner.life-=0.0085; if(G.banner.life<=0) G.banner=null; }
+  // 角色朝向:面向最近的妖魔,平時劍斜垂
+  {
+    let best=null,bd=1e9;
+    for(const en of G.enemies){ if(!onScreen(en)) continue;
+      const dd=(en.x-P.x)**2+(en.y-P.y)**2; if(dd<bd){bd=dd;best=en;} }
+    const want = best ? Math.atan2(best.y-P.y,best.x-P.x) : (G.facing>0?0.8:Math.PI-0.8);
+    let da=want-G.aim; while(da>Math.PI)da-=6.283; while(da<-Math.PI)da+=6.283;
+    G.aim+=da*0.09;
+    G.facing = Math.cos(G.aim)>=0 ? 1 : -1;
+  }
+  if(G.intent>0) G.intent=Math.max(0,G.intent-0.045);
+  for(let i=G.streaks.length-1;i>=0;i--){ const k=G.streaks[i];
+    k.life-=0.085; if(k.life<=0) G.streaks.splice(i,1); }
+  if(P.pulse>0)P.pulse-=0.05;
+  if(G.hurtT>0)G.hurtT--;
+  if(G.castT>0)G.castT--;
+  if(G.t%5===0) updateHUD();
+}
+function killEnemy(idx){
+  const en=G.enemies[idx]; splash(en.x,en.y,en.c,1.8);
+  for(let k=0;k<6;k++)ink(en.x,en.y,(Math.random()-.5)*3,(Math.random()-.5)*3,8+Math.random()*10);
+  stain(en.x,en.y,en.r*1.25,en.c==='#4a3b3b'?'60,48,44':en.c==='#3b2f4a'?'56,44,72':'44,60,58');
+  SND.kill(en.tier); shake(2+en.tier*2.6); if(en.tier===2){ hitstop(4); flash(0.10,'220,210,190'); }
+  // 破墨心訣 / 墨海無涯:潰散時留下小片潑墨,低額波及傷害
+  if(stat.splashOnKill){
+    const R = 54 + (stat.explode||0)*0.35;
+    const sd = stat.damage * 0.28 * (stat.splashDamage||1);
+    splash(en.x,en.y,en.c,1.3);
+    for(let k=0;k<6;k++) ink(en.x,en.y,(Math.random()-.5)*3.6,(Math.random()-.5)*3.6,9+Math.random()*12);
+    for(const e2 of G.enemies){
+      if(e2!==en && Math.hypot(e2.x-en.x,e2.y-en.y)<R){ e2.hp-=sd; e2.hit=6; }   // 收屍交給敵人迴圈
+    }
+  }
+  G.kills++; G.player.hp=Math.min(G.player.max,G.player.hp+stat.regen);
+  // 階級推進:每個滿階技能各自累計局內擊殺,達 300/500/1000 進小成/大成/圓滿
+  if(runState){
+    const gained=INK_CONFIG.runtime.noteKill(runState,1);
+    if(gained.length){ syncStat();
+      G.tierToast=(G.tierToast||[]).concat(gained.map(g=>g.name+' · '+g.tier));
+      G.banner={txt:gained[0].name+' · '+gained[0].tier, life:1};
+      SND.level();
+    }
+  }
+  gainXP(en.tier===2?4:en.tier===1?2:1);
+  G.enemies.splice(idx,1); updateHUD();
+}
+
+// ---------- 角色:程序化動態 ----------
+// 呼吸(整體微幅縮放)、逐列風動(衣袂與髮絲)、隨敵轉身、出劍時揮砍與身體前傾。
+let heroCv=null, heroHurtCv=null, heroH=0, heroW=0;
+function bakeHero(h){
+  if(heroCv && heroH===h) return;
+  heroH=h; heroW=Math.round(h*HERO.aspect);
+  const mk=tint=>{
+    const c=document.createElement('canvas');
+    c.width=Math.max(1,heroW*DPR); c.height=Math.max(1,h*DPR);
+    const g=c.getContext('2d'); g.setTransform(DPR,0,0,DPR,0,0);
+    g.drawImage(ART.body,0,0,heroW,h);
+    if(tint){ g.globalCompositeOperation='source-atop'; g.fillStyle=tint; g.fillRect(0,0,heroW,h); }
+    return c;
+  };
+  heroCv=mk(null); heroHurtCv=mk('rgba(176,56,40,0.85)');
+}
+function heroSet(){ return (meta.heroSkin==='f' && HEROF.ok) ? HEROF : HEROSPR; }
+function drawHero(P){
+  const S=heroSet();
+  if(S===HEROF && HEROF.proc){ drawHeroF(P); return; }   // 女修:單張身體 + 全程序化演出
+  if(S.ok){ drawHeroSprite(P); return; }
+  drawHeroProc(P);
+}
+// Sprite 版:呼吸(整體微縮放 + 上下浮動)、轉身、待機 9 幀慢速交叉淡入、受擊 4 幀連播。
+// 受擊紅光:把 sprite 幀畫進離屏、source-atop 填紅,回貼主畫布(不需為每幀預烘)
+const _tintCv=document.createElement('canvas'), _tintCtx=_tintCv.getContext('2d');
+function tintFrame(im,col){
+  const W=im.naturalWidth, H=im.naturalHeight;
+  if(_tintCv.width!==W||_tintCv.height!==H){ _tintCv.width=W; _tintCv.height=H; }
+  _tintCtx.globalCompositeOperation='source-over'; _tintCtx.clearRect(0,0,W,H);
+  _tintCtx.drawImage(im,0,0);
+  _tintCtx.globalCompositeOperation='source-atop'; _tintCtx.fillStyle=col; _tintCtx.fillRect(0,0,W,H);
+  _tintCtx.globalCompositeOperation='source-over';
+  return _tintCv;
+}
+function drawHeroSprite(P){
+  const S=heroSet();
+  const h=P.r*5.0, w=h*S.aspect, feet=P.y+P.r*1.18;
+  const dying=G.deathT>0;
+  const hasDeath=!!(S.death&&S.death.length), hasHurt=!!(S.hurt&&S.hurt.length), hasCast=!!(S.cast&&S.cast.length);
+  const br=dying?0:Math.sin(G.t*0.042);
+  // 程式消散(沒有 death 幀的角色,如女修):sprite 隨 deathT 淡出
+  const fade = (dying && !hasDeath) ? Math.max(0, G.deathT/G.deathMax) : 1;
+  // 受擊紅光(沒有 hurt 幀時啟用;有專屬受擊幀的角色不疊紅)
+  const glow = (!hasHurt) ? Math.min(1, P.pulse||0) : 0;
+  ctx.save();
+  ctx.translate(P.x, feet+br*1.1);
+  ctx.scale(dying?1:G.facing, 1+br*0.013);            // 轉身 + 呼吸(死亡時定住)
+  // 素材為全域統一裁切,腳底落在畫布 foot 比例處 → 以此對齊地面
+  const put=(im,a)=>{ if(!im||!im.complete||!im.naturalWidth) return;
+    ctx.globalAlpha=a*fade; ctx.drawImage(im,-w/2,-h*S.foot,w,h);
+    if(glow>0){ ctx.globalAlpha=a*fade*glow*0.72;
+      ctx.drawImage(tintFrame(im,'#c83828'),-w/2,-h*S.foot,w,h); ctx.globalAlpha=a; } };
+  if(dying && hasDeath){
+    // 隕落幀:7 幀連續播放(每幀 9 影格),最後一幀是落地的墨漬
+    const k=Math.min(6, 6-Math.floor(G.deathT/9));
+    put(S.death[Math.min(S.death.length-1,Math.max(0,k))],1);
+  } else if(G.hurtT>0 && hasHurt){
+    const k=Math.min(3, 3-Math.floor(G.hurtT/5));
+    put(S.hurt[Math.min(S.hurt.length-1,Math.max(0,k))],1);
+  } else if(G.castT>0 && hasCast){
+    const k=Math.min(5, 5-Math.floor(G.castT/4));
+    put(S.cast[Math.min(S.cast.length-1,Math.max(0,k))],1);
+  } else {
+    // 待機:多幀慢速晨變(相鄰兩幀交叉淡入),起劍時略快。
+    // 無 cast/hurt 幀的角色(女修)施放/受擊時一律走這裡:施放不切幀、受擊只疊紅光。
+    const sp=0.0042*(1+G.intent*0.6), t=G.t*sp+G.heroPhase;
+    const n=S.idle.length, f=((t%n)+n)%n, i0=Math.floor(f), i1=(i0+1)%n, m=f-i0;
+    put(S.idle[i0],1);
+    put(S.idle[i1],m);
+  }
+  ctx.globalAlpha=1;
+  ctx.restore();
+}
+// ---------- 女修士:程序化演出(逐列風動身體 + 環繞墨痕 + 配劍旋渦) ----------
+// 身體是一張無劍墨繪,用「腳下錨定、往上遞增」的逐列水平位移做衣袂與髮絲的風動,
+// 再疊呼吸(整體微縮放 + 上下浮動)。配劍與墨痕各自沿一個很扁的橢圓繞著她轉:
+// sin(θ)<0 = 轉到身後 → 先畫(被身體蓋住);sin(θ)>0 = 轉到身前 → 後畫。近大遠小 + 近濃遠淡。
+let hfCv=null, hfRed=null, hfH=0, hfW=0;
+function bakeHeroF(h,w){
+  if(hfCv && hfH===h) return;
+  hfH=h; hfW=w;
+  const mk=tint=>{
+    const c=document.createElement('canvas');
+    c.width=Math.max(1,Math.round(w*DPR)); c.height=Math.max(1,Math.round(h*DPR));
+    const g=c.getContext('2d'); g.setTransform(DPR,0,0,DPR,0,0);
+    g.drawImage(HEROF.body,0,0,w,h);
+    if(tint){ g.globalCompositeOperation='source-atop'; g.fillStyle=tint; g.fillRect(0,0,w,h); }
+    return c;
+  };
+  hfCv=mk(null); hfRed=mk('rgba(200,56,40,0.9)');
+}
+// 環繞軌道:圓心在腰腹偏下(視覺上像從腳邊繞起),ry 很小 → 幾乎正側看的橢圓
+function hfOrbit(P){
+  const h=P.r*5.0, w=h*HEROF.aspect, feet=P.y+P.r*1.18;
+  return { cx:P.x, cy:feet-h*0.20, rx:w*0.62, ry:h*0.088, h:h, w:w };
+}
+function drawHeroFBody(P,alpha){
+  const h=P.r*5.0, w=h*HEROF.aspect, feet=P.y+P.r*1.18;
+  bakeHeroF(h,w);
+  const dying=G.deathT>0;
+  const br=dying?0:Math.sin(G.t*0.042);
+  const glow=Math.min(1,P.pulse||0);
+  ctx.save();
+  ctx.translate(P.x, feet+br*1.1);
+  ctx.scale(dying?1:G.facing, 1+br*0.013);
+  // 整張一次畫完。原本的逐列水平位移(風動)被判定看起來像水波濾鏡,已移除 ——
+  // 動態只留呼吸(上面的微縮放與上下浮動)與轉身。
+  const top=-h*HEROF.foot;
+  ctx.globalAlpha=alpha;
+  ctx.drawImage(hfCv, -w/2, top, w, h);
+  if(glow>0.02){ ctx.globalAlpha=alpha*glow*0.7; ctx.drawImage(hfRed, -w/2, top, w, h); }
+  ctx.globalAlpha=1; ctx.restore();
+}
+// 配劍:沿橢圓公轉,劍尖順著切線方向;身後淡而小、身前濃而大,後面拖一道乾筆墨痕。
+function drawHeroFSword(P,front,fade){
+  const S=HEROF.sword; if(!S||!S.complete||!S.naturalWidth) return;
+  const o=hfOrbit(P);
+  const th=G.t*(0.0155*(1+G.intent*1.2)) + G.heroPhase*2.0;
+  const sn=Math.sin(th);
+  if((sn>0)!==front) return;
+  const dep=sn*0.5+0.5;                                   // 0 最遠 → 1 最近
+  const x=o.cx+Math.cos(th)*o.rx, y=o.cy+sn*o.ry;
+  const ang=Math.atan2(Math.cos(th)*o.ry, -Math.sin(th)*o.rx);   // 橢圓切線
+  if(FX.trail){                                           // 尾巴:同一條軌道往回取樣
+    const tr=[];
+    for(let i=9;i>=1;i--){ const a=th-i*0.072;
+      tr.push({x:o.cx+Math.cos(a)*o.rx, y:o.cy+Math.sin(a)*o.ry}); }
+    tr.push({x:x,y:y});
+    ctx.globalAlpha=(0.16+dep*0.30)*fade;
+    inkTrail(ctx,tr,2.6+dep*2.4,'46,40,34');
+  }
+  const BL=o.w*(0.46+dep*0.14), hq=BL/HEROF.swAspect;
+  ctx.save();
+  ctx.globalAlpha=(0.46+dep*0.50)*fade;
+  ctx.translate(x,y); ctx.rotate(ang);
+  ctx.drawImage(S,-BL*HEROF.swGrip,-hq/2,BL,hq);
+  ctx.restore(); ctx.globalAlpha=1;
+}
+// 環繞墨痕:三條不同半徑/高度/速度的墨帶,用劍氣拖尾的筆刷畫,營造墨氣旋繞。
+function drawHeroFInk(P,front,fade){
+  if(!FX.trail) return;
+  const o=hfOrbit(P);
+  for(let k=0;k<3;k++){
+    const th=G.t*(0.0102+k*0.0026) + k*2.094 + G.heroPhase;
+    const sn=Math.sin(th);
+    if((sn>0)!==front) continue;
+    const rx=o.rx*(0.80+k*0.13), ry=o.ry*(0.72+k*0.34), yo=-o.h*(0.02+k*0.085);
+    const tr=[];
+    for(let i=11;i>=0;i--){ const a=th-i*0.108;
+      tr.push({ x:o.cx+Math.cos(a)*rx,
+                y:o.cy+yo+Math.sin(a)*ry+Math.sin(a*3+G.t*0.03)*o.h*0.014 }); }
+    ctx.globalAlpha=(0.20+(sn*0.5+0.5)*0.26)*fade;
+    inkTrail(ctx,tr,2.1+k*0.8,'56,48,40');
+  }
+  ctx.globalAlpha=1;
+}
+function drawHeroF(P){
+  const dying=G.deathT>0;
+  const fade=dying?Math.max(0,G.deathT/G.deathMax):1;
+  const fx=(DRAWLV>=4);
+  if(fx){ drawHeroFInk(P,false,fade); drawHeroFSword(P,false,fade); }
+  drawHeroFBody(P,fade);
+  if(fx){ drawHeroFSword(P,true,fade); drawHeroFInk(P,true,fade); }
+}
+// 舊的程序化剪影(逐列風動),沒有 sprite 時的回退
+function drawHeroProc(P){
+
+  const h=P.r*4.7;
+  bakeHero(h);
+  const w=heroW, feet=P.y+P.r*1.05;
+  const br=Math.sin(G.t*0.042);
+  const src=P.pulse>0.15 ? heroHurtCv : heroCv;
+  ctx.save();
+  ctx.translate(P.x, feet+br*1.1);
+  // 出劍時身體不做任何動作 —— 御劍是意念,不是招式。只有呼吸與風。
+  ctx.scale(G.facing, 1+br*0.014);               // 轉身 + 呼吸
+  const N=28, sh=h/N, sDPR=src.height/h;
+  for(let i=0;i<N;i++){
+    const y0=i*sh, ry=(y0+sh*0.5)/h;
+    // 風動幅度:腳下錨定為 0,腰以下的衣袂最大;頭頂髮絲另給一份小幅
+    const robe=Math.max(0,Math.min(1,(ry-0.30)/0.42))*(1-Math.max(0,Math.min(1,(ry-0.87)/0.13)));
+    const hair=Math.max(0,1-Math.abs(ry-0.14)/0.17);
+    const amp=(robe*0.085+hair*0.05)*w*(1+G.intent*0.18);   // 起劍時衣袂僅微鼓
+    const dx=Math.sin(ry*7.4-G.t*0.052)*amp + Math.sin(ry*3.0-G.t*0.029)*amp*0.45;
+    ctx.drawImage(src, 0, y0*sDPR, src.width, sh*sDPR+1,
+                       -w/2+dx, -h+y0, w, sh+0.7);
+  }
+  ctx.restore();
+}
+// 待機時劍不現身 —— 劍令一起,劍才自修士身側浮現而出。
+// 背後不再放一把常駐的劍。
+
+// ---------- 五行元素調色 ----------
+// none=水墨本色 / fire=業火(赤) / ice=寒霜(藍)。決定劍氣、中脊、拖尾、粒子的顏色。
+const ELEM = {
+  none:{ halo0:'rgba(70,64,56,0)',  halo1:'rgba(70,64,56,0.26)',  halo2:'rgba(120,110,96,0)',
+         spine:'rgba(60,52,44,0.6)', trail:'40,34,28',  hit:'#3a332a' },
+  fire:{ halo0:'rgba(200,80,36,0)', halo1:'rgba(214,96,42,0.40)', halo2:'rgba(244,182,88,0)',
+         spine:'rgba(198,72,28,0.9)', trail:'206,92,40', hit:'#c0532e' },
+  ice: {halo0:'rgba(120,178,218,0)',halo1:'rgba(150,200,235,0.40)',halo2:'rgba(224,242,255,0)',
+         spine:'rgba(84,150,200,0.9)', trail:'150,196,230', hit:'#5a9cc0' },
+};
+
+// 劍身每幀每把重畫要建三個漸層加十幾段路徑;造型只跟劍氣寬度/元素/外觀有關,
+// 烘成一張貼圖,之後每把劍只花一次 drawImage。
+function buildJian(){
+  const k=stat.size, BL=30+k*1.9, bw=1.8+k*0.24;
+  const left=-(2+9+k*0.6+4), right=BL+10, half=Math.max(bw*2.6, bw*1.7)+4;
+  const w=right-left, h=half*2;
+  const c=document.createElement('canvas');
+  c.width=Math.ceil(w*DPR); c.height=Math.ceil(h*DPR);
+  const g=c.getContext('2d');
+  g.setTransform(DPR,0,0,DPR,0,0);
+  g.translate(-left, half);
+  paintJian(g);
+  jianSprite=c; jianOX=left; jianOY=-half;
+  jianKey=stat.size+'|'+stat.element+'|'+meta.skin;
+}
+// ---------- 程序化水墨劍造型(東方素雅劍) ----------
+// 本地座標:劍尖朝 +x,劍柄在 -x。比例隨劍氣寬度 stat.size 縮放。
+// 墨劍 sprite 繪製:出鞘前 24 影格播攻擊 6 幀,之後待機 8 幀慢速循環。
+function drawSwordSprite(ctx,s){
+  const speed=Math.hypot(s.vx||0,s.vy||0), k=stat.size;
+  const BL=38+k*1.8+Math.min(12,speed*.7);          // 沿用原本的刀身長度手感
+  const w=BL/SWDSPR.blade, h=w/SWDSPR.aspect;
+  let im;
+  if(s.age<24){ im=SWDSPR.atk[Math.min(5,Math.floor(s.age/4))]; }
+  else { const t=(G.t*0.055+s.age*0.02+(s.seed||0)); im=SWDSPR.idle[Math.floor(((t%8)+8)%8)]; }
+  if(!im||!im.complete||!im.naturalWidth) return;
+  ctx.save(); ctx.translate(s.x,s.y); ctx.rotate(s.ang);
+  ctx.drawImage(im, -w*SWDSPR.grip, -h/2, w, h);
+  ctx.restore();
+}
+function drawInkFlyingSword(ctx,s){
+  const speed=Math.hypot(s.vx||0,s.vy||0), k=stat.size;
+  const BL=38+k*1.8+Math.min(12,speed*.7), bw=2.8+k*.22;
+  const EL=ELEM[stat.element]||ELEM.none, phase=(G.t+s.age*3)*.08;
+  ctx.save(); ctx.translate(s.x,s.y); ctx.rotate(s.ang);
+  ctx.lineCap='round'; ctx.lineJoin='round';
+
+  // 柄後破筆墨絲：長短錯落，隨飛行微幅擺動。
+  for(let i=0;i<4;i++){
+    const y=(i-1.5)*bw*.75, sway=Math.sin(phase+i*1.7)*bw*.9;
+    ctx.strokeStyle='rgba(24,21,18,'+(0.48-i*.07)+')';
+    ctx.lineWidth=Math.max(.55,bw*(.54-i*.08));
+    ctx.beginPath(); ctx.moveTo(-8,y*.45); ctx.quadraticCurveTo(-20-i*3,y+sway,-30-i*5,y*.5+sway*1.35); ctx.stroke();
+  }
+  // 速度殘影：比劍身更淡、更扁，形成示意圖中的放射飛劍感。
+  ctx.fillStyle='rgba(30,27,23,.16)';
+  ctx.beginPath(); ctx.moveTo(-BL*.82,-bw*1.7); ctx.lineTo(BL*.72,-bw*.58);
+  ctx.lineTo(BL*.92,0); ctx.lineTo(-BL*.9,bw*1.3); ctx.closePath(); ctx.fill();
+
+  // 深墨劍身，劍尖保持銳利；根部略為不規則，像濕墨收筆。
+  const blade=ctx.createLinearGradient(-3,0,BL,0);
+  blade.addColorStop(0,'rgba(18,16,14,.98)'); blade.addColorStop(.58,'rgba(38,35,31,.96)'); blade.addColorStop(1,'rgba(13,12,10,.92)');
+  ctx.fillStyle=blade; ctx.strokeStyle='rgba(8,7,6,.92)'; ctx.lineWidth=1.1;
+  ctx.beginPath(); ctx.moveTo(-3,-bw*.92); ctx.quadraticCurveTo(BL*.48,-bw*1.08,BL,0);
+  ctx.quadraticCurveTo(BL*.45,bw*.92,-3,bw*.78); ctx.lineTo(-7,bw*.28); ctx.lineTo(-4,-bw*.2); ctx.closePath();
+  ctx.fill(); ctx.stroke();
+
+  // 劍脊與飛白裂痕，讓黑色輪廓仍保有水墨材質。
+  ctx.strokeStyle=stat.element==='none'?'rgba(205,198,181,.38)':EL.spine; ctx.lineWidth=.9;
+  ctx.beginPath(); ctx.moveTo(2,0); ctx.lineTo(BL*.9,0); ctx.stroke();
+  ctx.strokeStyle='rgba(241,235,221,.42)'; ctx.lineWidth=.75;
+  ctx.beginPath(); ctx.moveTo(BL*.22,-bw*.18); ctx.lineTo(BL*.43,-bw*.1);
+  ctx.moveTo(BL*.52,bw*.12); ctx.lineTo(BL*.68,bw*.04); ctx.stroke();
+
+  // 墨色護手、短柄與劍首。
+  ctx.fillStyle='#171411';
+  ctx.beginPath(); ctx.moveTo(-4,-bw*2.15); ctx.quadraticCurveTo(1,-bw*1.25,1,0);
+  ctx.quadraticCurveTo(1,bw*1.25,-4,bw*2.15); ctx.lineTo(-7,bw*1.25); ctx.lineTo(-7,-bw*1.25); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='#2c2721'; ctx.fillRect(-17,-bw*.62,11,bw*1.24);
+  ctx.strokeStyle='rgba(8,7,6,.75)'; ctx.lineWidth=.8;
+  for(let x=-16;x<-7;x+=2.7){ctx.beginPath();ctx.moveTo(x,-bw*.6);ctx.lineTo(x+1.4,bw*.6);ctx.stroke();}
+  ctx.fillStyle='#15120f'; ctx.beginPath(); ctx.arc(-18,0,bw*.72,0,6.283); ctx.fill();
+  ctx.restore();
+}
+function drawJian(ctx, s){
+  // 飛出去的是「劍氣墨痕」,一律用程序化水墨畫(sprite 那把實劍改用於腳下結界)。
+  drawInkFlyingSword(ctx,s); return;
+  const EL=ELEM[stat.element]||ELEM.none;
+  if(ART.ok){
+    const BL=30+stat.size*1.9;
+    const Wd=BL/(1-HERO.gripX), Hd=Math.max(6,Wd*HERO.swAspect);
+    ctx.save(); ctx.translate(s.x,s.y); ctx.rotate(s.ang);
+    // 劍氣:沿刃身的光暈,近柄濃、近尖散,顏色由元素決定
+    const hal=ctx.createLinearGradient(-Wd*HERO.gripX,0,BL*1.06,0);
+    hal.addColorStop(0,EL.halo0); hal.addColorStop(0.42,EL.halo1); hal.addColorStop(1,EL.halo2);
+    ctx.lineCap='round'; ctx.strokeStyle=hal;
+    ctx.lineWidth=Hd*(stat.element==='none'?0.9:1.5);
+    ctx.beginPath(); ctx.moveTo(-Wd*HERO.gripX*0.5,0); ctx.lineTo(BL*1.02,0); ctx.stroke();
+    if(Math.cos(s.ang)<0) ctx.scale(1,-1);
+    ctx.drawImage(swordTint(), -Wd*HERO.gripX, -Hd*HERO.gripY, Wd, Hd);
+    ctx.restore();
+    // 劍穗自劍首向後拖曳
+    drawTassel(s.x-Math.cos(s.ang)*Wd*HERO.gripX*0.92,
+               s.y-Math.sin(s.ang)*Wd*HERO.gripX*0.92,
+               s.ang+Math.PI, Wd*0.30, G.t+s.age*2, 0.9);
+    return;
+  }
+  if(!jianSprite || jianKey!==(stat.size+'|'+stat.element+'|'+meta.skin)) buildJian();
+  ctx.save();
+  ctx.translate(s.x, s.y); ctx.rotate(s.ang);
+  ctx.drawImage(jianSprite, jianOX, jianOY,
+    jianSprite.width/DPR, jianSprite.height/DPR);
+  ctx.restore();
+}
+// 墨劍永遠不改造型、不改配色 —— 元素只表現在劍氣與墨痕上。
+// 「劍沒有變,變的是劍勢。」
+function swordTint(){ return ART.sword; }
+// 劍穗:從劍首垂下的三節繩結,依運動方向拖曳,待機時微微擺動
+function drawTassel(x,y,ang,len,phase,alpha){
+  const seg=3, sw=len*0.34;
+  let px=x, py=y, a=ang;
+  ctx.save(); ctx.lineCap='round';
+  for(let i=0;i<seg;i++){
+    const sway=Math.sin(phase*0.055 - i*0.9)*0.30*(i+1)/seg;
+    a += sway*0.5 + (i?0.12:0.22);
+    const nx=px+Math.cos(a)*sw/seg*1.6, ny=py+Math.sin(a)*sw/seg*1.6;
+    ctx.strokeStyle='rgba(38,34,30,'+(alpha*(0.72-i*0.16))+')';
+    ctx.lineWidth=(2.1-i*0.5)*Math.max(0.4,len/60);
+    ctx.beginPath(); ctx.moveTo(px,py); ctx.lineTo(nx,ny); ctx.stroke();
+    px=nx; py=ny;
+  }
+  ctx.restore();
+}
+// 實際把劍畫在原點朝 +x —— 只在烘貼圖時呼叫一次
+function paintJian(ctx){
+  ctx.save();
+  ctx.lineCap='round'; ctx.lineJoin='round';
+  const k   = stat.size;
+  const BL  = 30 + k*1.9;        // 刃長(修長)
+  const bw  = 1.8 + k*0.24;      // 刃半寬
+  const guardX  = -2;
+  const gripEnd = guardX - (9 + k*0.6);
+  const pommelX = gripEnd - 2;
+  const EL = ELEM[stat.element] || ELEM.none;
+
+  // 1) 劍氣光暈(依元素:墨/火/冰)
+  const halo = ctx.createLinearGradient(pommelX,0,BL+8,0);
+  halo.addColorStop(0,EL.halo0); halo.addColorStop(0.45,EL.halo1); halo.addColorStop(1,EL.halo2);
+  ctx.strokeStyle=halo; ctx.lineWidth=bw*3.4;
+  ctx.beginPath(); ctx.moveTo(gripEnd,0); ctx.lineTo(BL+8,0); ctx.stroke();
+
+  // 2) 劍首(素環)
+  ctx.fillStyle='#3a352d'; ctx.strokeStyle='#1e1c17'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.arc(pommelX+1,0,bw*0.85,0,6.28); ctx.fill(); ctx.stroke();
+
+  // 3) 劍柄(纏繩)
+  ctx.fillStyle='#4a4038'; ctx.fillRect(gripEnd,-bw*0.7,guardX-gripEnd,bw*1.4);
+  ctx.strokeStyle='rgba(20,18,14,0.55)'; ctx.lineWidth=1;
+  for(let gx=gripEnd+2; gx<guardX-1; gx+=2.6){
+    ctx.beginPath(); ctx.moveTo(gx,-bw*0.7); ctx.lineTo(gx+1.3,bw*0.7); ctx.stroke();
+  }
+
+  // 4) 護手(素雅新月劍格,無鑲飾)
+  ctx.fillStyle='#2f2b26'; ctx.strokeStyle='#181611'; ctx.lineWidth=1;
+  ctx.beginPath();
+  ctx.moveTo(guardX,-bw*2.2);
+  ctx.quadraticCurveTo(guardX+bw*1.5,-bw*1.4, guardX+bw*1.7,0);
+  ctx.quadraticCurveTo(guardX+bw*1.5, bw*1.4, guardX, bw*2.2);
+  ctx.quadraticCurveTo(guardX-3,0, guardX,-bw*2.2);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+
+  // 5) 劍身(宣紙白刃,上刃微弧,毛筆濃淡墨邊)
+  const blade = ctx.createLinearGradient(0,-bw,0,bw);
+  blade.addColorStop(0,'#d6cebc'); blade.addColorStop(0.5,'#fbf7ee'); blade.addColorStop(1,'#d6cebc');
+  ctx.fillStyle=blade;
+  ctx.beginPath();
+  ctx.moveTo(guardX,-bw);
+  ctx.quadraticCurveTo(BL*0.6,-bw*0.95, BL,0);   // 劍尖
+  ctx.quadraticCurveTo(BL*0.6, bw*0.95, guardX,bw);
+  ctx.closePath(); ctx.fill();
+  const edge = ctx.createLinearGradient(guardX,0,BL,0); // 近柄墨濃、近尖墨淡
+  edge.addColorStop(0,'rgba(28,24,20,0.9)'); edge.addColorStop(1,'rgba(28,24,20,0.22)');
+  ctx.strokeStyle=edge; ctx.lineWidth=1.4; ctx.stroke();
+
+  // 6) 中脊(依元素:墨線/火線/冰線)
+  ctx.strokeStyle=EL.spine; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(guardX+1,0); ctx.lineTo(BL*0.92,0); ctx.stroke();
+
+  // 7) 飛白(乾筆斷續白痕)
+  ctx.strokeStyle='rgba(255,255,255,0.7)'; ctx.lineWidth=1;
+  ctx.beginPath();
+  ctx.moveTo(BL*0.32,-bw*0.15); ctx.lineTo(BL*0.55,-bw*0.1);
+  ctx.moveTo(BL*0.66,-bw*0.02); ctx.lineTo(BL*0.95,-bw*0.02);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+// ---------- 靜態圖層 ----------
+// 宣紙底交給 CSS 背景圖(GPU 合成,零每幀成本);暈影是純 CSS 漸層。
+// 畫布只負責會動的東西,每幀用 clearRect 清空。
+function makePaperTile(){
+  const s=200, c=document.createElement('canvas'); c.width=c.height=s;
+  const q=c.getContext('2d');
+  q.fillStyle='#e9e0cc'; q.fillRect(0,0,s,s);
+  for(let i=0;i<520;i++){                                   // 纖維:短促淡色細線
+    const x=Math.random()*s, y=Math.random()*s, a=Math.random()*6.283, l=2+Math.random()*7;
+    q.strokeStyle='rgba('+(Math.random()<0.5?'255,252,242':'150,134,104')+','+(0.03+Math.random()*0.06)+')';
+    q.lineWidth=Math.random()<0.8?0.7:1.3;
+    q.beginPath(); q.moveTo(x,y); q.lineTo(x+Math.cos(a)*l,y+Math.sin(a)*l); q.stroke();
+  }
+  for(let i=0;i<90;i++){                                    // 紙斑
+    q.fillStyle='rgba(140,122,92,'+(0.02+Math.random()*0.05)+')';
+    q.beginPath(); q.arc(Math.random()*s,Math.random()*s,0.6+Math.random()*2.2,0,6.283); q.fill();
+  }
+  return c;
+}
+let paperDone=false;
+function buildPaper(){
+  if(paperDone) return;
+  const layers=[document.getElementById('depthpaper'),document.getElementById('paper')];
+  // 第一章直向畫卷：維持原圖比例，以 cover 適配不同手機長寬比。
+  for(const el of layers){
+    el.style.backgroundColor='#e9e0cc';
+    el.style.backgroundImage=
+      'radial-gradient(circle at 50% 45%, rgba(20,18,14,0), rgba(20,18,14,.035) 82%),'
+     +"url('assets/scenes/ch01-ink-valley-portrait.png')";
+    el.style.backgroundSize='cover';
+    el.style.backgroundPosition='center center';
+    el.style.backgroundRepeat='no-repeat';
+  }
+  paperDone=true;
+}
+
+// 墨漬:預烘六種墨團小貼圖,之後每道墨漬只是一次小 drawImage,可保留漸淡
+let blots=null;
+function buildBlots(){
+  blots=[];
+  for(let b=0;b<6;b++){
+    const S=128, c=document.createElement('canvas'); c.width=c.height=S;
+    const g=c.getContext('2d');
+    const m=7+((Math.random()*3)|0), pts=[];
+    for(let i=0;i<m;i++) pts.push({a:i/m*6.283, r:S*0.5*(0.55+Math.random()*0.42),
+      ox:(Math.random()-.5)*S*0.12, oy:(Math.random()-.5)*S*0.12});
+    g.fillStyle='#000'; g.beginPath();
+    for(let i=0;i<m;i++){
+      const q=pts[i], n=pts[(i+1)%m];
+      const ax=S/2+Math.cos(q.a)*q.r+q.ox, ay=S/2+Math.sin(q.a)*q.r+q.oy;
+      const bx=S/2+Math.cos(n.a)*n.r+n.ox, by=S/2+Math.sin(n.a)*n.r+n.oy;
+      if(i===0) g.moveTo(ax,ay);
+      g.quadraticCurveTo(ax+(bx-ax)*.5+Math.cos(q.a)*q.r*.18,
+                         ay+(by-ay)*.5+Math.sin(q.a)*q.r*.18, bx,by);
+    }
+    g.closePath(); g.fill();
+    blots.push(c);
+  }
+}
+
+// ---------- 繪製 ----------
+function draw(){
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  buildPaper();
+  ctx.clearRect(0,0,W,H);                    // 紙層在畫布底下,由 CSS 合成
+  // 墨漬:一道一次小貼圖,不再需要滿版圖層
+  if(FX.bg&&DRAWLV>=1&&blots){
+    for(const st of G.stains){
+      ctx.globalAlpha=Math.max(0,st.a);
+      const d=st.r*2;
+      ctx.save(); ctx.translate(st.x,st.y); ctx.rotate(st.rot);
+      ctx.globalCompositeOperation='source-over';
+      ctx.drawImage(st.im,-d/2,-d/2,d,d);
+      ctx.restore();
+    }
+    ctx.globalAlpha=1;
+  }
+
+
+  // 畫面震動:整個戰場位移(HUD 不動)
+  if(G.shake>0){
+    const a=Math.random()*6.283, m=G.shake*0.55;
+    ctx.translate(Math.cos(a)*m, Math.sin(a)*m);
+  }
+
+  // 墨暈
+  if(FX.ink&&DRAWLV>=2) for(const p of G.inks){ ctx.globalAlpha=Math.max(0,p.a); ctx.fillStyle='#2b2620';
+    ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,6.28); ctx.fill(); }
+  ctx.globalAlpha=1;
+
+  const P=G.player;
+  // 中央:劍客本人。腳下改為「墨劍環繞的結界」——待機劍幀沿橢圓軌道旋繞,取代綠色地陣。
+  if(DRAWLV>=3){
+  ctx.save();
+  const feet=P.y+P.r*1.05;
+  const hpr=Math.max(0,P.hp/P.max), urg=1+(1-hpr)*2.0, low=hpr<0.4;
+  // 地面淡墨暈(取代原本的綠色光暈)
+  if(FX.glow){
+    const glow=ctx.createRadialGradient(P.x,feet,4,P.x,feet,P.r+30+P.pulse*26);
+    const gc=low?'176,64,48':'40,34,28';
+    glow.addColorStop(0,'rgba('+gc+',.26)'); glow.addColorStop(1,'rgba('+gc+',0)');
+    ctx.save(); ctx.translate(P.x,feet); ctx.scale(1,0.4); ctx.translate(-P.x,-feet);
+    ctx.fillStyle=glow; ctx.beginPath(); ctx.arc(P.x,feet,P.r+30+P.pulse*26,0,6.28); ctx.fill();
+    ctx.restore();
+  }
+  // 劍環結界:待機劍幀環繞,劍尖朝外、護手朝內;軌道壓扁貼地,前大後小做出景深。
+  if(SWDSPR.ok && FX.glow){
+    const N=6, spin=G.t*0.006*urg;
+    const rx=P.r+26+G.intent*8, ry=rx*0.42;
+    ctx.save(); ctx.translate(P.x,feet);
+    const order=[]; for(let i=0;i<N;i++) order.push(i);
+    order.sort((p,q)=>Math.sin(spin+p/N*6.283)-Math.sin(spin+q/N*6.283)); // 後方先畫
+    for(const i of order){
+      const a=spin+i/N*6.283, px=Math.cos(a)*rx, py=Math.sin(a)*ry;
+      const depth=(Math.sin(a)+1)/2;                       // 0 後 → 1 前
+      const im=SWDSPR.idle[(i*2+Math.floor(G.t*0.04))%SWDSPR.idle.length];
+      if(!im||!im.complete||!im.naturalWidth) continue;
+      const L=P.r*(0.95+depth*0.5);                        // 劍長:前排略長
+      const w=L/SWDSPR.blade, hh=w/SWDSPR.aspect;
+      const dir=Math.atan2(py,px);                         // 離心方向(劍尖朝外)
+      ctx.save(); ctx.translate(px,py); ctx.rotate(dir);
+      ctx.globalAlpha=0.24+depth*0.5;
+      ctx.drawImage(low?tintFrame(im,'#a2422b'):im, -w*SWDSPR.grip, -hh/2, w, hh);
+      ctx.restore();
+    }
+    ctx.globalAlpha=1; ctx.restore();
+  }
+  ctx.restore();
+  if(ART.ok || heroSet().ok) drawHero(P);
+  else {                                            // 貼圖沒載到:退回原本的靈石
+    ctx.fillStyle=P.pulse>0.3?'#b04030':'#4a5a3a';
+    ctx.beginPath(); ctx.arc(P.x,P.y,P.r,0,6.28); ctx.fill();
+    ctx.strokeStyle='#2b2620'; ctx.lineWidth=2; ctx.stroke();
+    ctx.fillStyle='#e9e0cc'; ctx.font='22px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('靈',P.x,P.y+1);
+  }
+  ctx.restore();
+  }
+
+  // 敵人(墨團妖魔)
+  if(DRAWLV>=4) for(const en of G.enemies){
+    const grp=ENESPR[en.type];
+    if(grp && grp.ok){
+      // 真透明 sprite:多幀時隨機起始+慢速交叉淡入(變體感+煙霧晨變);單幀直接畫
+      const fr=grp.frames.filter(Boolean), n=fr.length, hh=en.r*2.8, base=(en.hit>0?0.9:1);
+      const put=(img,al)=>{ const iw=img.naturalWidth||1, ih=img.naturalHeight||1, ww=hh*(iw/ih);
+        ctx.globalAlpha=al; ctx.drawImage(img, en.x-ww/2, en.y-hh*0.58, ww, hh); };
+      ctx.save();
+      if(n<=1){ put(fr[0], base); }
+      else if(en.type==='inkling'){ // 煙霧妖:慢速晨變(交叉淡入)
+        const t=G.t*0.006+en.anim, i0=Math.floor(t)%n, i1=(i0+1)%n, f=t-Math.floor(t);
+        put(fr[i0], base*(1-f)); put(fr[i1], base*f);
+      } else { // 人形(墨刃兵等):每隻固定隨機一張靜態變體,不晨變
+        put(fr[Math.floor(en.anim)%n], base);
+      }
+      ctx.restore(); ctx.globalAlpha=1;
+    } else {
+      // 回退:程序化墨團 + 眼
+      ctx.save(); ctx.translate(en.x,en.y);
+      const wob=Math.sin(en.wob)*2;
+      ctx.fillStyle=en.hit>0?'#d8cdb0':en.c;
+      ctx.beginPath();
+      for(let a=0;a<6.28;a+=0.5){ const rr=en.r+Math.sin(a*3+en.wob)*2.5+wob;
+        const x=Math.cos(a)*rr,y=Math.sin(a)*rr; a===0?ctx.moveTo(x,y):ctx.lineTo(x,y);}
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle='#e9e0cc'; ctx.beginPath(); ctx.arc(-en.r*0.3,-2,2.4,0,6.28);
+      ctx.arc(en.r*0.3,-2,2.4,0,6.28); ctx.fill();
+      ctx.restore();
+    }
+    // 狀態環(sprite / 程序化皆繪製)
+    const stEro = en.st && en.st.erosion && en.st.erosion.t>0 ? en.st.erosion : null;
+    const stSup = en.st && en.st.suppression && en.st.suppression.t>0 ? en.st.suppression : null;
+    if(en.ember>0 || en.chill>0 || stEro || stSup){ ctx.save(); ctx.translate(en.x,en.y);
+      if(en.ember>0){ ctx.strokeStyle='rgba(200,102,46,.8)'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(0,0,en.r+3,0,6.28); ctx.stroke(); }
+      if(en.chill>0){ ctx.strokeStyle='rgba(120,180,220,.85)'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(0,0,en.r+3,0,6.28); ctx.stroke(); }
+      // 蝕:斷續的枯墨環,層數越多缺口越少
+      if(stEro){ const g=Math.max(0.08,0.5-stEro.stk*0.07);
+        ctx.strokeStyle='rgba(58,48,40,.75)'; ctx.lineWidth=2.2; ctx.setLineDash([6,6*g*6]);
+        ctx.beginPath(); ctx.arc(0,0,en.r+4,G.t*0.02,G.t*0.02+6.28); ctx.stroke(); ctx.setLineDash([]); }
+      // 鎮:內縮的留白細環
+      if(stSup){ ctx.strokeStyle='rgba(232,224,206,'+(0.35+stSup.stk*0.1)+')'; ctx.lineWidth=1.4;
+        ctx.beginPath(); ctx.arc(0,0,en.r+1.5,0,6.28); ctx.stroke(); }
+      ctx.restore(); }
+    // 敵方血條：深墨底槽、朱紅血量與一像素框線，對齊示意圖的細長比例。
+    if(en.hp<en.max){
+      const w=Math.max(30,Math.min(62,en.r*2.45)), h=4, x=en.x-w/2, y=en.y-en.r-12;
+      ctx.fillStyle='rgba(20,17,14,.88)'; ctx.fillRect(x-1,y-1,w+2,h+2);
+      ctx.fillStyle='rgba(76,66,55,.72)'; ctx.fillRect(x,y,w,h);
+      ctx.fillStyle='#a22f2b'; ctx.fillRect(x,y,Math.max(0,w*Math.min(1,en.hp/en.max)),h);
+      ctx.fillStyle='rgba(235,218,188,.28)'; ctx.fillRect(x,y,w,1);
+    }
+  }
+
+  // 赴筆:劍離背掠向落筆處的細墨痕
+  if(DRAWLV>=5) for(const k of G.streaks){
+    ctx.strokeStyle='rgba(40,34,28,'+(k.life*0.34)+')';
+    ctx.lineWidth=1.6*k.life+0.4; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(k.x1,k.y1); ctx.lineTo(k.x2,k.y2); ctx.stroke();
+  }
+
+  // 留白斷鋒:暴擊處刮出的白痕(斷意 / 飛白千峰)
+  if(DRAWLV>=4) for(const c of G.cuts){
+    ctx.save(); ctx.translate(c.x,c.y); ctx.rotate(c.ang); ctx.lineCap='round';
+    const L=c.len*(1.15-c.life*0.15);
+    ctx.strokeStyle='rgba(250,247,238,'+(c.life*0.85)+')'; ctx.lineWidth=2.6*c.life+0.6;
+    ctx.beginPath(); ctx.moveTo(-L*0.5,0); ctx.lineTo(L*0.5,0); ctx.stroke();
+    ctx.strokeStyle='rgba(250,247,238,'+(c.life*0.32)+')'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(-L*0.34,-3.2); ctx.lineTo(L*0.42,-3.2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-L*0.42,3.0); ctx.lineTo(L*0.30,3.0); ctx.stroke();
+    ctx.restore();
+  }
+
+  // 劍氣
+  if(DRAWLV>=5) for(const s of G.swords){
+    // 墨痕拖尾:沿飛行軌跡的毛筆掃痕,近劍身濃寬、末端漸淡收(依元素著色)
+    ctx.lineCap='round'; ctx.lineJoin='round';
+    let rgb=(ELEM[stat.element]||ELEM.none).trail;
+    if(stat.element==='none' && meta.skin==='gold') rgb='198,150,60'; // 外觀:墨金劍痕
+    // 歸念 / 歸藏無痕:折返後的劍痕轉為淡飛白(易辨識回程);殘鋒較細
+    if(s.returned && stat.returnDry) rgb='196,186,168';
+    if(FX.trail) inkTrail(ctx, s.trail, stat.size*(s.echo?0.55:1), rgb);
+    // 劍身(程序化水墨劍)
+    drawJian(ctx, s);
+  }
+
+  // 當前畫痕
+  if(DRAWLV>=6 && drawing&&path.length>1){
+    ctx.lineCap='round'; ctx.lineJoin='round';
+    ctx.strokeStyle= maxed ? 'rgba(192,138,46,.85)' : 'rgba(43,38,32,.75)';
+    for(let k=1;k<path.length;k++){
+      ctx.lineWidth = 2 + (k/path.length)*(stat.size+4);
+      ctx.beginPath(); ctx.moveTo(path[k-1].x,path[k-1].y); ctx.lineTo(path[k].x,path[k].y); ctx.stroke();
+    }
+    // 箭頭指示
+    const a=path[Math.max(0,path.length-4)],b=path[path.length-1];
+    const ang=Math.atan2(b.y-a.y,b.x-a.x);
+    ctx.save(); ctx.translate(b.x,b.y); ctx.rotate(ang); ctx.fillStyle='#7a2b2b';
+    ctx.beginPath(); ctx.moveTo(14,0); ctx.lineTo(2,7); ctx.lineTo(2,-7); ctx.closePath(); ctx.fill(); ctx.restore();
+  }
+
+  // 粒子
+  if(DRAWLV>=4) for(const sp of G.splashes) drawSplash(ctx,sp);
+  if(FX.part&&DRAWLV>=7) for(const p of G.particles){ ctx.globalAlpha=Math.max(0,p.life); ctx.fillStyle=p.c;
+    ctx.beginPath(); ctx.arc(p.x,p.y,2.5*p.life+0.5,0,6.28); ctx.fill(); }
+  ctx.globalAlpha=1;
+  // 浮字：傷害使用白色斜體與粗墨描邊；狀態字維持原本的書法色。
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  if(DRAWLV>=7) for(const t of G.texts){
+    ctx.save(); ctx.globalAlpha=Math.max(0,Math.min(1,t.life*1.45));
+    if(t.damage){
+      const pop=t.age<6?.72+t.age*.055:1, size=t.crit?26:22;
+      ctx.translate(t.x,t.y); ctx.scale(pop,pop);
+      // 中文數值:用襯線體、不加外框(外框會把筆畫糊成一團)。
+      // 可讀性改靠一層極淡的紙色柔暈,不是描邊。
+      ctx.font=(t.crit?'700 ':'600 ')+size+'px "Noto Serif TC","STKaiti","KaiTi",serif';
+      ctx.shadowColor='rgba(250,246,238,.9)'; ctx.shadowBlur=6; ctx.shadowOffsetY=0;
+      ctx.fillStyle=t.c; ctx.fillText(t.txt,0,0);
+      ctx.shadowColor='transparent';
+    }else{
+      ctx.font='bold 16px serif'; ctx.fillStyle=t.c; ctx.fillText(t.txt,t.x,t.y);
+    }
+    ctx.restore();
+  }
+  ctx.globalAlpha=1;
+
+  // ---- 以下不受震動影響 ----
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+
+  // 波次題字:如落款鈐印般淡入淡出
+  if(DRAWLV>=8 && G.banner){
+    const L=G.banner.life, al=Math.min(1,L*2.4)*Math.min(1,(1-L)*6+0.2);
+    ctx.save(); ctx.globalAlpha=Math.max(0,Math.min(1,al))*0.82;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillStyle='#2b2620'; ctx.font='700 46px "Noto Serif TC",serif';
+    ctx.letterSpacing&&(ctx.letterSpacing='10px');
+    ctx.fillText(G.banner.txt, W/2, H*0.22+(1-L)*10);
+    ctx.strokeStyle='rgba(122,43,43,.75)'; ctx.lineWidth=1.4;
+    const bw=120; ctx.beginPath();
+    ctx.moveTo(W/2-bw,H*0.22+34); ctx.lineTo(W/2+bw,H*0.22+34); ctx.stroke();
+    ctx.restore();
+  }
+
+  // 全屏閃光(暴擊、受傷、升級、換波)
+  if(DRAWLV>=8 && G.flash>0){
+    ctx.fillStyle='rgba('+G.flashC+','+Math.max(0,G.flash)+')';
+    ctx.fillRect(0,0,W,H);
+  }
+
+
+}
+
+// ---------- HUD ----------
+const CN=['零','一','二','三','四','五','六','七','八','九','十'];
+// 中文數字:原版只做到 99(百位會算錯)。改為支援到 9999,並沿用傳統的 廿/卅
+// (參考稿的傷害寫「廿四」而不是「二十四」)。十位為 1 時省略「一」:十四,不是一十四。
+const CN_TENS={2:'廿',3:'卅'};
+function num2cn(n){
+  n=Math.max(0,Math.round(n));
+  if(n<=10) return CN[n];
+  if(n<100){
+    const t=Math.floor(n/10), o=n%10;
+    const head = t===1 ? '十' : (CN_TENS[t] || CN[t]+'十');
+    return head + (o?CN[o]:'');
+  }
+  if(n<10000){
+    const units=['','十','百','千'], d=String(n).split('').map(Number);
+    let out='', zero=false;
+    for(let i=0;i<d.length;i++){
+      const v=d[i], u=units[d.length-1-i];
+      if(v===0){ zero=true; continue; }
+      if(zero && out) out+='零';
+      zero=false;
+      out += (v===1 && u==='十' && i===0) ? '十' : CN[v]+u;
+    }
+    return out;
+  }
+  return String(n);                      // 破萬就不硬翻了,維持數字
+}
+const hudCache={};
+function setTxt(id,v){ if(hudCache[id]!==v){ const e=document.getElementById(id); if(!e) return;
+  hudCache[id]=v; e.textContent=v; } }
+function setW(id,v){ if(hudCache['w'+id]!==v){ const e=document.getElementById(id); if(!e) return;
+  hudCache['w'+id]=v; e.style.width=v; } }
+function updateHUD(){
+  const P=G.player;
+  setW('hpfill',Math.max(0,P.hp/P.max*100).toFixed(1)+'%');
+  setTxt('hptxt',Math.max(0,Math.round(P.hp))+' / '+P.max);
+  const mpr=G.mana/stat.manaMax;
+  setW('mpfill',Math.max(0,mpr*100).toFixed(1)+'%');
+  const mpEl=document.getElementById('mpfill'); if(mpEl) mpEl.classList.toggle('low',mpr<0.25);
+  setTxt('mptxt',Math.round(G.mana)+' / '+stat.manaMax);
+  setW('xpfill',Math.max(0,Math.min(100,G.xp/G.xpNeed*100)).toFixed(1)+'%');
+  setTxt('lvtxt',num2cn(G.level));
+  setTxt('killtxt',String(G.kills));
+  setTxt('wavetxt','第 '+num2cn(G.wave)+' 境');
+}
+
+// ---------- 迴圈 ----------
+// ---------- 診斷 ----------
+// 逐項開關,用來在真實機器上二分出瓶頸(數字鍵 1~6 切換,0 全關)
+const FX={ bg:true, vig:true, trail:true, ink:true, part:true, glow:true };
+const FXKEY={'1':['bg','背景層'],'2':['vig','暈影'],'3':['trail','拖尾'],
+             '4':['ink','墨暈'],'5':['part','粒子'],'6':['glow','靈石光暈']};
+// 排除法用:7 停掉所有音訊、9 連 draw() 都不呼叫。
+// 若 9 按下去 fps 仍不變,問題就完全不在畫面繪製,而在瀏覽器合成或環境。
+let NODRAW=false, NOAUDIO=false;
+// 逐段疊加的繪圖層級:0=完全不畫,9=全部畫。用來精準定位是哪一段拖垮 GPU。
+let DRAWLV=9;
+const LVNAME=['0 什麼都不畫','1 背景圖層','2 墨暈','3 靈石法陣','4 敵人',
+              '5 劍(拖尾+劍身)','6 畫痕','7 粒子+浮字','8 題字+閃光','9 暈影圖層'];
+// 硬體加速沒開時 Chrome 會退回 SwiftShader 軟體算圖,全螢幕合成會慢上一個數量級
+let GPU='(未偵測)';
+function detectGPU(){
+  try{
+    const c=document.createElement('canvas');
+    const gl=c.getContext('webgl')||c.getContext('experimental-webgl');
+    if(!gl){ GPU='WebGL 不可用 → 硬體加速應已關閉'; return; }
+    const e=gl.getExtension('WEBGL_debug_renderer_info');
+    let r=e? gl.getParameter(e.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
+    r=String(r).replace(/ANGLE \(|\)$/g,'').slice(0,46);
+    const soft=/swiftshader|software|llvmpipe|basic render/i.test(r);
+    GPU=(soft?'⚠ 軟體算圖 ':'')+r;
+  }catch(err){ GPU='偵測失敗'; }
+}
+detectGPU();
+// 目的是在「你的機器、你的螢幕」上量真實數字,而不是靠開發端推測。
+const DIAG={ on:false, hist:[], upd:0, drw:0, last:0, tAcc:0, tN:0, minD:1e9, el:null, next:0 };
+function diagFrame(ts){
+  if(DIAG.last){
+    const d=ts-DIAG.last;
+    if(d>0.5&&d<500){ DIAG.hist.push(d); if(DIAG.hist.length>180) DIAG.hist.shift();
+      if(d<DIAG.minD) DIAG.minD=d; }
+  }
+  DIAG.last=ts;
+  if(!DIAG.on || ts<DIAG.next) return;
+  DIAG.next=ts+250;
+  const f=DIAG.hist.slice().sort((a,b)=>a-b); if(!f.length) return;
+  const q=x=>f[Math.min(f.length-1,Math.floor(f.length*x))];
+  const p50=q(.5), p95=q(.95), mx=f[f.length-1];
+  const fps=1000/p50;
+  // 用觀察到的最短幀距推估螢幕更新率,才知道 60fps 對你是滿幀還是掉一半
+  const hz=DIAG.minD<1e9 ? Math.round(1000/DIAG.minD) : 0;
+  const cls=v=>v>1000/50?'bad':v>1000/58?'warn':'';
+  const nz=n=>String(n).padStart(4);
+  DIAG.el.innerHTML=
+    '<b>'+fps.toFixed(0)+' fps</b>  <span class="'+cls(p50)+'">p50 '+p50.toFixed(1)+'ms</span>\n'
+    +'p95 '+p95.toFixed(1)+'ms   max '+mx.toFixed(1)+'ms\n'
+    +'螢幕上限 ≈ '+hz+' Hz'+(hz>70?'  <span class="warn">(60fps=掉一半)</span>':'')+'\n'
+    +'update '+DIAG.upd.toFixed(2)+'ms  draw '+DIAG.drw.toFixed(2)+'ms\n'
+    +(hz && p50>1000/hz+3
+        ? '<span class="bad">瀏覽器 '+Math.max(0,p50-DIAG.upd-DIAG.drw).toFixed(1)+'ms</span> ← 合成/點陣化\n'
+        : '其餘 '+Math.max(0,p50-DIAG.upd-DIAG.drw).toFixed(1)+'ms(等 vsync,正常)\n')
+    +'DPR '+DPR+'  畫布 '+(W*DPR|0)+'×'+(H*DPR|0)+'\n'
+    +'<span class="'+(/⚠/.test(GPU)?'bad':'')+'">'+GPU+'</span>\n'
+    +'1背景'+(FX.bg?'✓':'✗')+' 2暈影'+(FX.vig?'✓':'✗')+' 3拖尾'+(FX.trail?'✓':'✗')+'\n'
+    +'4墨暈'+(FX.ink?'✓':'✗')+' 5粒子'+(FX.part?'✓':'✗')+' 6光暈'+(FX.glow?'✓':'✗')+'\n'
+    +'7音訊'+(NOAUDIO?'停':'開')+'　9繪圖'+(NODRAW?'停':'開')+'　0全部特效\n'
+    +'妖'+nz(G.enemies.length)+' 劍'+nz(G.swords.length)+' 粒'+nz(G.particles.length)+'\n'
+    +'墨'+nz(G.inks.length)+' 字'+nz(G.texts.length)+' 波'+nz(G.wave);
+}
+// 一鍵自動二分:依序套用六種設定各量 3 秒,直接印出對照表。
+// 目的是把「該按哪些鍵、記哪些數字」全部自動化,一次就能定位。
+let bisecting=false;
+async function bisect(){
+  if(bisecting) return; bisecting=true;
+  const el=DIAG.el=DIAG.el||document.getElementById('diag');
+  el.classList.add('show'); DIAG.on=false;          // 量測期間停掉面板更新
+  const saveDPR=DPR, saveFX=Object.assign({},FX);
+  const setDPR=v=>{ DPR=v; cv.width=W*DPR; cv.height=H*DPR; ctx.setTransform(DPR,0,0,DPR,0,0);
+                    jianSprite=null; };
+  const styleOff=document.createElement('style');
+  const CASES=[
+    ['1 現狀(全開)',       ()=>{}],
+    ['2 不畫任何東西',      ()=>{ NODRAW=true; }],
+    ['3 音訊全停',          ()=>{ NODRAW=false; SND.hardMute(true); }],
+    ['4 不畫 + 無音訊',     ()=>{ NODRAW=true; }],
+    ['5 DPR 降到 1',        ()=>{ NODRAW=false; SND.hardMute(false); setDPR(1); }],
+    ['6 移除毛玻璃',        ()=>{ setDPR(saveDPR);
+        styleOff.textContent='*{backdrop-filter:none !important}';
+        document.head.appendChild(styleOff); }],
+  ];
+  const rows=[];
+  for(const [name,setup] of CASES){
+    setup();
+    await new Promise(r=>setTimeout(r,400));         // 讓設定生效並穩定
+    const gaps=[]; let last=0;
+    await new Promise(res=>{
+      const t0=performance.now();
+      (function f(ts){
+        if(last) gaps.push(ts-last); last=ts;
+        if(performance.now()-t0<3000) requestAnimationFrame(f); else res();
+      })(performance.now());
+    });
+    gaps.sort((a,b)=>a-b);
+    const p50=gaps[gaps.length>>1]||0;
+    rows.push([name,(1000/p50).toFixed(0),p50.toFixed(1)]);
+    el.textContent='二分中… '+name+'  →  '+(1000/p50).toFixed(0)+' fps';
+  }
+  // 還原
+  NODRAW=false; SND.hardMute(false); setDPR(saveDPR); Object.assign(FX,saveFX);
+  if(styleOff.parentNode) styleOff.parentNode.removeChild(styleOff);
+  const txt='== 自動二分結果 ==\n'
+    + rows.map(r=>r[0].padEnd(16)+String(r[1]).padStart(4)+' fps  '+r[2]+'ms').join('\n')
+    + '\n螢幕上限 ≈ '+(DIAG.minD<1e9?Math.round(1000/DIAG.minD):'?')+' Hz'
+    + '\nDPR '+DPR+'  畫布 '+(W*DPR|0)+'×'+(H*DPR|0)
+    + '\n'+GPU;
+  el.textContent=txt+'\n\n(已複製到剪貼簿,按 F 收起)';
+  try{ navigator.clipboard.writeText(txt); }catch(e){}
+  bisecting=false;
+}
+// 逐段疊加二分:從什麼都不畫,一段一段加回去,fps 在哪一段掉下去就是元凶。
+async function bisectDraw(){
+  if(bisecting) return; bisecting=true;
+  const el=DIAG.el=DIAG.el||document.getElementById('diag');
+  el.classList.add('show'); DIAG.on=false;
+  const rows=[]; let prev=null, culprit=null;
+  for(let lv=0; lv<=9; lv++){
+    DRAWLV=lv; NODRAW=(lv===0);
+    await new Promise(r=>setTimeout(r,300));
+    const gaps=[]; let last=0;
+    await new Promise(res=>{
+      const t0=performance.now();
+      (function f(ts){ if(last) gaps.push(ts-last); last=ts;
+        if(performance.now()-t0<2200) requestAnimationFrame(f); else res(); })(performance.now());
+    });
+    gaps.sort((a,b)=>a-b);
+    const p50=gaps[gaps.length>>1]||0, fps=1000/p50;
+    rows.push(LVNAME[lv].padEnd(15)+String(fps.toFixed(0)).padStart(3)+' fps '+p50.toFixed(1)+'ms');
+    if(prev!==null && !culprit && prev>=45 && fps<45) culprit=LVNAME[lv];
+    prev=fps;
+    el.textContent='逐段二分中… '+LVNAME[lv]+' → '+fps.toFixed(0)+' fps';
+  }
+  DRAWLV=9; NODRAW=false; bisecting=false;
+  const txt='== 逐段疊加二分 ==\n'+rows.join('\n')
+    +(culprit?'\n\n➜ 元凶:'+culprit:'\n\n➜ 沒有單一段落造成落差')
+    +'\nDPR '+DPR+'  畫布 '+(W*DPR|0)+'×'+(H*DPR|0);
+  el.textContent=txt+'\n\n(已複製到剪貼簿,按 F 收起)';
+  try{ navigator.clipboard.writeText(txt); }catch(e){}
+}
+// 微觀二分:第 1 段就崩,代表問題不在「畫多少」,而在「動到畫布」這件事本身,
+// 或畫布上方的 DOM 合成。這裡連塗 4×4 一小塊都測,並試兩種 context 屬性。
+async function bisectMicro(){
+  if(bisecting) return; bisecting=true;
+  const el=DIAG.el=DIAG.el||document.getElementById('diag');
+  el.classList.add('show'); DIAG.on=false;
+  const saveNo=NODRAW; NODRAW=true;                  // 停掉遊戲自己的繪圖
+  const hud=document.getElementById('hud');
+  let alt=null, altx=null;
+  function mkAlt(opts){
+    alt=document.createElement('canvas');
+    alt.style.cssText='position:fixed;inset:0;width:100%;height:100%;z-index:1';
+    alt.width=W*DPR; alt.height=H*DPR;
+    document.getElementById('wrap').appendChild(alt);
+    altx=alt.getContext('2d',opts); altx.setTransform(DPR,0,0,DPR,0,0);
+  }
+  function rmAlt(){ if(alt){ alt.remove(); alt=null; altx=null; } }
+  let off=null;
+  const CASES=[
+    ['A 完全不畫',            null,null],
+    ['B 主畫布 clear 1×1',    null,()=>ctx.clearRect(0,0,1,1)],
+    ['C 主畫布 塗 4×4',       null,()=>{ctx.fillStyle='#e9e0cc';ctx.fillRect(0,0,4,4);}],
+    ['D 主畫布 滿版塗色',      null,()=>{ctx.fillStyle='#e9e0cc';ctx.fillRect(0,0,W,H);}],
+    ['E 主畫布 滿版貼圖',      null,()=>{ if(!off){off=document.createElement('canvas');
+        off.width=W*DPR;off.height=H*DPR;const g=off.getContext('2d');
+        g.fillStyle='#e9e0cc';g.fillRect(0,0,off.width,off.height);}
+        ctx.drawImage(off,0,0,W,H); }],
+    ['F 塗 4×4 + 隱藏 HUD',   ()=>{hud.style.display='none';},
+                              ()=>{ctx.fillStyle='#e9e0cc';ctx.fillRect(0,0,4,4);}],
+    ['G 新畫布 alpha:false',  ()=>{hud.style.display='';rmAlt();mkAlt({alpha:false});},
+                              ()=>{altx.fillStyle='#e9e0cc';altx.fillRect(0,0,W,H);}],
+    ['H 新畫布 +低延遲',       ()=>{rmAlt();mkAlt({alpha:false,desynchronized:true});},
+                              ()=>{altx.fillStyle='#e9e0cc';altx.fillRect(0,0,W,H);}],
+  ];
+  const rows=[];
+  for(const [name,pre,paint] of CASES){
+    if(pre) pre();
+    await new Promise(r=>setTimeout(r,300));
+    const gaps=[]; let last=0;
+    await new Promise(res=>{
+      const t0=performance.now();
+      (function f(ts){ if(last) gaps.push(ts-last); last=ts;
+        if(paint) paint();
+        if(performance.now()-t0<2200) requestAnimationFrame(f); else res(); })(performance.now());
+    });
+    gaps.sort((a,b)=>a-b);
+    const p50=gaps[gaps.length>>1]||0;
+    rows.push(name.padEnd(20)+String((1000/p50).toFixed(0)).padStart(3)+' fps '+p50.toFixed(1)+'ms');
+    el.textContent='微觀二分中… '+name+' → '+(1000/p50).toFixed(0)+' fps';
+  }
+  rmAlt(); hud.style.display=''; NODRAW=saveNo; bisecting=false;
+  const txt='== 微觀二分 ==\n'+rows.join('\n')
+    +'\nDPR '+DPR+'  畫布 '+(W*DPR|0)+'×'+(H*DPR|0)+'\n'+GPU;
+  el.textContent=txt+'\n\n(已複製到剪貼簿,按 F 收起)';
+  try{ navigator.clipboard.writeText(txt); }catch(e){}
+}
+// 頁面級二分:碰一個像素就崩,代表問題在「呈現這張畫布」而非畫什麼。
+// 這裡逐項把頁面剝乾淨,最後測畫布尺寸,看成本是否隨面積線性成長。
+async function bisectPage(){
+  if(bisecting) return; bisecting=true;
+  const el=DIAG.el=DIAG.el||document.getElementById('diag');
+  el.classList.add('show'); DIAG.on=false;
+  const saveNo=NODRAW, savePause=G.paused; NODRAW=true; G.paused=true;
+  const wrap=document.getElementById('wrap');
+  const stash=[]; const auEls=[];
+  const saveW=cv.width, saveH=cv.height, saveCss=cv.style.cssText;
+  const measure=async(name)=>{
+    await new Promise(r=>setTimeout(r,300));
+    const gaps=[]; let last=0;
+    await new Promise(res=>{
+      const t0=performance.now();
+      (function f(ts){ if(last) gaps.push(ts-last); last=ts;
+        ctx.clearRect(0,0,2,2);                     // 只碰畫布,不畫東西
+        if(performance.now()-t0<2000) requestAnimationFrame(f); else res(); })(performance.now());
+    });
+    gaps.sort((a,b)=>a-b);
+    const p50=gaps[gaps.length>>1]||0;
+    el.textContent='頁面二分中… '+name+' → '+(1000/p50).toFixed(0)+' fps';
+    return name.padEnd(24)+String((1000/p50).toFixed(0)).padStart(3)+' fps '+p50.toFixed(1)+'ms';
+  };
+  const rows=[];
+  // 對照組:完全不碰畫布(rAF 本身是否正常)
+  {
+    const gaps=[]; let last=0;
+    await new Promise(res=>{ const t0=performance.now();
+      (function f(ts){ if(last) gaps.push(ts-last); last=ts;
+        if(performance.now()-t0<2000) requestAnimationFrame(f); else res(); })(performance.now()); });
+    gaps.sort((a,b)=>a-b); const p50=gaps[gaps.length>>1]||0;
+    rows.push('0 完全不碰畫布(對照)'.padEnd(24)+String((1000/p50).toFixed(0)).padStart(3)+' fps '+p50.toFixed(1)+'ms');
+  }
+  rows.push(await measure('1 現狀'));
+  jianSprite=null; blots=null; G.stains.length=0;
+  rows.push(await measure('2 釋放離屏畫布'));
+  document.querySelectorAll('audio').forEach(a=>{ try{a.pause();}catch(e){} a.removeAttribute('src'); a.load(); auEls.push(a); });
+  rows.push(await measure('3 移除音訊元素'));
+  [...wrap.children].forEach(c=>{ if(c!==cv && c.id!=='diag'){ stash.push([c,c.nextSibling]); c.remove(); } });
+  rows.push(await measure('4 移除畫布以外的 DOM'));
+  cv.style.cssText='position:absolute;left:0;top:0;width:640px;height:400px;z-index:1';
+  cv.width=640; cv.height=400; ctx.setTransform(1,0,0,1,0,0);
+  rows.push(await measure('5 畫布縮到 640×400'));
+  cv.style.cssText='position:absolute;left:0;top:0;width:320px;height:200px;z-index:1';
+  cv.width=320; cv.height=200;
+  rows.push(await measure('6 畫布縮到 320×200'));
+  cv.style.cssText='position:absolute;left:0;top:0;width:64px;height:40px;z-index:1';
+  cv.width=64; cv.height=40;
+  rows.push(await measure('7 畫布縮到 64×40'));
+  // 對照組:同分頁開一個空白 iframe,在裡面用全新畫布量
+  try{
+    const fr=document.createElement('iframe');
+    fr.style.cssText='position:absolute;left:0;top:0;width:320px;height:200px;border:0;z-index:1';
+    document.body.appendChild(fr);
+    const d=fr.contentDocument, w2=fr.contentWindow;
+    const c2=d.createElement('canvas'); c2.width=320; c2.height=200;
+    c2.style.cssText='width:320px;height:200px;display:block';
+    d.body.style.margin='0'; d.body.appendChild(c2);
+    const x2=c2.getContext('2d');
+    const gaps=[]; let last=0;
+    await new Promise(res=>{ const t0=performance.now();
+      (function f(ts){ if(last) gaps.push(ts-last); last=ts;
+        x2.clearRect(0,0,2,2);
+        if(performance.now()-t0<2000) w2.requestAnimationFrame(f); else res(); })(performance.now()); });
+    gaps.sort((a,b)=>a-b); const p50=gaps[gaps.length>>1]||0;
+    rows.push('8 空白 iframe 內畫布'.padEnd(24)+String((1000/p50).toFixed(0)).padStart(3)+' fps '+p50.toFixed(1)+'ms');
+    fr.remove();
+  }catch(err){ rows.push('8 空白 iframe 內畫布      (失敗)'); }
+  // 還原
+  cv.style.cssText=saveCss; cv.width=saveW; cv.height=saveH; ctx.setTransform(DPR,0,0,DPR,0,0);
+  stash.reverse().forEach(([c,ref])=>wrap.insertBefore(c,ref));
+  NODRAW=saveNo; G.paused=savePause; bisecting=false; paperDone=false; hudCache.__reset=1;
+  Object.keys(hudCache).forEach(k=>delete hudCache[k]);
+  const txt='== 頁面級二分(每幀只 clearRect 2×2)==\n'+rows.join('\n')
+    +'\n原畫布 '+saveW+'×'+saveH+'\n'+GPU
+    +'\n※ 音訊已停,重新整理即恢復';
+  el.textContent=txt+'\n\n(已複製到剪貼簿,按 F 收起)';
+  try{ navigator.clipboard.writeText(txt); }catch(e){}
+}
+function toggleDiag(){
+  DIAG.on=!DIAG.on; DIAG.hist.length=0; DIAG.minD=1e9;
+  DIAG.el=DIAG.el||document.getElementById('diag');
+  DIAG.el.classList.toggle('show',DIAG.on);
+}
+if(location.search.indexOf('debug')>=0) setTimeout(toggleDiag,0);
+
+// 自適應畫質:真的持續跑不動才調降算圖解析度。
+// 用中位數(不吃暖機/GC 造成的單點尖峰)、跳過開場兩秒、且要連兩個觀察窗都不合格才降。
+let idleFrame=0, perfBuf=[], perfBad=0, perfStart=0;
+function watchPerf(ts){
+  if(!perfStart){ perfStart=ts; return; }
+  if(ts-perfStart<2000) return;                    // 開場暖機不計
+  perfBuf.push(ts);
+  if(perfBuf.length<91) return;
+  const d=[];
+  for(let i=1;i<perfBuf.length;i++) d.push(perfBuf[i]-perfBuf[i-1]);
+  perfBuf.length=0;
+  d.sort((a,b)=>a-b);
+  const med=d[d.length>>1];
+  if(med>22){                                      // 中位低於 ~45fps
+    if(++perfBad>=2 && DPR>1){
+      DPR=Math.max(1,+(DPR-0.5).toFixed(2));
+      cv.width=W*DPR; cv.height=H*DPR; ctx.setTransform(DPR,0,0,DPR,0,0);
+      jianSprite=null;
+      perfBad=0;
+    }
+  } else perfBad=0;
+}
+// 邏輯固定 60Hz,畫面幀率另計。
+// 這同時修掉一個舊問題:原本 update() 綁在 requestAnimationFrame 上,120Hz 螢幕會讓
+// 整個遊戲跑兩倍速。現在不管畫面多少幀,遊戲速度都一樣。
+const LOGIC_MS=1000/60;
+let logicAcc=0, renderAcc=0, lastFrameTs=0;
+function loop(ts){
+  ts=ts||performance.now();
+  diagFrame(ts);
+  const dt=Math.min(200, lastFrameTs ? ts-lastFrameTs : LOGIC_MS); lastFrameTs=ts;
+  if(G.running){
+    watchPerf(ts);
+    const m=DIAG.on?performance.now():0;
+    if(!G.paused){
+      logicAcc+=dt;
+      let steps=0;
+      while(logicAcc>=LOGIC_MS && steps<4){        // 最多補 4 步,卡頓後不暴衝
+        if(G.hitstop>0) G.hitstop--;               // 頓幀:命中瞬間凍結一兩格,讓斬擊有份量
+        else update();
+        logicAcc-=LOGIC_MS; steps++;
+      }
+      if(steps===0 && logicAcc>LOGIC_MS*4) logicAcc=0;
+      const m2=DIAG.on?performance.now():0;
+      // 畫面幀率上限(meta.fps,0=不限)
+      let paint=true;
+      const cap=meta.fps|0;
+      if(cap>0){ const iv=1000/cap; renderAcc+=dt;
+        if(renderAcc>=iv){ renderAcc=renderAcc%iv; } else paint=false; }
+      if(paint && !NODRAW) draw();
+      if(DIAG.on){ DIAG.upd=DIAG.upd*0.9+(m2-m)*0.1; DIAG.drw=DIAG.drw*0.9+(performance.now()-m2)*0.1; }
+    } else if((idleFrame++ & 3)===0){
+      if(!NODRAW) draw();                        // 暫停/選卡:畫面靜止,降頻重繪省下遮罩模糊成本
+    }
+  }
+  requestAnimationFrame(loop);
+}
+
+// ---------- 開始/結束 ----------
+// 開場過場 v2:鏡頭推近桌上畫軸(首頁整體一起放大,LOGO/按鈕自然出框)→ 桌面隱去
+// → 畫軸(同張桌面圖切成上下兩半)由中心拉開 → 抵達關卡上下邊緣後淡出 → HUD 淡入。
+// 幾何量全部由這裡依實際視窗量測寫入 CSS 變數,不需要手動對位參數。
+let openingSeen=false;
+// 桌面圖中「畫軸」的位置(以圖片寬高為 1 的正規化座標,量自 assets/scenes/home-desk-bg.png 941×1672)
+const DESK_IMG={ w:941, h:1672 };
+const SCROLL_UV={ x0:0.100, x1:0.880, y0:0.4700, y1:0.5165, seam:0.4935 };
+// 依 background-size:cover 的實際貼合方式,換算畫軸在畫面上的像素矩形
+function measureScroll(){
+  const wrap=document.getElementById('wrap');
+  const vw=wrap.clientWidth, vh=wrap.clientHeight;
+  const s=Math.max(vw/DESK_IMG.w, vh/DESK_IMG.h);      // cover
+  const dw=DESK_IMG.w*s, dh=DESK_IMG.h*s;
+  const ox=(vw-dw)/2, oy=(vh-dh)/2;
+  const x0=ox+SCROLL_UV.x0*dw, x1=ox+SCROLL_UV.x1*dw;
+  const y0=oy+SCROLL_UV.y0*dh, y1=oy+SCROLL_UV.y1*dh;
+  const seam=oy+SCROLL_UV.seam*dh;
+  return { vw, vh, x0, x1, y0, y1, seam, cx:(x0+x1)/2, cy:(y0+y1)/2,
+           // 推到「畫軸略寬於畫面」,鏡頭感才夠、捲桿也能橫貫整個邊緣
+           zoom: Math.max(1, vw/Math.max(1,(x1-x0)) * 2.2) };
+}
+function applyOpeningVars(){
+  const wrap=document.getElementById('wrap'), m=measureScroll(), st=wrap.style;
+  const Z=m.zoom, OY=m.cy;
+  const zy=y=>OY+(y-OY)*Z;                              // 縮放後的畫面 y
+  const EDGE=Math.round(Math.min(46, m.vh*0.055));      // 停在關卡邊緣留一道捲桿的厚度
+  st.setProperty('--ox', m.cx.toFixed(1)+'px');
+  st.setProperty('--oy', m.cy.toFixed(1)+'px');
+  st.setProperty('--zoom', Z.toFixed(4));
+  st.setProperty('--sx0', m.x0.toFixed(1)+'px');
+  st.setProperty('--sx1', m.x1.toFixed(1)+'px');
+  st.setProperty('--sy0', m.y0.toFixed(1)+'px');
+  st.setProperty('--sy1', m.y1.toFixed(1)+'px');
+  st.setProperty('--seam', m.seam.toFixed(1)+'px');
+  st.setProperty('--tTop', (-(zy(m.seam)-EDGE)).toFixed(1)+'px');
+  st.setProperty('--tBot', ((m.vh-zy(m.seam))-EDGE).toFixed(1)+'px');
+  return m;
+}
+function playOpening(done){
+  const wrap=document.getElementById('wrap'), opening=document.getElementById('opening'),
+        splash=document.getElementById('splash'), hud=document.getElementById('hud');
+  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const finish=()=>{
+    wrap.classList.remove('op'); wrap.style.setProperty('--z','0'); wrap.style.setProperty('--uf','1');
+    if(opening){ opening.classList.remove('show'); opening.style.opacity=''; }
+    splash.classList.remove('zooming'); splash.style.display='none'; splash.style.opacity='';
+    if(hud) hud.style.opacity='';
+    done && done();
+  };
+  if(reduce || openingSeen){ finish(); return; }
+  openingSeen=true;
+  applyOpeningVars();
+  splash.classList.add('zooming');                       // 首頁保持可見,跟著鏡頭一起推近
+  opening.classList.add('show'); opening.style.opacity='1';
+  wrap.classList.add('op');
+  wrap.style.setProperty('--z','0'); wrap.style.setProperty('--uf','0');
+  wrap.style.setProperty('--uiFade','1');
+  if(hud) hud.style.opacity='0';
+  const ease=t=>1-Math.pow(1-t,3), easeIO=t=>t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;
+  const t0=performance.now(), HOLD=0, ZOOM=1100, UNFURL=1400, HUDF=520;
+  function frame(now){
+    const t=now-t0;
+    const z  = t<=HOLD ? 0 : ease(Math.min(1,(t-HOLD)/ZOOM));
+    const uf = t<=HOLD+ZOOM ? 0 : easeIO(Math.min(1,(t-HOLD-ZOOM)/UNFURL));
+    wrap.style.setProperty('--z', z.toFixed(4));
+    wrap.style.setProperty('--uf', uf.toFixed(4));
+    wrap.style.setProperty('--uiFade', Math.max(0, 1-Math.max(0,(z-0.42)/0.46)).toFixed(3));
+    // 畫軸與桌面同步縮放、全程重合,鏡頭到底後桌面隱去,只剩兩截捲軸;抵達邊緣再淡出
+    splash.style.opacity = uf>0 ? Math.max(0,1-uf/0.3).toFixed(3) : '1';
+    opening.style.opacity = uf>0.72 ? Math.max(0,1-(uf-0.72)/0.28).toFixed(3) : '1';
+    if(hud) hud.style.opacity=Math.max(0,Math.min(1,(t-HOLD-ZOOM-UNFURL*0.5)/HUDF)).toFixed(3);
+    if(t < HOLD+ZOOM+UNFURL+HUDF) requestAnimationFrame(frame); else finish();
+  }
+  requestAnimationFrame(frame);
+}
+function start(){
+  Object.assign(G,{running:true,paused:false,t:0,enemies:[],swords:[],particles:[],inks:[],texts:[],stains:[],splashes:[],
+    kills:0,wave:1,waveTimer:0,spawnAcc:0,xp:0,xpNeed:6,level:1,pendingLevels:0,mana:100,
+    auto:false,autoUsed:false,autoTimer:0,
+    shake:0,hitstop:0,flash:0,flashC:'255,255,255',banner:null,
+    aim:0.85,facing:1,intent:0,streaks:[],cuts:[],firstStrikeDone:false,respecWave:0,
+    hurtT:0,castT:0,deathT:0,deathMax:56,heroPhase:Math.random()*9});
+  renderAutoBtn();          // 開新局時 G.auto 已重設為 false,按鈕也要跟著回到「關」
+  // 戰鬥樂不在這裡起 —— 開場過場有 3 秒,要留給首頁樂,過場結束才交棒(見下方 playOpening 回呼)
+  SND.unlock(); SND.intensity(1); SND.duck(false);
+  // 以 runtime 建立本局狀態(含永久問道加成),再映射回 stat.*
+  runState = INK_CONFIG.runtime.createRunState(buildPermanentSave(), 1);
+  syncStat();
+  G.mana = stat.manaMax;
+  G.player=new Player();
+  pausedByUser=false;
+  levelChoiceLocked=false;
+  drawing=false; path=[]; curLen=0; maxed=false;
+  document.getElementById('overlay').classList.remove('show');
+  document.getElementById('gameover').style.display='none';
+  document.getElementById('meta').classList.remove('show');
+  document.getElementById('pause').classList.remove('show');
+  updateHUD();
+  // 開場畫卷過場:過場完成才解除暫停、開始生怪/計時
+  G.paused=true;
+  playOpening(()=>{ G.paused=false;
+    SND.startMusic();          // 畫卷拉開完畢 → 首頁樂淡出、戰鬥樂淡入(startMusic 內含 stopMenu)
+  });
+}
+// ---------- 暫停 / 繼續 ----------
+let pausedByUser=false;
+function togglePause(force){
+  if(!G.running) return;
+  if(document.getElementById('overlay').classList.contains('show')) return; // 悟劍訣選卡時不干涉
+  const now = (typeof force==='boolean') ? force : !pausedByUser;
+  pausedByUser=now; G.paused=now; SND.ui();
+  // 暫停:背景樂完全停止;繼續:重新起奏
+  if(now) SND.stopMusic(0.25); else SND.startMusic();
+  document.getElementById('pause').classList.toggle('show',now);
+  if(now){ renderVol(); renderHeroBtn(); renderShakeBtns(); respecArmed=false; renderRespec(); }
+  if(!now) tryLevelUp();          // 暫停期間累積的升級,繼續後補選
+}
+// 隕落:有專屬 death 幀 → 播 7 幀;否則(女修)→ 程式化墨消散(sprite 淡出 + 潑墨爆散)。
+// 播完才進結算畫面;完全無 sprite 時直接結算。
+function beginDeath(){
+  if(G.deathT>0) return;
+  drawing=false; path=[]; G.hurtT=0; G.castT=0;
+  const S=heroSet();
+  if(!S.ok){ gameOver(); return; }
+  const hasDeath=!!(S.death&&S.death.length);
+  G.deathMax = hasDeath ? 63 : 56;                   // 有幀 7×9;程式消散 ~56 影格
+  G.deathT = G.deathMax;
+  if(!hasDeath){                                     // 程式消散:當場炸開一團墨,再由 update 續噴
+    const P=G.player;
+    splash(P.x, P.y-P.r*1.4, '#2b2620', 2.8);
+    for(let k=0;k<30;k++) ink(P.x+(Math.random()-.5)*34, P.y-P.r*1.6+(Math.random()-.5)*70,
+      (Math.random()-.5)*5.5, (Math.random()-.5)*5.5-0.8, 10+Math.random()*20);
+    stain(P.x, P.y+P.r*0.6, P.r*1.6, '44,38,32');
+    shake(10); flash(0.14,'40,34,28');
+  }
+  SND.over();
+}
+function gameOver(){
+  G.running=false; G.pendingLevels=0; if(!heroSet().ok) SND.over();
+  levelChoiceLocked=false;
+  drawing=false; path=[]; curLen=0; maxed=false;
+  document.getElementById('overlay').classList.remove('show');
+  // 墨魂結算(用過自動御劍:收益減半且不計歷史最佳)
+  let earned = G.kills + G.wave*5 + G.level*3;
+  const autoed = G.autoUsed;
+  if(autoed) earned = Math.floor(earned*0.5);
+  meta.souls += earned;
+  let nb=false;
+  if(!autoed){
+    nb = G.kills>meta.best.kills;
+    if(G.kills>meta.best.kills) meta.best.kills=G.kills;
+    if(G.wave >meta.best.wave)  meta.best.wave =G.wave;
+    if(G.level>meta.best.level) meta.best.level=G.level;
+  }
+  saveMeta();
+  // 下一個快解鎖的目標
+  let hint='';
+  const nxt = nextGoal();
+  if(nxt){ const need=Math.max(0,nxt.cost-meta.souls);
+    hint = need>0 ? '再積 <b style="color:#c08a2e">'+need+'</b> 墨魂可習得〈'+nxt.name+'〉'
+                  : '墨魂已足以習得〈'+nxt.name+'〉，速入轉世閣'; }
+  document.getElementById('finaltxt').innerHTML=
+    '此世 · 斬妖 '+G.kills+' 頭 · 道行 '+num2cn(G.level)+' 重 · 抵第 '+num2cn(G.wave)+' 境'
+    + (nb?'　<span style="color:#c08a2e">✦ 斬妖新猷</span>':'')
+    + '<br>歷史最佳 · 斬妖 '+meta.best.kills+' · 道行 '+num2cn(meta.best.level)+' 重 · 第 '+num2cn(meta.best.wave)+' 境'
+    + '<br><br>此世凝魂 <b style="color:#c08a2e">+'+earned+'</b>'+(autoed?' <span style="color:#8a7a5a">(自動御劍 · 減半不計紀錄)</span>':'')+' · 現有墨魂 <b style="color:#c08a2e">'+meta.souls+'</b>'
+    + (hint?'<br><span style="font-size:13px;color:#c9bfa6">'+hint+'</span>':'');
+  document.getElementById('gameover').style.display='flex';
+}
+// 挑一個「最接近解鎖」的目標:所有前置已達成、尚未圓滿的節點中最便宜的一個
+function nextGoal(){
+  let best=null;
+  for(const v of rebirthView()){
+    if(v.rank>=v.maxRank || v.purchase.reason==='requirements') continue;
+    const c = v.purchase.cost!=null ? v.purchase.cost : v.costs[v.rank];
+    if(c!=null && (!best||c<best.cost)) best={name:v.name,cost:c};
+  }
+  return best;
+}
+
+// ---------- 轉世閣 UI(改走 runtime:getRebirthView / purchaseRebirth)----------
+const BRANCH_HEAD={foundation:'築基 · 永久數值',mind:'心法 · 改變節奏',inheritance:'傳承 · 開啟悟道池'};
+function rebirthView(){ return INK_CONFIG.runtime.getRebirthView(buildPermanentSave()); }
+// 前置條件轉中文(getRebirthView 回報 requirements 未達時顯示)
+function reqText(node){
+  return (node.requires||[]).map(r=>{
+    const parts=String(r).split(':'), n=INK_CONFIG.rebirthById[parts[0]];
+    const rk=Number(parts[1]||1);
+    return (n?n.name:parts[0]) + (rk>1?(' '+rk+' 階'):'');
+  }).join('、');
+}
+function metaBonusText(){
+  const p=rebirthView().filter(v=>v.rank>0).map(v=>
+    v.maxRank>1 ? (v.name+' '+v.rank+'/'+v.maxRank) : v.name.replace(/^.*·\s*/,''));
+  return p.length ? p.join('、') : '尚無 — 快去凝聚第一縷修為';
+}
+function rebirthRow(v){
+  const maxed = v.rank>=v.maxRank;
+  const cost  = v.purchase.cost!=null ? v.purchase.cost : v.costs[Math.min(v.rank,v.costs.length-1)];
+  const blocked = !maxed && v.purchase.reason==='requirements';
+  const row=document.createElement('div'); row.className='mrow';
+  row.innerHTML='<div class="mi"><div class="mn">'+v.name
+    + (v.maxRank>1 ? '　<span class="ml">'+v.rank+'/'+v.maxRank+'</span>' : '')
+    + '</div><div class="md">'+v.description
+    + (blocked ? '<br><span style="color:#a2422b">需先:'+reqText(v)+'</span>' : '')
+    + '</div></div>';
+  const btn=document.createElement('button'); btn.className='mbuy';
+  if(maxed){ btn.textContent = v.maxRank>1?'圓滿':'已悟'; btn.classList.add('done'); btn.disabled=true; }
+  else if(blocked){ btn.textContent='未達'; btn.disabled=true; }
+  else{
+    btn.textContent = (v.rank>0?'精進 · ':'參悟 · ')+cost;
+    btn.disabled = !v.purchase.ok;                       // 墨魂不足由 runtime 判定
+    btn.onclick=()=>{
+      const r=INK_CONFIG.runtime.purchaseRebirth(buildPermanentSave(), v.id);
+      if(r.ok){ storePermanentSave(r.state); SND.ui(); renderMeta(); }
+    };
+  }
+  row.appendChild(btn); return row;
+}
+function renderMeta(){
+  document.getElementById('metasouls').innerHTML='墨魂　<b>'+meta.souls+'</b>'
+    + ((meta.inkPills||0)>0 ? '　·　洗墨丹 <b>'+meta.inkPills+'</b>' : '');
+  document.getElementById('metabonus').innerHTML='承襲修為 · <b>'+metaBonusText()+'</b>';
+  const off=document.getElementById('metaoffline'); const pend=offlinePending();
+  if(pend>0){ off.innerHTML='閉關所得 '+pend+' 墨魂(每時 '+offlineRate()+'，封頂 '+meta.offCap+' 時)<span class="claim" id="claimbtn">領取</span>';
+    document.getElementById('claimbtn').onclick=()=>{ claimOffline(); renderMeta(); }; }
+  else { off.innerHTML='<span style="color:#8a7a5a">閉關修煉中 · 每時凝 '+offlineRate()+' 墨魂(封頂 '+meta.offCap+' 時)</span>'; }
+  const view=rebirthView();
+  const boxes={foundation:document.getElementById('metalist'),
+               mind:document.getElementById('metaunlock'),
+               inheritance:document.getElementById('metainherit')};
+  for(const k in boxes){ if(boxes[k]) boxes[k].innerHTML=''; }
+  document.getElementById('mhead1').textContent=BRANCH_HEAD.foundation;
+  document.getElementById('mhead2').textContent=BRANCH_HEAD.mind;
+  document.getElementById('mhead3').textContent=BRANCH_HEAD.inheritance;
+  view.forEach(v=>{ const box=boxes[v.branch]||boxes.foundation; box.appendChild(rebirthRow(v)); });
+}
+
+// ---------- 洗點:重塑劍意 ----------
+// 規則:僅暫停畫面(靜觀)可用 —— 戰鬥進行中禁止;每波次至多一次,避免戰鬥中反覆洗;
+//       費用 = calcResetCost(本局已重塑次數)(首次為 0),有洗墨丹則優先抵免。
+let respecArmed=false;
+function respecInfo(){
+  const inRun = !!(G.running && runState);
+  const times = inRun ? (runState.resetInsightTimes||0) : 0;
+  const cost  = INK_CONFIG.runtime.calcResetCost(times);
+  const pills = meta.inkPills||0;
+  const usedThisWave = inRun && G.respecWave===G.wave;
+  let pay='免費', usePill=false, ok=true, why='';
+  if(cost>0){
+    if(pills>0){ pay='洗墨丹 ×1(存 '+pills+')'; usePill=true; }
+    else { pay=cost+' 墨魂(存 '+meta.souls+')'; if(meta.souls<cost){ ok=false; why='墨魂不足'; } }
+  }
+  if(!inRun){ ok=false; why='未在局中'; }
+  else if(usedThisWave){ ok=false; why='本波已重塑 · 下一波再凝神'; }
+  return {inRun,times,cost,pills,pay,usePill,ok,why};
+}
+function renderRespec(){
+  const s=respecInfo();
+  const btn=document.getElementById('respecbtn');
+  const info=document.getElementById('respecinfo');
+  const ranks = (G.running && runState) ? Object.keys(runState.ranks||{}).length : 0;
+  info.innerHTML = '本局已重塑 <b>'+s.times+'</b> 次 · 現有劍意 <b>'+ranks+'</b> 項<br>'
+    + '重塑代價:<b>'+s.pay+'</b>'
+    + (s.ok ? '<br><span style="color:#8a7a5a">卸下本局所有劍意/劍式/真意,道行與波次不變。</span>'
+            : '<br><span class="warn">'+s.why+'</span>');
+  btn.classList.toggle('off', !s.ok);
+  btn.classList.toggle('armed', respecArmed && s.ok);
+  btn.textContent = (respecArmed && s.ok) ? '確認重塑(再按一次)' : '重 塑';
+}
+function doRespec(){
+  const s=respecInfo();
+  if(!s.ok){ SND.nomana(); return; }
+  if(!respecArmed){ respecArmed=true; SND.ui(); renderRespec(); return; }   // 二次確認
+  if(s.usePill) meta.inkPills=Math.max(0,(meta.inkPills||0)-1);
+  else if(s.cost>0) meta.souls-=s.cost;
+  saveMeta();
+  runState.resetInsightTimes = (runState.resetInsightTimes||0)+1;
+  G.respecWave = G.wave;                           // 每波次至多一次
+  INK_CONFIG.runtime.resetAllInsights(runState);   // 由永久快照重建,精準歸零
+  syncStat();
+  G.mana=Math.min(G.mana, stat.manaMax);
+  G.enemies.forEach(e=>{ e.st={}; });              // 場上劍意狀態一併消散
+  respecArmed=false;
+  floatText(G.player.x, G.player.y-40, '劍意重塑', '#7a5a2b');
+  SND.pick(); flash(0.16,'240,232,210');
+  updateHUD(); renderRespec();
+}
+function openMeta(){ renderMeta(); document.getElementById('meta').classList.add('show'); }
+function closeMeta(){ document.getElementById('meta').classList.remove('show'); }
+// 自動御劍開關
+function renderAutoBtn(){
+  const b=document.getElementById('autobtn');
+  b.innerHTML='<span class="vt"><b>御</b><b>劍</b></span>';
+  b.classList.toggle('on',!!G.auto);
+  b.setAttribute('aria-pressed',String(!!G.auto));
+  b.title=G.auto?'自動御劍：開':'自動御劍：關';
+}
+function toggleAuto(){
+  if(!G.running) return;
+  G.auto=!G.auto; SND.ui();
+  renderAutoBtn();
+}
+// ---------- 音量設定 ----------
+const VOLS=[['volMaster','master'],['volMusic','music'],['volSfx','sfx']];
+function renderHeroBtn(){
+  const b=document.getElementById('herobtn'); if(!b) return;
+  b.textContent='墨形：'+(meta.heroSkin==='f'?'女修':'劍客');
+  b.classList.toggle('on', meta.heroSkin==='f');
+}
+function toggleHeroSkin(){
+  meta.heroSkin = (meta.heroSkin==='f') ? 'm' : 'f';
+  saveMeta(); SND.ui(); renderHeroBtn();
+}
+function renderVol(){
+  for(const [id,key] of VOLS){
+    const el=document.getElementById(id); if(!el) continue;
+    const v=Math.round(meta.vol[key]*100);
+    el.value=v; document.getElementById(id+'V').textContent=v;
+    el.disabled=meta.mute;
+  }
+  const mb=document.getElementById('muteBtn');
+  if(mb){ mb.textContent='靜 音:'+(meta.mute?'開':'關'); mb.classList.toggle('on',meta.mute); }
+  const st=document.getElementById('audioControls');
+  if(st) st.style.opacity=meta.mute?0.55:1;
+}
+// 暫停時背景樂是完全停止的,拖音樂拉桿會聽不到。這裡讓它暫時響起試聽,
+// 停止拖曳 1.6 秒後若仍在暫停中就再次靜下。
+let previewT=null;
+function previewMusic(){
+  if(meta.mute) return;
+  SND.unlock(); SND.startMusic();
+  clearTimeout(previewT);
+  previewT=setTimeout(()=>{ if(!G.running||G.paused) SND.stopMusic(0.6); },1600);
+}
+function bindVol(){
+  for(const [id,key] of VOLS){
+    const el=document.getElementById(id); if(!el) continue;
+    el.addEventListener('input',()=>{
+      meta.vol[key]=Math.max(0,Math.min(1,(+el.value||0)/100));
+      document.getElementById(id+'V').textContent=Math.round(meta.vol[key]*100);
+      SND.applyVol();
+      if(key!=='sfx') previewMusic();          // 總音量與音樂都即時試聽
+    });
+    // 放開才存檔,避免拖曳過程狂寫 localStorage
+    const done=()=>{ saveMeta(); if(key!=='music'&&!meta.mute) SND.ui(); };
+    el.addEventListener('change',done);
+  }
+  const mb=document.getElementById('muteBtn');
+  if(mb) mb.onclick=()=>toggleSnd();
+}
+
+// 音律開關(記錄於本機)
+function toggleSnd(){
+  meta.mute=!meta.mute; saveMeta();
+  SND.setOn(!meta.mute);
+  if(!meta.mute){ SND.unlock(); if(G.running) SND.startMusic(); SND.ui(); }
+  else SND.applyVol();
+  renderSndBtn(); renderVol();
+}
+function renderSndBtn(){
+  const b=document.getElementById('sndbtn');
+  b.textContent='♪ 音律:'+(meta.mute?'關':'開'); b.classList.toggle('off',meta.mute);
+}
+
+// ---------- 商城 ----------
+function renderShop(){
+  document.getElementById('shopgems').innerHTML='靈石　<b>'+meta.gems+'</b>　·　墨魂 '+meta.souls
+    + ((meta.inkPills||0)>0 ? '　·　洗墨丹 '+meta.inkPills : '');
+  const iap=document.getElementById('shopiap'); iap.innerHTML='';
+  SHOP_IAP.forEach(m=>{
+    const row=document.createElement('div'); row.className='mrow';
+    row.innerHTML='<div class="mi"><div class="mn">'+m.name+(m.tag?'<span class="mtag">'+m.tag+'</span>':'')
+      +'</div><div class="md">'+(m.note||('獲得靈石 ×'+m.gems))+'</div></div>';
+    const btn=document.createElement('button'); btn.className='mbuy';
+    btn.textContent=m.price+' · 購買';
+    btn.onclick=()=>{ meta.gems+=m.gems; if(m.id==='pass') meta.souls+=120; saveMeta(); renderShop(); };
+    row.appendChild(btn); iap.appendChild(row);
+  });
+  const sp=document.getElementById('shopspend'); sp.innerHTML='';
+  SHOP_SPEND.forEach(m=>{
+    const owned = m.once && meta.skin==='gold' && m.id==='skin';
+    const desc = m.capField ? ('離線收益封頂提高(現 '+meta.offCap+' 時)')
+               : m.pillField ? (m.desc+'(存 '+(meta.inkPills||0)+' 顆)') : m.desc;
+    const can = !owned && meta.gems>=m.cost;
+    const row=document.createElement('div'); row.className='mrow';
+    row.innerHTML='<div class="mi"><div class="mn">'+m.name+'</div><div class="md">'+desc+'</div></div>';
+    const btn=document.createElement('button'); btn.className='mbuy';
+    if(owned){ btn.textContent='已擁有'; btn.classList.add('done'); btn.disabled=true; }
+    else { btn.textContent='靈石 '+m.cost; btn.disabled=!can;
+      btn.onclick=()=>{ if(meta.gems>=m.cost){ meta.gems-=m.cost; m.grant(); saveMeta(); renderShop(); } }; }
+    row.appendChild(btn); sp.appendChild(row);
+  });
+}
+function openShop(){ renderShop(); document.getElementById('shop').classList.add('show'); }
+function closeShop(){ document.getElementById('shop').classList.remove('show'); }
+
+// 點按潑墨回饋:任何 .btn 按下時,在指標處炸開一團墨(中央墨塊+飛濺墨滴+淡光圈)
+function inkSplashAt(x,y){
+  let layer=document.getElementById('inkfx');
+  if(!layer){ layer=document.createElement('div'); layer.id='inkfx'; document.body.appendChild(layer); }
+  const wrap=document.createElement('div'); wrap.style.position='absolute'; wrap.style.left=x+'px'; wrap.style.top=y+'px';
+  const ring=document.createElement('div'); ring.className='ink-splat';
+  ring.style.left='0'; ring.style.top='0'; ring.style.width='64px'; ring.style.height='64px';
+  ring.style.background='radial-gradient(rgba(232,222,198,.30),rgba(232,222,198,0) 70%)';
+  ring.style.animation='inkRing .5s ease-out forwards'; wrap.appendChild(ring);
+  for(let i=0;i<4;i++){ const c=document.createElement('div'); c.className='ink-splat';
+    const s=(18+Math.random()*22); c.style.left=((Math.random()-.5)*16)+'px'; c.style.top=((Math.random()-.5)*16)+'px';
+    c.style.width=s+'px'; c.style.height=s+'px'; c.style.animation='inkCore .5s ease-out forwards'; wrap.appendChild(c); }
+  const n=9+((Math.random()*5)|0);
+  for(let i=0;i<n;i++){ const d=document.createElement('div'); d.className='ink-splat';
+    const ang=Math.random()*6.283, dist=30+Math.random()*70, s=3+Math.random()*8;
+    d.style.left='0'; d.style.top='0'; d.style.width=s+'px'; d.style.height=s+'px';
+    d.style.setProperty('--dx',(Math.cos(ang)*dist).toFixed(1)+'px');
+    d.style.setProperty('--dy',(Math.sin(ang)*dist).toFixed(1)+'px');
+    d.style.animation='inkOut '+(0.45+Math.random()*0.25).toFixed(2)+'s ease-out forwards'; wrap.appendChild(d); }
+  layer.appendChild(wrap); setTimeout(()=>wrap.remove(), 850);
+}
+document.addEventListener('pointerdown', (e)=>{ const b=e.target.closest && e.target.closest('.btn'); if(b) inkSplashAt(e.clientX,e.clientY); }, true);
+document.getElementById('startbtn').onclick=start;
+document.getElementById('againbtn').onclick=start;
+document.getElementById('metabtn').onclick=openMeta;
+document.getElementById('splashmetabtn').onclick=openMeta;
+document.getElementById('metaplaybtn').onclick=start;
+document.getElementById('metaclosebtn').onclick=closeMeta;
+document.getElementById('pausebtn').onclick=()=>togglePause();
+document.getElementById('autobtn').onclick=toggleAuto;
+document.getElementById('rerollbtn').onclick=rerollCards;
+document.getElementById('sndbtn').onclick=toggleSnd;
+renderSndBtn(); bindVol(); renderVol();
+// 首次互動即解鎖音訊(瀏覽器自動播放限制);還在首頁就淡入首頁 BGM(game_op_loop,Loop)。
+// 這裡刻意不用 {once:true}:玩家很可能第一下就點在靜音鍵上、或當下 meta.mute 還是開的,
+// 一旦把唯一一次機會用掉,之後整局都不會再有首頁樂。改為「播起來才解除監聽」。
+(function bindMenuBgm(){
+  const EV=['pointerdown','keydown','touchstart'];
+  const onGesture=()=>{
+    SND.unlock();
+    if(G.running || meta.mute) return;                 // 已入局或靜音:這次不算,繼續聽下一次
+    SND.startMenu();
+    if(SND.menuPlaying()) EV.forEach(ev=>window.removeEventListener(ev,onGesture));
+  };
+  EV.forEach(ev=>window.addEventListener(ev,onGesture,{passive:true}));
+})();
+document.getElementById('resumebtn').onclick=()=>togglePause(false);
+document.getElementById('respecbtn').onclick=()=>doRespec();
+document.getElementById('herobtn').onclick=()=>toggleHeroSkin();
+function renderShakeBtns(){
+  document.querySelectorAll('#shakerow .seg').forEach(el=>
+    el.classList.toggle('on', el.dataset.shake===meta.shake));
+  document.querySelectorAll('#qualrow .seg').forEach(el=>
+    el.classList.toggle('on', el.dataset.qual===meta.quality));
+  document.querySelectorAll('#fpsrow .seg').forEach(el=>
+    el.classList.toggle('on', (+el.dataset.fps)===(meta.fps|0)));
+  document.querySelectorAll('#cardtextrow .seg').forEach(el=>
+    el.classList.toggle('on', el.dataset.cardtext===meta.cardText));
+}
+const segClick=(sel,fn)=>document.querySelectorAll(sel).forEach(el=>{
+  el.onclick=()=>{ fn(el); saveMeta(); renderShakeBtns(); if(!meta.mute) SND.ui(); };
+});
+segClick('#shakerow .seg', el=>{ meta.shake=el.dataset.shake; if(meta.shake==='n') G.shake=0; });
+segClick('#qualrow .seg',  el=>{ meta.quality=el.dataset.qual; applyQuality(); });
+segClick('#fpsrow .seg',   el=>{ meta.fps=+el.dataset.fps; renderAcc=0; });
+segClick('#cardtextrow .seg', el=>{ meta.cardText=el.dataset.cardtext;
+  // 選卡開著就即時換一次呈現(不重抽,只重繪卡面)
+  if(levelChoiceOpen() && !levelChoiceLocked) drawCards(true); });
+renderShakeBtns();
+applyQuality();
+// 靜觀面板:拖曳捲動。捲軸已隱藏,滑鼠沒有把手可抓,所以讓空白處也能拖。
+// 落在滑桿/按鈕/可點元素上的拖曳不接管,避免把調音量變成捲頁面。
+function enableDragScroll(id){
+  const pan=document.getElementById(id);
+  if(!pan) return;
+  const SKIP='input,button,.setbtn,.seg,.btn,label,.mbuy';
+  let on=false, y0=0, top0=0, moved=0;
+  pan.addEventListener('pointerdown', e=>{
+    if(e.target.closest && e.target.closest(SKIP)) return;
+    on=true; moved=0; y0=e.clientY; top0=pan.scrollTop;
+    pan.setPointerCapture && pan.setPointerCapture(e.pointerId);
+  });
+  // move/up 掛在 window 上 —— 指標拖出面板範圍(或被子元素攔截)時仍要繼續捲
+  window.addEventListener('pointermove', e=>{
+    if(!on) return;
+    const d=e.clientY-y0; moved=Math.max(moved,Math.abs(d));
+    pan.scrollTop=top0-d;
+    if(moved>4 && e.cancelable) e.preventDefault();
+  }, {passive:false});
+  const end=e=>{ if(!on) return; on=false;
+    try{ pan.releasePointerCapture && pan.releasePointerCapture(e.pointerId); }catch(_){} };
+  window.addEventListener('pointerup', end);
+  window.addEventListener('pointercancel', end);
+}
+enableDragScroll('pausepanel');
+enableDragScroll('metabox');
+document.getElementById('pausequitbtn').onclick=()=>{ togglePause(false); gameOver(); };
+document.getElementById('splashshopbtn').onclick=openShop;
+document.getElementById('metashopbtn').onclick=openShop;
+document.getElementById('shopclosebtn').onclick=closeShop;
+window.addEventListener('keydown',e=>{
+  if(e.key==='Escape'||e.key==='p'||e.key==='P'){ e.preventDefault(); togglePause(); }
+  else if(e.key==='a'||e.key==='A'){ e.preventDefault(); toggleAuto(); }
+  else if(e.key==='m'||e.key==='M'){ e.preventDefault(); toggleSnd(); }
+  else if(e.key==='f'||e.key==='F'){ e.preventDefault(); toggleDiag(); }
+  else if(FXKEY[e.key]){ e.preventDefault(); const k=FXKEY[e.key][0]; FX[k]=!FX[k];
+    DIAG.hist.length=0; if(!DIAG.on) toggleDiag(); }
+  else if(e.key==='7'){ e.preventDefault(); NOAUDIO=!NOAUDIO;
+    SND.hardMute(NOAUDIO); DIAG.hist.length=0; if(!DIAG.on) toggleDiag(); }
+  else if(e.key==='b'||e.key==='B'){ e.preventDefault(); bisect(); }
+  else if(e.key==='v'||e.key==='V'){ e.preventDefault(); bisectDraw(); }
+  else if(e.key==='n'||e.key==='N'){ e.preventDefault(); bisectMicro(); }
+  else if(e.key==='k'||e.key==='K'){ e.preventDefault(); bisectPage(); }   // P 已是暫停,改用 K
+  else if(e.key==='9'){ e.preventDefault(); NODRAW=!NODRAW;
+    DIAG.hist.length=0; if(!DIAG.on) toggleDiag(); }
+  else if(e.key==='0'){ e.preventDefault();
+    const off=Object.keys(FX).some(k=>FX[k]);
+    Object.keys(FX).forEach(k=>FX[k]=!off);
+    DIAG.hist.length=0; if(!DIAG.on) toggleDiag(); }
+});
+// 鎖右鍵:遊戲畫面不提供瀏覽器右鍵選單(也順手擋掉長按選單與拖曳選取)
+document.addEventListener('contextmenu', e=>{ e.preventDefault(); return false; });
+document.addEventListener('dragstart', e=>e.preventDefault());
+document.addEventListener('selectstart', e=>{ if(!/^(INPUT|TEXTAREA)$/.test(e.target.tagName)) e.preventDefault(); });
+loop();
+})();
+</script>
+</body>
+</html>

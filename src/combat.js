@@ -227,8 +227,7 @@ export function launchCommand(path){
   G.intent=1;                                      // 意念起 —— 只反映在腳下法陣,身體不動
   { const P=G.player, p1=cut[Math.min(3,cut.length-1)];
     G.aim=Math.atan2(p1.y-P.y, p1.x-P.x);
-    const h=P.r*4.7, feet=P.y+P.r*1.05;
-    G.streaks.push({x1:P.x+G.facing*h*0.10, y1:feet-h*0.55, x2:s0.x, y2:s0.y, life:1}); }
+  }
 
   const n=Math.max(1, stat.count|0);
   const c={
