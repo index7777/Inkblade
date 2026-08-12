@@ -335,6 +335,13 @@ export function updateEnemies(){
     // 波及傷害(潑墨/破墨)可能已把血打光,統一在此收屍
     if(en.hp<=0){ killEnemy(i); continue; }
     if(en.isBoss){ if(!G.bossShowcase) updateBossP1(en); continue; }
+    if(en.actorPoc){
+      en.actorPocTick=(en.actorPocTick||0)+1;
+      const dirs=['N','NE','E','SE','S','SW','W','NW'];
+      const dir=dirs[Math.floor(en.actorPocTick/90)%dirs.length];
+      const vectors={N:[0,-1],NE:[1,-1],E:[1,0],SE:[1,1],S:[0,1],SW:[-1,1],W:[-1,0],NW:[-1,-1]};
+      const v=vectors[dir]; en.moveDir=Math.atan2(v[1],v[0]); en.hit=0; continue;
+    }
     const dx=P.x-en.x, dy=P.y-en.y, d=Math.hypot(dx,dy)||1;
     let sp=en.sp; if(en.chill>0){ en.chill--; sp*=0.45; } // 寒霜冰緩(舊元素系統,現休眠)
     // ===== 劍意狀態:蝕(持續潰散)/ 鎮(行止遲滯 + 微幅損血)=====

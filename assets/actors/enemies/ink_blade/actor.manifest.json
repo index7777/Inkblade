@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 1,
+  "actorId": "enemy.ink_blade",
+  "version": "0.2.0",
+  "kind": "enemy",
+  "assetSource": "ai-runtime",
+  "canvas": {
+    "width": 362,
+    "height": 201,
+    "footPivot": {
+      "x": 0.5,
+      "y": 0.58
+    }
+  },
+  "authoredDirections": [
+    "N",
+    "E",
+    "S"
+  ],
+  "mirrorX": true,
+  "layers": {
+    "weaponBack": {
+      "order": 10,
+      "required": false
+    },
+    "body": {
+      "order": 20,
+      "required": true
+    },
+    "weaponFront": {
+      "order": 30,
+      "required": false
+    }
+  },
+  "animations": {
+    "walk": {
+      "fps": 4.2,
+      "loop": true,
+      "frameCount": 9,
+      "directions": {
+        "N": {
+          "body": {
+            "files": [
+              "assets/actors/enemies/ink_blade/runtime/body/walk/N/ink_blade_body_walk_N_01.png",
+              "assets/actors/enemies/ink_blade/runtime/body/walk/N/ink_blade_body_walk_N_02.png",
+              "assets/actors/enemies/ink_blade/runtime/body/walk/N/ink_blade_body_walk_N_03.png",
+              "assets/actors/enemies/ink_blade/runtime/body/walk/N/ink_blade_body_walk_N_04.png",
+              "assets/actors/enemies/ink_blade/runtime/body/walk/N/ink_blade_body_walk_N_05.png",
+              "assets/actors/enemies/ink_blade/runtime/body/walk/N/ink_blade_body_walk_N_06.png",
+              "assets/actors/enemies/ink_blade/runtime/body/walk/N/ink_blade_body_walk_N_07.png",
+              "assets/actors/enemies/ink_blade/runtime/body/walk/N/ink_blade_body_walk_N_08.png",
+              "assets/actors/enemies/ink_blade/runtime/body/walk/N/ink_blade_body_walk_N_09.png"
+            ]
+          }
+        },
+        "E": {
+          "body": {
+            "files": [
+              "assets/actors/enemies/ink_blade/runtime/body/walk/E/ink_blade_body_walk_E_01.png",
+              "assets/actors/enemies/ink_blade/runtime/body/walk/E/ink_blade_body_walk_E_02.png",
+              "assets/actors/enemies/ink_blade/runtime/body/walk/E/ink_blade_body_walk_E_03.png",
+              "assets/actors/enemies/ink_blade/runtime/body/walk/E/ink_blade_body_walk_E_04.png",
+              "assets/actors/enemies/ink_blade/runtime/body/walk/E/ink_blade_body_walk_E_05.png",
+              "assets/actors/enemies/ink_blade/runtime/body/walk/E/ink_blade_body_walk_E_06.png",
+              "assets/actors/enemies/ink_blade/runtime/body/walk/E/ink_blade_body_walk_E_07.png",
+              "assets/actors/enemies/ink_blade/runtime/body/walk/E/ink_blade_body_walk_E_08.png",
+              "assets/actors/enemies/ink_blade/runtime/body/walk/E/ink_blade_body_walk_E_09.png"
+            ]
+          }
+        },
+        "S": {
+          "body": {
+            "files": [
+              "assets/actors/enemies/ink_blade/runtime/body/walk/S/ink_blade_body_walk_S_01.png",
+              "assets/actors/enemies/ink_blade/runtime/body/walk/S/ink_blade_body_walk_S_02.png",
+              "assets/actors/enemies/ink_blade/runtime/body/walk/S/ink_blade_body_walk_S_03.png",
+              "assets/actors/enemies/ink_blade/runtime/body/walk/S/ink_blade_body_walk_S_04.png",
+              "assets/actors/enemies/ink_blade/runtime/body/walk/S/ink_blade_body_walk_S_05.png",
+              "assets/actors/enemies/ink_blade/runtime/body/walk/S/ink_blade_body_walk_S_06.png",
+              "assets/actors/enemies/ink_blade/runtime/body/walk/S/ink_blade_body_walk_S_07.png",
+              "assets/actors/enemies/ink_blade/runtime/body/walk/S/ink_blade_body_walk_S_08.png",
+              "assets/actors/enemies/ink_blade/runtime/body/walk/S/ink_blade_body_walk_S_09.png"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "fallbacks": {
+    "idle": "walk",
+    "run": "walk",
+    "attack": "walk"
+  }
+}

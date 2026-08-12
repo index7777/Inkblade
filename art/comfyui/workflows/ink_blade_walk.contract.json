@@ -1,0 +1,10 @@
+{
+  "contractVersion": 1,
+  "actor": "ink_blade",
+  "layer": "body",
+  "action": "walk",
+  "authoredDirections": ["N", "E", "S"],
+  "filePattern": "ink_blade_body_walk_{direction}_{frame:02}.png",
+  "outputDirectory": "art/comfyui/outputs/ink_blade",
+  "note": "Interface contract only; a real ComfyUI graph is not verified in this POC."
+}

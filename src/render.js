@@ -4,6 +4,8 @@ import { HERO_VISUAL_SCALE, HERO_BODY_SCALE } from './constants.js';
 import { bossVisualLift } from './enemy.js';
 import { leadInLen, cmdLife } from './combat.js';
 import { supHash } from './geom.js';
+import { AnimationController } from './animation/animation-controller.js';
+import { controllerFor, drawLayeredCharacter } from './render/layered-character-renderer.js';
 
 let hooks={};
 let paperDone=false;
@@ -234,7 +236,21 @@ export function drawEnemies(){
   // 敵人(墨團妖魔)
   for(const en of G.enemies){
     const grp=enemySprites[en.type];
-    if(grp && grp.ok){
+    const registry=hooks.getAssetRegistry?.();
+    const inkBlade= en.type==='blade' ? registry?.getActor('enemy.ink_blade') : null;
+    let renderedByManifest=false;
+    if(inkBlade){
+      const controller=controllerFor(en,inkBlade.manifest,AnimationController);
+      const angle=Number.isFinite(en.moveDir)?en.moveDir:0;
+      controller.setMotion(Math.cos(angle),Math.sin(angle));
+      controller.play('walk');
+      renderedByManifest=drawLayeredCharacter(ctx,registry,'enemy.ink_blade',controller,en);
+      if(en.actorPoc){
+        en.actorPocRender=renderedByManifest||{renderer:'fallback',logicalDirection:controller.direction,action:controller.action,frameIndex:controller.frameIndex};
+        hooks.onActorPocFrame?.(en.actorPocRender);
+      }
+    }
+    if(!renderedByManifest && grp && grp.ok){
       // 真透明 sprite:多幀時隨機起始+慢速交叉淡入(變體感+煙霧晨變);單幀直接畫
       const dirGrp=en.isBoss&&en.bossSide===0?grp.top:en.isBoss&&en.bossSide===2?grp.bottom:null;
       const bossIdle=dirGrp&&dirGrp.idle?dirGrp.idle:(en.isBoss?grp.frames[0]:null);
@@ -308,7 +324,7 @@ export function drawEnemies(){
       }
       ctx.restore(); ctx.globalAlpha=1;
       // 部位提示必須由正式角色／受創素材呈現，不再疊加程序線條。
-    } else {
+    } else if(!renderedByManifest) {
       // 回退:程序化墨團 + 眼
       ctx.save(); ctx.translate(en.x,en.y);
       const wob=Math.sin(en.wob)*2;

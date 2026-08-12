@@ -9,7 +9,10 @@
     "watch": "esbuild src/main.js --bundle --format=iife --outfile=game.js --charset=utf8 --sourcemap=inline --watch",
     "serve": "npx -y serve -l 8080 .",
     "check": "node --check game.js",
-    "test": "node --test"
+    "test": "node --test",
+    "art:fixture": "python tools/art_pipeline.py fixture",
+    "art:stage": "python tools/art_pipeline.py stage",
+    "art:process": "python tools/art_pipeline.py process"
   },
   "devDependencies": {
     "esbuild": "^0.23.0"

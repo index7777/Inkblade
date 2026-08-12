@@ -1,0 +1,25 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://inkblade.local/schemas/actor-animation-manifest.schema.json",
+  "type":"object",
+  "additionalProperties":false,
+  "required":["schemaVersion","actorId","canvas","authoredDirections","layers","animations"],
+  "properties":{
+    "schemaVersion":{"const":1},
+    "actorId":{"type":"string","pattern":"^[a-z0-9_]+(?:\\.[a-z0-9_]+)+$"},
+    "version":{"type":"string"},
+    "kind":{"enum":["player","enemy","boss"]},
+    "assetSource":{"enum":["legacy","hand-authored","ai-runtime"]},
+    "canvas":{"type":"object","additionalProperties":false,"required":["width","height","footPivot"],"properties":{"width":{"type":"integer","minimum":1},"height":{"type":"integer","minimum":1},"footPivot":{"$ref":"#/$defs/point"}}},
+    "authoredDirections":{"type":"array","minItems":1,"uniqueItems":true,"items":{"enum":["N","NE","E","SE","S","SW","W","NW"]}},
+    "mirrorX":{"type":"boolean","default":true},
+    "layers":{"type":"object","properties":{"body":{"$ref":"#/$defs/layer"},"weaponBack":{"$ref":"#/$defs/layer"},"weaponFront":{"$ref":"#/$defs/layer"}}},
+    "animations":{"type":"object","additionalProperties":{"$ref":"#/$defs/clip"}},
+    "fallbacks":{"type":"object","additionalProperties":{"type":"string"}}
+  },
+  "$defs":{
+    "point":{"type":"object","additionalProperties":false,"required":["x","y"],"properties":{"x":{"type":"number"},"y":{"type":"number"}}},
+    "layer":{"type":"object","required":["order"],"properties":{"order":{"type":"integer"},"required":{"type":"boolean"}}},
+    "clip":{"type":"object","required":["fps","loop","frameCount","directions"],"properties":{"fps":{"type":"number","exclusiveMinimum":0},"loop":{"type":"boolean"},"frameCount":{"type":"integer","minimum":1},"directions":{"type":"object","additionalProperties":{"type":"object","additionalProperties":{"type":"object","required":["files"],"properties":{"files":{"type":"array","items":{"type":"string"},"minItems":1}}}}}}}
+  }
+}

@@ -7,10 +7,17 @@ import { configureCombat, pathLen, leadInLen, bladeLength, inlineGap, inlineTipL
 import { configureRender, invalidatePaper, drawSplash, drawMistDissolve, swordFxTrail, drawBossShots, enemyVariantFrame, drawSwordSprite, drawInkFlyingSword, swMul, drawJian, drawTassel, heroSet, drawHero, tintFrame, drawEnemies, drawPlayer, draw, ensureSupV, ensureEroV } from './render.js';
 import { configureUI, num2cn, setTxt, setW, resetHudCache, renderManaBill, updateHUD, levelChoiceOpen, drawCards, drawStartingFormations, rerollCards, tryLevelUp, resetLevelChoice, isPausedByUser, resetPauseState, togglePause, renderVolumeSettings, bindVolumeSettings, toggleSound, renderSoundButton, bindSettingsSegments, bindPauseTabs, renderMeta as uiRenderMeta, openMeta as uiOpenMeta, closeMeta as uiCloseMeta, resetRespecConfirmation, renderRespec as uiRenderRespec, requestRespec, renderHeroChoices as uiRenderHeroChoices, bindHeroChoices, renderShop as uiRenderShop, openShop as uiOpenShop, closeShop as uiCloseShop, renderTierList as uiRenderTierList, enableDragScroll as uiEnableDragScroll } from './ui.js';
 import { configureBoot, resetBootClock, bindBootEvents, startBoot } from './boot.js';
+import { AssetRegistry } from './assets/asset-registry.js';
 (function(){
 'use strict';
 let booted=false;
 let pendingFormationStart=null;
+const ACTOR_POC=new URLSearchParams(location.search).has('actorpoc');
+let actorPocDiag=null;
+const assetRegistry=new AssetRegistry();
+assetRegistry.loadActorManifest('assets/actors/enemies/ink_blade/actor.manifest.json')
+  .then(()=>{ document.documentElement.dataset.inkBladeRenderer='manifest'; })
+  .catch(error=>{ document.documentElement.dataset.inkBladeRenderer='fallback'; console.warn('[Inkblade] ink blade manifest fallback:',error); });
 configureViewport({
   getQuality:()=>meta.quality,
   getFX:()=>FX,
@@ -67,6 +74,8 @@ configureRender({
   getFX:()=>FX,
   getDrawLevel:()=>DRAWLV,
   getEnemySprites:()=>ENESPR,
+  getAssetRegistry:()=>assetRegistry,
+  onActorPocFrame:info=>{ actorPocDiag=info; },
   getDrawState:()=>({drawing,path,curLen,meta,ELEM}),
   allowedLen:()=>allowedLen(),
   getSwordSprite:()=>SWDSPR,
@@ -1127,7 +1136,7 @@ function update(){
     }
   }
   // 境界以本境斬妖目標推進；倒數歸零仍未完成即失敗。
-  if(!G.bossTest && G.wave<60){
+  if(!G.bossTest && !ACTOR_POC && G.wave<60){
     G.waveTimer++;
     if(G.waveKills>=realmKillTarget(G.wave)){
       if(G.wave===59) beginBossWave(); else advanceRealm();
@@ -1135,7 +1144,7 @@ function update(){
       G.banner={txt:'時限已盡',life:1}; gameOver();
     }
   }
-  if(!G.bossTest && G.wave<60){
+  if(!G.bossTest && !ACTOR_POC && G.wave<60){
     if(G.wave===30 && !G.eliteSpawned[30]){ G.eliteSpawned[30]=true; spawnNetherSpider(); }
     const q=waveDifficulty(G.wave);
     G.spawnAcc += q.spawn;
@@ -1378,7 +1387,10 @@ function diagFrame(ts){
     +'4墨暈'+(FX.ink?'✓':'✗')+' 5粒子'+(FX.part?'✓':'✗')+' 6光暈'+(FX.glow?'✓':'✗')+'\n'
     +'7音訊'+(NOAUDIO?'停':'開')+'　9繪圖'+(NODRAW?'停':'開')+'　0全部特效\n'
     +'妖'+nz(G.enemies.length)+' 劍'+nz(G.swords.length)+' 粒'+nz(G.particles.length)+'\n'
-    +'墨'+nz(G.inks.length)+' 字'+nz(G.texts.length)+' 波'+nz(G.wave);
+    +'墨'+nz(G.inks.length)+' 字'+nz(G.texts.length)+' 波'+nz(G.wave)
+    +(ACTOR_POC?'\n\n<b>Actor POC</b>\n'+(actorPocDiag
+      ?'actorId '+actorPocDiag.actorId+'\nsource = '+actorPocDiag.source+'\nlogicalDirection '+actorPocDiag.logicalDirection+'\nresolvedAssetDirection '+actorPocDiag.resolvedAssetDirection+'\nflipX '+actorPocDiag.flipX+'\naction '+actorPocDiag.action+'\nframeIndex '+actorPocDiag.frameIndex+'\nrenderer = '+actorPocDiag.renderer
+      :'renderer = waiting'):'');
 }
 // 一鍵自動二分:依序套用六種設定各量 3 秒,直接印出對照表。
 // 目的是把「該按哪些鍵、記哪些數字」全部自動化,一次就能定位。
@@ -1598,7 +1610,7 @@ function toggleDiag(){
   DIAG.el=DIAG.el||document.getElementById('diag');
   DIAG.el.classList.toggle('show',DIAG.on);
 }
-if(location.search.indexOf('debug')>=0) setTimeout(toggleDiag,0);
+if(location.search.indexOf('debug')>=0||ACTOR_POC) setTimeout(toggleDiag,0);
 
 // ---------- 開始/結束 ----------
 // 開場過場 v2:鏡頭推近桌上畫軸(首頁整體一起放大,LOGO/按鈕自然出框)→ 桌面隱去
@@ -1711,6 +1723,7 @@ function start(mode){
   syncStat();
   G.mana = stat.manaMax;
   G.player=new Player();
+  if(ACTOR_POC) G.hpLocked=true;
   if(bossTest){
     G.player.y=H*BOSS_PLAYER_Y_RATIO;
     spawnXuanmingBoss(true);
@@ -1741,6 +1754,16 @@ function start(mode){
 function continueAfterFormation(fastRestart){
   G.paused=false;
   SND.startMusic();
+  if(ACTOR_POC) spawnActorPocBlade();
+}
+
+function spawnActorPocBlade(){
+  if(!ACTOR_POC||!G.player) return;
+  G.enemies=G.enemies.filter(en=>!en.actorPoc);
+  const hp=999999;
+  G.enemies.push({x:W*.5,y:Math.max(PLAY_TOP+115,H*.30),r:23,hp,max:hp,sp:0,c:'#352f43',tier:1,type:'blade',species:'actorPocBlade',speciesName:'墨刃兵 POC',ai:'seek',
+    actorPoc:true,actorPocTick:0,contactDamage:0,xpValue:0,visualScale:1.42,visualHeight:72,animRate:.055,
+    aiT:0,aiSeed:0,orbitDir:1,chargeX:0,chargeY:0,anim:0,ember:0,emberT:0,chill:0,hit:0,broken:0,wob:0,st:{}});
 }
 
 function renderBossTestTools(){

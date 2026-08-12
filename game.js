@@ -835,6 +835,16 @@
         if (!G.bossShowcase) updateBossP1(en);
         continue;
       }
+      if (en.actorPoc) {
+        en.actorPocTick = (en.actorPocTick || 0) + 1;
+        const dirs = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+        const dir = dirs[Math.floor(en.actorPocTick / 90) % dirs.length];
+        const vectors = { N: [0, -1], NE: [1, -1], E: [1, 0], SE: [1, 1], S: [0, 1], SW: [-1, 1], W: [-1, 0], NW: [-1, -1] };
+        const v = vectors[dir];
+        en.moveDir = Math.atan2(v[1], v[0]);
+        en.hit = 0;
+        continue;
+      }
       const dx = P.x - en.x, dy = P.y - en.y, d = Math.hypot(dx, dy) || 1;
       let sp = en.sp;
       if (en.chill > 0) {
@@ -2206,6 +2216,123 @@
     }
   }
 
+  // src/animation/direction.js
+  var DIRECTIONS = Object.freeze(["N", "NE", "E", "SE", "S", "SW", "W", "NW"]);
+  var MIRRORS = Object.freeze({
+    NW: { source: "NE", flipX: true },
+    W: { source: "E", flipX: true },
+    SW: { source: "SE", flipX: true }
+  });
+  function resolveDirection(x, y, last = "S", deadZone = 0.045) {
+    if (!Number.isFinite(x) || !Number.isFinite(y) || Math.hypot(x, y) < deadZone) return DIRECTIONS.includes(last) ? last : "S";
+    const angle = Math.atan2(x, -y);
+    const index = (Math.round(angle / (Math.PI / 4)) + 8) % 8;
+    return DIRECTIONS[index];
+  }
+  var VECTOR = Object.freeze({
+    N: [0, -1],
+    NE: [1, -1],
+    E: [1, 0],
+    SE: [1, 1],
+    S: [0, 1],
+    SW: [-1, 1],
+    W: [-1, 0],
+    NW: [-1, -1]
+  });
+  var HORIZONTAL_MIRROR = Object.freeze({ N: "N", NE: "NW", E: "W", SE: "SW", S: "S", SW: "SE", W: "E", NW: "NE" });
+  function resolveAvailableDirection(direction, authoredDirections, options = {}) {
+    const wanted = DIRECTIONS.includes(direction) ? direction : "S";
+    const authored = [...new Set((authoredDirections || []).filter((d) => DIRECTIONS.includes(d)))];
+    if (!authored.length) return null;
+    const allowFlip = options.allowFlipX !== false, candidates = [];
+    for (const source of authored) {
+      candidates.push({ direction: source, source, flipX: false });
+      const mirrored = HORIZONTAL_MIRROR[source];
+      if (allowFlip && mirrored !== source) candidates.push({ direction: mirrored, source, flipX: true });
+    }
+    const [wx, wy] = VECTOR[wanted];
+    candidates.sort((a, b) => {
+      const [ax, ay] = VECTOR[a.direction], [bx, by] = VECTOR[b.direction];
+      const da = (wx * ax + wy * ay) / (Math.hypot(wx, wy) * Math.hypot(ax, ay));
+      const db = (wx * bx + wy * by) / (Math.hypot(wx, wy) * Math.hypot(bx, by));
+      const verticalAffinity = ([x, y]) => wx !== 0 && wy !== 0 && x === 0 && Math.sign(y) === Math.sign(wy) ? 1 : 0;
+      return db - da || verticalAffinity([bx, by]) - verticalAffinity([ax, ay]) || Number(a.flipX) - Number(b.flipX) || DIRECTIONS.indexOf(a.direction) - DIRECTIONS.indexOf(b.direction);
+    });
+    const best = candidates[0];
+    return { direction: best.source, flipX: best.flipX, resolvedDirection: best.direction };
+  }
+
+  // src/animation/animation-controller.js
+  var AnimationController = class {
+    constructor(manifest, seed = 0) {
+      this.manifest = manifest;
+      this.action = "walk";
+      this.direction = "S";
+      this.lastDirection = "S";
+      this.elapsed = Math.max(0, Number(seed) || 0);
+      this.frameIndex = 0;
+    }
+    setMotion(x, y) {
+      this.direction = resolveDirection(x, y, this.lastDirection);
+      this.lastDirection = this.direction;
+    }
+    play(action, { restart = false } = {}) {
+      if (!this.manifest.animations[action]) action = this.manifest.fallbacks?.[action] || "walk";
+      if (action !== this.action || restart) {
+        this.action = action;
+        this.elapsed = 0;
+        this.frameIndex = 0;
+      }
+    }
+    update(deltaFrames = 1) {
+      const clip = this.manifest.animations[this.action] || this.manifest.animations.walk;
+      const count = Math.max(1, clip?.frameCount || 1), fps = Math.max(0.01, clip?.fps || 6);
+      this.elapsed += Math.max(0, deltaFrames) / 60;
+      let index = Math.floor(this.elapsed * fps);
+      if (clip?.loop !== false) index %= count;
+      else index = Math.min(count - 1, index);
+      this.frameIndex = index;
+      return index;
+    }
+  };
+
+  // src/render/layered-character-renderer.js
+  var LAYERS = ["weaponBack", "body", "weaponFront"];
+  var controllers = /* @__PURE__ */ new WeakMap();
+  function controllerFor(entity, manifest, Controller) {
+    let controller = controllers.get(entity);
+    if (!controller) {
+      controller = new Controller(manifest, entity.anim || 0);
+      controllers.set(entity, controller);
+    }
+    return controller;
+  }
+  function drawLayeredCharacter(ctx2, registry, actorId, controller, entity, deltaFrames = 1) {
+    const actor = registry.getActor(actorId);
+    if (!actor || !controller) return false;
+    const clip = actor.manifest.animations[controller.action] || actor.manifest.animations.walk;
+    const index = controller.update(deltaFrames);
+    const canvas = actor.manifest.canvas, height = entity.visualHeight || entity.r * 2.1;
+    const width = height * (canvas.width / canvas.height), pivot = canvas.footPivot;
+    let drew = false, resolved = null;
+    ctx2.save();
+    ctx2.translate(entity.x, entity.y);
+    for (const layer of LAYERS) {
+      const frame = registry.getFrame(actorId, controller.action, controller.direction, layer, index);
+      if (!frame) continue;
+      resolved = resolved || registry.resolveFrameDirection(actorId, controller.direction);
+      ctx2.save();
+      if (frame.flipX) ctx2.scale(-1, 1);
+      ctx2.globalAlpha = (entity.hit > 0 ? 0.9 : 1) * (entity.alpha == null ? 1 : entity.alpha);
+      ctx2.drawImage(frame.image, -width * pivot.x, -height * pivot.y, width, height);
+      ctx2.restore();
+      drew = true;
+    }
+    ctx2.restore();
+    ctx2.globalAlpha = 1;
+    return drew ? { actorId, source: actor.manifest.assetSource || "legacy", renderer: "manifest", logicalDirection: controller.direction, resolvedAssetDirection: resolved?.direction || null, flipX: !!resolved?.flipX, action: controller.action, frameIndex: index } : false;
+  }
+
   // src/render.js
   var hooks4 = {};
   var paperDone = false;
@@ -2508,7 +2635,21 @@
     const enemySprites = hooks4.getEnemySprites?.() || {};
     for (const en of G.enemies) {
       const grp = enemySprites[en.type];
-      if (grp && grp.ok) {
+      const registry = hooks4.getAssetRegistry?.();
+      const inkBlade = en.type === "blade" ? registry?.getActor("enemy.ink_blade") : null;
+      let renderedByManifest = false;
+      if (inkBlade) {
+        const controller = controllerFor(en, inkBlade.manifest, AnimationController);
+        const angle = Number.isFinite(en.moveDir) ? en.moveDir : 0;
+        controller.setMotion(Math.cos(angle), Math.sin(angle));
+        controller.play("walk");
+        renderedByManifest = drawLayeredCharacter(ctx, registry, "enemy.ink_blade", controller, en);
+        if (en.actorPoc) {
+          en.actorPocRender = renderedByManifest || { renderer: "fallback", logicalDirection: controller.direction, action: controller.action, frameIndex: controller.frameIndex };
+          hooks4.onActorPocFrame?.(en.actorPocRender);
+        }
+      }
+      if (!renderedByManifest && grp && grp.ok) {
         const dirGrp = en.isBoss && en.bossSide === 0 ? grp.top : en.isBoss && en.bossSide === 2 ? grp.bottom : null;
         const bossIdle = dirGrp && dirGrp.idle ? dirGrp.idle : en.isBoss ? grp.frames[0] : null;
         const atkSrc = dirGrp ? dirGrp.attack : grp.attack;
@@ -2565,7 +2706,7 @@
         }
         ctx.restore();
         ctx.globalAlpha = 1;
-      } else {
+      } else if (!renderedByManifest) {
         ctx.save();
         ctx.translate(en.x, en.y);
         const wob = Math.sin(en.wob) * 2;
@@ -4217,11 +4358,114 @@
     requestAnimationFrame(gameLoop);
   }
 
+  // src/assets/asset-loader.js
+  var AssetLoader = class {
+    constructor() {
+      this.images = /* @__PURE__ */ new Map();
+    }
+    loadImage(url) {
+      if (this.images.has(url)) return this.images.get(url);
+      const record = { url, image: null, ready: false, error: null, promise: null };
+      record.promise = new Promise((resolve) => {
+        const image = new Image();
+        record.image = image;
+        image.onload = () => {
+          record.ready = true;
+          resolve(record);
+        };
+        image.onerror = () => {
+          record.error = new Error("Unable to load " + url);
+          resolve(record);
+        };
+        image.src = url;
+      });
+      this.images.set(url, record);
+      return record;
+    }
+  };
+
+  // src/assets/asset-registry.js
+  var AssetRegistry = class {
+    constructor(loader = new AssetLoader()) {
+      this.loader = loader;
+      this.actors = /* @__PURE__ */ new Map();
+    }
+    async loadActorManifest(url) {
+      const response = await fetch(url, { cache: "no-cache" });
+      if (!response.ok) throw new Error("Unable to load actor manifest " + url + " (" + response.status + ")");
+      return this.registerActor(await response.json());
+    }
+    registerActor(manifest) {
+      const errors = validateActorManifest(manifest);
+      if (errors.length) throw new Error("Invalid actor manifest: " + errors.join("; "));
+      const runtime = { manifest, clips: {}, ready: false };
+      for (const [action, clip] of Object.entries(manifest.animations)) {
+        runtime.clips[action] = {};
+        for (const [direction, layers] of Object.entries(clip.directions || {})) {
+          runtime.clips[action][direction] = {};
+          for (const [layer, desc] of Object.entries(layers)) {
+            runtime.clips[action][direction][layer] = desc.files.map((file) => this.loader.loadImage(file));
+          }
+        }
+      }
+      runtime.ready = true;
+      this.actors.set(manifest.actorId, runtime);
+      return runtime;
+    }
+    getActor(id) {
+      return this.actors.get(id) || null;
+    }
+    resolveFrameDirection(id, direction) {
+      const actor = this.getActor(id);
+      if (!actor) return null;
+      return resolveAvailableDirection(direction, actor.manifest.authoredDirections, { allowFlipX: actor.manifest.mirrorX !== false });
+    }
+    getFrame(id, action, direction, layer, index) {
+      const actor = this.getActor(id);
+      if (!actor) return null;
+      const mapped = this.resolveFrameDirection(id, direction);
+      if (!mapped) return null;
+      const clip = actor.clips[action] || actor.clips[actor.manifest.fallbacks?.[action]] || actor.clips.walk;
+      const records = clip?.[mapped.direction]?.[layer];
+      if (!records?.length) return null;
+      const rec = records[index % records.length];
+      return rec?.ready ? { image: rec.image, flipX: mapped.flipX } : null;
+    }
+  };
+  function validateActorManifest(m) {
+    const e = [];
+    if (!m || m.schemaVersion !== 1) e.push("schemaVersion must be 1");
+    if (!m?.actorId) e.push("actorId is required");
+    const authored = m?.authoredDirections || [];
+    if (!authored.length) e.push("authoredDirections requires at least one direction");
+    for (const d of authored) if (!DIRECTIONS.includes(d)) e.push("invalid authored direction " + d);
+    if (!m?.canvas?.width || !m?.canvas?.height || !m?.canvas?.footPivot) e.push("canvas and footPivot are required");
+    if (!m?.animations?.walk) e.push("walk animation is required");
+    for (const [action, clip] of Object.entries(m?.animations || {})) {
+      for (const direction of Object.keys(clip.directions || {})) {
+        if (!authored.includes(direction)) e.push(action + " contains undeclared direction " + direction);
+      }
+      for (const direction of authored) {
+        if (!clip.directions?.[direction]) e.push(action + " missing authored direction " + direction);
+      }
+    }
+    return e;
+  }
+
   // src/main.js
   (function() {
     "use strict";
     let booted = false;
     let pendingFormationStart = null;
+    const ACTOR_POC = new URLSearchParams(location.search).has("actorpoc");
+    let actorPocDiag = null;
+    const assetRegistry = new AssetRegistry();
+    assetRegistry.loadActorManifest("assets/actors/enemies/ink_blade/actor.manifest.json").then(() => {
+      document.documentElement.dataset.inkBladeRenderer = "manifest";
+    }).catch((error) => {
+      document.documentElement.dataset.inkBladeRenderer = "fallback";
+      console.warn("[Inkblade] ink blade manifest fallback:", error);
+    });
     configureViewport({
       getQuality: () => meta.quality,
       getFX: () => FX,
@@ -4304,6 +4548,10 @@
       getFX: () => FX,
       getDrawLevel: () => DRAWLV,
       getEnemySprites: () => ENESPR,
+      getAssetRegistry: () => assetRegistry,
+      onActorPocFrame: (info) => {
+        actorPocDiag = info;
+      },
       getDrawState: () => ({ drawing, path, curLen, meta, ELEM }),
       allowedLen: () => allowedLen(),
       getSwordSprite: () => SWDSPR,
@@ -5332,7 +5580,7 @@
           }
         }
       }
-      if (!G.bossTest && G.wave < 60) {
+      if (!G.bossTest && !ACTOR_POC && G.wave < 60) {
         G.waveTimer++;
         if (G.waveKills >= realmKillTarget(G.wave)) {
           if (G.wave === 59) beginBossWave();
@@ -5342,7 +5590,7 @@
           gameOver();
         }
       }
-      if (!G.bossTest && G.wave < 60) {
+      if (!G.bossTest && !ACTOR_POC && G.wave < 60) {
         if (G.wave === 30 && !G.eliteSpawned[30]) {
           G.eliteSpawned[30] = true;
           spawnNetherSpider();
@@ -5672,7 +5920,7 @@
       const hz = DIAG.minD < 1e9 ? Math.round(1e3 / DIAG.minD) : 0;
       const cls = (v) => v > 1e3 / 50 ? "bad" : v > 1e3 / 58 ? "warn" : "";
       const nz = (n) => String(n).padStart(4);
-      DIAG.el.innerHTML = "<b>" + fps.toFixed(0) + ' fps</b>  <span class="' + cls(p50) + '">p50 ' + p50.toFixed(1) + "ms</span>\np95 " + p95.toFixed(1) + "ms   max " + mx.toFixed(1) + "ms\n螢幕上限 ≈ " + hz + " Hz" + (hz > 70 ? '  <span class="warn">(60fps=掉一半)</span>' : "") + "\nupdate " + DIAG.upd.toFixed(2) + "ms  draw " + DIAG.drw.toFixed(2) + "ms\n" + (hz && p50 > 1e3 / hz + 3 ? '<span class="bad">瀏覽器 ' + Math.max(0, p50 - DIAG.upd - DIAG.drw).toFixed(1) + "ms</span> ← 合成/點陣化\n" : "其餘 " + Math.max(0, p50 - DIAG.upd - DIAG.drw).toFixed(1) + "ms(等 vsync,正常)\n") + "DPR " + DPR + "  畫布 " + (W * DPR | 0) + "×" + (H * DPR | 0) + '\n<span class="' + (/⚠/.test(GPU) ? "bad" : "") + '">' + GPU + "</span>\n1背景" + (FX.bg ? "✓" : "✗") + " 2暈影" + (FX.vig ? "✓" : "✗") + " 3拖尾" + (FX.trail ? "✓" : "✗") + "\n4墨暈" + (FX.ink ? "✓" : "✗") + " 5粒子" + (FX.part ? "✓" : "✗") + " 6光暈" + (FX.glow ? "✓" : "✗") + "\n7音訊" + (NOAUDIO ? "停" : "開") + "　9繪圖" + (NODRAW ? "停" : "開") + "　0全部特效\n妖" + nz(G.enemies.length) + " 劍" + nz(G.swords.length) + " 粒" + nz(G.particles.length) + "\n墨" + nz(G.inks.length) + " 字" + nz(G.texts.length) + " 波" + nz(G.wave);
+      DIAG.el.innerHTML = "<b>" + fps.toFixed(0) + ' fps</b>  <span class="' + cls(p50) + '">p50 ' + p50.toFixed(1) + "ms</span>\np95 " + p95.toFixed(1) + "ms   max " + mx.toFixed(1) + "ms\n螢幕上限 ≈ " + hz + " Hz" + (hz > 70 ? '  <span class="warn">(60fps=掉一半)</span>' : "") + "\nupdate " + DIAG.upd.toFixed(2) + "ms  draw " + DIAG.drw.toFixed(2) + "ms\n" + (hz && p50 > 1e3 / hz + 3 ? '<span class="bad">瀏覽器 ' + Math.max(0, p50 - DIAG.upd - DIAG.drw).toFixed(1) + "ms</span> ← 合成/點陣化\n" : "其餘 " + Math.max(0, p50 - DIAG.upd - DIAG.drw).toFixed(1) + "ms(等 vsync,正常)\n") + "DPR " + DPR + "  畫布 " + (W * DPR | 0) + "×" + (H * DPR | 0) + '\n<span class="' + (/⚠/.test(GPU) ? "bad" : "") + '">' + GPU + "</span>\n1背景" + (FX.bg ? "✓" : "✗") + " 2暈影" + (FX.vig ? "✓" : "✗") + " 3拖尾" + (FX.trail ? "✓" : "✗") + "\n4墨暈" + (FX.ink ? "✓" : "✗") + " 5粒子" + (FX.part ? "✓" : "✗") + " 6光暈" + (FX.glow ? "✓" : "✗") + "\n7音訊" + (NOAUDIO ? "停" : "開") + "　9繪圖" + (NODRAW ? "停" : "開") + "　0全部特效\n妖" + nz(G.enemies.length) + " 劍" + nz(G.swords.length) + " 粒" + nz(G.particles.length) + "\n墨" + nz(G.inks.length) + " 字" + nz(G.texts.length) + " 波" + nz(G.wave) + (ACTOR_POC ? "\n\n<b>Actor POC</b>\n" + (actorPocDiag ? "actorId " + actorPocDiag.actorId + "\nsource = " + actorPocDiag.source + "\nlogicalDirection " + actorPocDiag.logicalDirection + "\nresolvedAssetDirection " + actorPocDiag.resolvedAssetDirection + "\nflipX " + actorPocDiag.flipX + "\naction " + actorPocDiag.action + "\nframeIndex " + actorPocDiag.frameIndex + "\nrenderer = " + actorPocDiag.renderer : "renderer = waiting") : "");
     }
     let bisecting = false;
     async function bisect() {
@@ -6039,7 +6287,7 @@
       DIAG.el = DIAG.el || document.getElementById("diag");
       DIAG.el.classList.toggle("show", DIAG.on);
     }
-    if (location.search.indexOf("debug") >= 0) setTimeout(toggleDiag, 0);
+    if (location.search.indexOf("debug") >= 0 || ACTOR_POC) setTimeout(toggleDiag, 0);
     let openingSeen = false;
     const DESK_IMG = { w: 941, h: 1672 };
     const SCROLL_UV = { x0: 0.1, x1: 0.88, y0: 0.47, y1: 0.5165, seam: 0.4935 };
@@ -6225,6 +6473,7 @@
       syncStat();
       G.mana = stat.manaMax;
       G.player = new Player();
+      if (ACTOR_POC) G.hpLocked = true;
       if (bossTest) {
         G.player.y = H * BOSS_PLAYER_Y_RATIO;
         spawnXuanmingBoss(true);
@@ -6256,6 +6505,46 @@
     function continueAfterFormation(fastRestart) {
       G.paused = false;
       SND.startMusic();
+      if (ACTOR_POC) spawnActorPocBlade();
+    }
+    function spawnActorPocBlade() {
+      if (!ACTOR_POC || !G.player) return;
+      G.enemies = G.enemies.filter((en) => !en.actorPoc);
+      const hp = 999999;
+      G.enemies.push({
+        x: W * 0.5,
+        y: Math.max(PLAY_TOP + 115, H * 0.3),
+        r: 23,
+        hp,
+        max: hp,
+        sp: 0,
+        c: "#352f43",
+        tier: 1,
+        type: "blade",
+        species: "actorPocBlade",
+        speciesName: "墨刃兵 POC",
+        ai: "seek",
+        actorPoc: true,
+        actorPocTick: 0,
+        contactDamage: 0,
+        xpValue: 0,
+        visualScale: 1.42,
+        visualHeight: 72,
+        animRate: 0.055,
+        aiT: 0,
+        aiSeed: 0,
+        orbitDir: 1,
+        chargeX: 0,
+        chargeY: 0,
+        anim: 0,
+        ember: 0,
+        emberT: 0,
+        chill: 0,
+        hit: 0,
+        broken: 0,
+        wob: 0,
+        st: {}
+      });
     }
     function renderBossTestTools() {
       const lock = document.getElementById("bosstestlock");
