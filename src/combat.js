@@ -60,6 +60,51 @@ export function formationOffset(formation, i, n, spacing, spread){
   return { along:0, side:0, ang:t*FAN_PHI, fan:true };
 }
 
+export function sampleTrailPoint(points,distance){
+  if(!points?.length) return null;
+  let remain=Math.max(0,distance||0);
+  for(let i=points.length-1;i>0;i--){
+    const a=points[i-1],b=points[i],dx=b.x-a.x,dy=b.y-a.y,len=Math.hypot(dx,dy);
+    if(len<1e-4) continue;
+    if(remain<=len){
+      const t=1-remain/len;
+      return {x:a.x+dx*t,y:a.y+dy*t,ang:Math.atan2(dy,dx)};
+    }
+    remain-=len;
+  }
+  const a=points[0],b=points[Math.min(1,points.length-1)];
+  return {x:a.x,y:a.y,ang:Math.atan2(b.y-a.y,b.x-a.x)};
+}
+
+function seedInlineTrail(c){
+  const need=inlineTipLead()+Math.max(0,c.slots-1)*inlineGap()+40;
+  const ux=Math.cos(c.ang),uy=Math.sin(c.ang),points=[];
+  for(let d=need;d>0;d-=20) points.push({x:c.x-ux*d,y:c.y-uy*d});
+  points.push({x:c.x,y:c.y});
+  c.inlineTrail=points;
+  c.inlineTrailMax=need+80;
+}
+
+function appendInlineTrail(c){
+  if(c.formation!=='inline') return;
+  if(!c.inlineTrail) seedInlineTrail(c);
+  const last=c.inlineTrail[c.inlineTrail.length-1],dx=c.x-last.x,dy=c.y-last.y;
+  if(Math.hypot(dx,dy)>0.25) c.inlineTrail.push({x:c.x,y:c.y});
+  let total=0,cut=0;
+  for(let i=c.inlineTrail.length-1;i>0;i--){
+    total+=Math.hypot(c.inlineTrail[i].x-c.inlineTrail[i-1].x,c.inlineTrail[i].y-c.inlineTrail[i-1].y);
+    if(total>c.inlineTrailMax){ cut=i-1; break; }
+  }
+  if(cut>0) c.inlineTrail.splice(0,cut);
+}
+
+function turnToward(from,to,limit=0.24){
+  let d=to-from;
+  while(d>Math.PI)d-=Math.PI*2;
+  while(d<-Math.PI)d+=Math.PI*2;
+  return from+Math.max(-limit,Math.min(limit,d));
+}
+
 export function cmdLife(len){
   const LM=(window.INK_CONFIG && INK_CONFIG.lifeModel) || {pixelsPerLife:120, maxBonus:12};
   const bonus=Math.min(LM.maxBonus, Math.floor(Math.max(0,len)/LM.pixelsPerLife));
@@ -199,6 +244,10 @@ export function buildStrokePasses(pts){
   }
   return out;
 }
+export function netManaSpend(gross,refund=0){
+  return Math.max(0,gross*(1-Math.max(0,Math.min(1,refund||0))));
+}
+
 export function launchCommand(path){
   if(!path || path.length<2) return;
   const s0=path[0];
@@ -239,7 +288,8 @@ export function launchCommand(path){
     G.reserve--; G.reserveFlash=1;
     hooks.floatText?.(s0.x, s0.y-14, '劍匣', '#c08a2e');
   } else {
-    const spend=Math.min(G.mana, stat.costBase + paidLen*perPx);
+    const gross=Math.min(G.mana, stat.costBase + paidLen*perPx);
+    const spend=netManaSpend(gross,stat.manaRefund);
     G.mana=Math.max(0, G.mana - spend); hooks.dpsAdd?.('m', spend);
   }
   hooks.playCast?.(len);
@@ -273,6 +323,7 @@ export function launchCommand(path){
     hitOrder:[], volley:0, frameHit:null, extended:0, dmgMul:1, anyHit:false, free:false,
     freeBack:false, passAt:buildStrokePasses(cut)
   };
+  if(c.formation==='inline') seedInlineTrail(c);
   G.commands.push(c);
   // 連珠只先生成領頭劍；後續空槽由更新迴圈依劍距逐把接上。
   if(c.formation==='inline') spawnCmdSword(c,0,0);
@@ -351,6 +402,7 @@ export function updateCombat(){
       G.commands.splice(ci,1);
       continue;
     }
+    appendInlineTrail(c);
     // 2) 依陣型把劍擺到中心周圍;空槽補劍(接力)
     const ca=Math.cos(c.ang), sa=Math.sin(c.ang);
     for(let k=0;k<c.slots;k++){
@@ -370,21 +422,24 @@ export function updateCombat(){
         if(sw.snap){ sw.px=q.x; sw.py=q.y; sw.snap=false; } else { sw.px=sw.x; sw.py=sw.y; }
         sw.vx=q.x-sw.x; sw.vy=q.y-sw.y;
         sw.x=q.x; sw.y=q.y; sw.ang=q.ang; sw.age++;
-        sw.trail.push({x:sw.x,y:sw.y}); if(sw.trail.length>18) sw.trail.shift();
+        sw.trail.push({x:sw.x,y:sw.y,ang:sw.ang,age:sw.age}); if(sw.trail.length>18) sw.trail.shift();
         continue;
       }
       let oa=off.along, os=off.side;
-      const nx=c.x + ca*oa - sa*os;
-      const ny=c.y + sa*oa + ca*os;
+      const follow=c.formation==='inline'
+        ? sampleTrailPoint(c.inlineTrail,inlineTipLead()+k*inlineGap()) : null;
+      const nx=follow ? follow.x : c.x + ca*oa - sa*os;
+      const ny=follow ? follow.y : c.y + sa*oa + ca*os;
       // 掃掠命中要知道這一幀是從哪走到哪。折返那一幀整列會前後對調(等於瞬移),
       // 那一幀用 snap 標記跳過掃掠,否則會斬到整條路徑上本來碰不到的墨獸。
       if(sw.snap){ sw.px=nx; sw.py=ny; sw.snap=false; }
       else { sw.px=sw.x; sw.py=sw.y; }
       sw.vx=nx-sw.x; sw.vy=ny-sw.y;
-      sw.x=nx; sw.y=ny; sw.ang=c.ang+(off.ang||0); sw.age++;
+      sw.x=nx; sw.y=ny;
+      sw.ang=follow ? turnToward(sw.ang,follow.ang) : c.ang+(off.ang||0); sw.age++;
       if(!c.free&&c.passAt) sw.passId=c.passAt[Math.max(0,Math.min(c.passAt.length-1,c.seg))]||0;
       if(hooks.getFX?.()?.trail){
-        sw.trail.push({x:sw.x,y:sw.y});
+        sw.trail.push({x:sw.x,y:sw.y,ang:sw.ang,age:sw.age});
         if(sw.trail.length>18) sw.trail.shift();
       } else if(sw.trail.length) sw.trail.length=0;
     }
@@ -486,7 +541,7 @@ export function updateCombat(){
       s.px=s.x; s.py=s.y;
       s.vx=Math.cos(s.ang)*sp; s.vy=Math.sin(s.ang)*sp;
       s.x+=s.vx; s.y+=s.vy; s.age++;
-      if(hooks.getFX?.()?.trail){ s.trail.push({x:s.x,y:s.y}); if(s.trail.length>18) s.trail.shift(); }
+      if(hooks.getFX?.()?.trail){ s.trail.push({x:s.x,y:s.y,ang:s.ang,age:s.age}); if(s.trail.length>18) s.trail.shift(); }
       else if(s.trail.length) s.trail.length=0;
       if(s.x<-60||s.x>W+60||s.y<-60||s.y>H+60){ s.dead=true; G.swords.splice(i,1); continue; }
     }
@@ -639,7 +694,7 @@ export function updateCombat(){
         }
         hooks.pendDamage?.(en, dmg, isCrit);
         hooks.splash?.(s.x,s.y,hooks.getElementHitColor?.(stat.element),1);
-        if(isCrit){ hooks.playCrit?.(); hooks.shake?.(4); hooks.hitstop?.(3); flash(0.12,'240,220,160');
+        if(isCrit){ hooks.playCrit?.(); hooks.shake?.(4); hooks.hitstop?.(3); hooks.flash?.(0.12,'240,220,160');
           if(stat.whiteCut){
             hooks.whiteCut?.(s.x,s.y,s.ang);
             // 斷意·小成:暴擊改留兩道飛白(交叉)

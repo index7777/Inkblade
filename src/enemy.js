@@ -305,7 +305,9 @@ export function killEnemy(idx){
       for(const e2 of G.enemies) if(e2!==en && Math.hypot(e2.x-en.x,e2.y-en.y)<86){ hooks.dmgTo(e2,left); e2.hit=6; }
       hooks.floatText(en.x,en.y-en.r-30,'蝕爆','#7a6a58'); }
   }
-  G.kills++; G.waveKills=(G.waveKills||0)+1; hooks.dpsAdd('k',1); G.player.hp=Math.min(G.player.max,G.player.hp+stat.regen);
+  G.kills++; G.waveKills=(G.waveKills||0)+1; hooks.dpsAdd('k',1);
+  // 回元的 manaOnKill 是擊殺回復劍意，不是回復神識。
+  G.mana=Math.min(stat.manaMax,G.mana+(stat.regen||0));
   // 階級推進:每個滿階技能各自累計局內擊殺,達 300/500/1000 進小成/大成/圓滿
   if(runState){
     const gained=INK_CONFIG.runtime.noteKill(runState,1);

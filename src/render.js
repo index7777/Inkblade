@@ -172,6 +172,10 @@ export function drawInkFlyingSword(ctx,s){
 const SW_FULL={size:1, alpha:1};
 // 聚鋒(A):領頭劍依存活數放大寬度(mergeScale);其餘劍不會被繪製(mergeHidden 已在繪製迴圈跳過)。
 export function swMul(s){ return (s && s.mergeScale && s.mergeScale!==1) ? {size:s.mergeScale, alpha:1} : SW_FULL; }
+export function trailPose(point,fallbackAngle=0){
+  return {x:point?.x||0,y:point?.y||0,ang:Number.isFinite(point?.ang)?point.ang:fallbackAngle};
+}
+
 export function drawJian(ctx, s){
   const FLYSWORD=hooks.getFlyingSword?.();
   // 飛出去的是同一把母版飛劍；劍寬只小幅影響尺寸，避免升級後變成巨型黑針。
@@ -184,9 +188,10 @@ export function drawJian(ctx, s){
       ctx.save();
       for(let g=1;g<=2;g++){
         const q=s.trail[Math.max(0,s.trail.length-1-g*3)]; if(!q) continue;
+        const pose=trailPose(q,s.ang);
         ctx.globalAlpha=0.20/g;
         const gw=(44+stat.size*.9)*M.size*(1-g*0.08), gh=gw/FLYSWORD.aspect;
-        ctx.save(); ctx.translate(q.x,q.y); ctx.rotate(s.ang);
+        ctx.save(); ctx.translate(pose.x,pose.y); ctx.rotate(pose.ang);
         ctx.drawImage(FLYSWORD.image,-gw*FLYSWORD.grip,-gh/2,gw,gh); ctx.restore();
       }
       ctx.restore();
@@ -458,7 +463,7 @@ export function draw(){
   }
 
   // 定鋒·大成:墨鏈(深灰靜態連線,分圖層、位於劍樁下方)
-  if(DRAWLV>=4 && G.anchorLinks.length){
+  if(G.anchorLinks.length){
     ctx.save(); ctx.strokeStyle='rgba(26,23,19,0.32)'; ctx.lineWidth=2.2; ctx.lineCap='round';
     for(const Lk of G.anchorLinks){
       ctx.beginPath(); ctx.moveTo(Lk.ax,Lk.ay); ctx.lineTo(Lk.bx,Lk.by); ctx.stroke();
@@ -467,10 +472,10 @@ export function draw(){
   }
   // 定鋒:劍樁 + 淡墨圓暈墨域(位於飛行串珠劍下層)
   const anchorFieldOn=(stat.tierFlags||{}).anchorField;
-  if(DRAWLV>=4) for(const A of G.anchors){
+  for(const A of G.anchors){
     const fade=Math.min(1, A.t/30);                       // 將盡時淡出
     // 墨域圓暈=小成 anchorField 才有;基礎劍樁只畫劍身
-    if(anchorFieldOn){
+    if(anchorFieldOn && DRAWLV>=4){
       const pulse=0.5+0.5*Math.sin(G.t*0.05+A.x*0.01);    // 圓暈緩慢翻滾
       ctx.save();
       ctx.globalAlpha=0.10*fade*(0.7+0.3*pulse);

@@ -13,7 +13,7 @@ globalThis.document={
 const { G,stat }=await import('../src/core.js');
 const {
   pathLen,leadInLen,bladeLength,inlineGap,formationOffset,
-  cmdLife,speedMul,durCost,autoCommandEndpoint,selectAutoTarget
+  cmdLife,speedMul,durCost,autoCommandEndpoint,selectAutoTarget,sampleTrailPoint,netManaSpend
 }=await import('../src/combat.js');
 
 test('path length and remote lead-in are deterministic',()=>{
@@ -73,4 +73,11 @@ test('automatic target selection ignores offscreen and out-of-range enemies',()=
   ];
   assert.equal(selectAutoTarget(enemies,player,220,12,enemy=>visible.has(enemy.id)).id,'near');
   assert.equal(selectAutoTarget([{x:260,y:0,r:20}],player,220,12),null);
+});
+
+
+test('mana refund reduces the actual command cost',()=>{
+  assert.equal(netManaSpend(50,0),50);
+  assert.equal(netManaSpend(50,0.2),40);
+  assert.equal(netManaSpend(50,2),0);
 });

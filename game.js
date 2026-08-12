@@ -805,7 +805,7 @@
     G.kills++;
     G.waveKills = (G.waveKills || 0) + 1;
     hooks2.dpsAdd("k", 1);
-    G.player.hp = Math.min(G.player.max, G.player.hp + stat.regen);
+    G.mana = Math.min(stat.manaMax, G.mana + (stat.regen || 0));
     if (runState) {
       const gained = INK_CONFIG.runtime.noteKill(runState, 1);
       if (gained.length) {
@@ -1287,6 +1287,50 @@
     if (formation === "inline") return { along: -inlineTipLead() - i * inlineGap(), side: 0 };
     return { along: 0, side: 0, ang: t * FAN_PHI, fan: true };
   }
+  function sampleTrailPoint(points, distance) {
+    if (!points?.length) return null;
+    let remain = Math.max(0, distance || 0);
+    for (let i = points.length - 1; i > 0; i--) {
+      const a2 = points[i - 1], b2 = points[i], dx = b2.x - a2.x, dy = b2.y - a2.y, len = Math.hypot(dx, dy);
+      if (len < 1e-4) continue;
+      if (remain <= len) {
+        const t = 1 - remain / len;
+        return { x: a2.x + dx * t, y: a2.y + dy * t, ang: Math.atan2(dy, dx) };
+      }
+      remain -= len;
+    }
+    const a = points[0], b = points[Math.min(1, points.length - 1)];
+    return { x: a.x, y: a.y, ang: Math.atan2(b.y - a.y, b.x - a.x) };
+  }
+  function seedInlineTrail(c) {
+    const need = inlineTipLead() + Math.max(0, c.slots - 1) * inlineGap() + 40;
+    const ux = Math.cos(c.ang), uy = Math.sin(c.ang), points = [];
+    for (let d = need; d > 0; d -= 20) points.push({ x: c.x - ux * d, y: c.y - uy * d });
+    points.push({ x: c.x, y: c.y });
+    c.inlineTrail = points;
+    c.inlineTrailMax = need + 80;
+  }
+  function appendInlineTrail(c) {
+    if (c.formation !== "inline") return;
+    if (!c.inlineTrail) seedInlineTrail(c);
+    const last = c.inlineTrail[c.inlineTrail.length - 1], dx = c.x - last.x, dy = c.y - last.y;
+    if (Math.hypot(dx, dy) > 0.25) c.inlineTrail.push({ x: c.x, y: c.y });
+    let total = 0, cut = 0;
+    for (let i = c.inlineTrail.length - 1; i > 0; i--) {
+      total += Math.hypot(c.inlineTrail[i].x - c.inlineTrail[i - 1].x, c.inlineTrail[i].y - c.inlineTrail[i - 1].y);
+      if (total > c.inlineTrailMax) {
+        cut = i - 1;
+        break;
+      }
+    }
+    if (cut > 0) c.inlineTrail.splice(0, cut);
+  }
+  function turnToward(from, to, limit = 0.24) {
+    let d = to - from;
+    while (d > Math.PI) d -= Math.PI * 2;
+    while (d < -Math.PI) d += Math.PI * 2;
+    return from + Math.max(-limit, Math.min(limit, d));
+  }
   function cmdLife(len) {
     const LM = window.INK_CONFIG && INK_CONFIG.lifeModel || { pixelsPerLife: 120, maxBonus: 12 };
     const bonus = Math.min(LM.maxBonus, Math.floor(Math.max(0, len) / LM.pixelsPerLife));
@@ -1483,6 +1527,9 @@
     }
     return out;
   }
+  function netManaSpend(gross, refund = 0) {
+    return Math.max(0, gross * (1 - Math.max(0, Math.min(1, refund || 0))));
+  }
   function launchCommand(path) {
     if (!path || path.length < 2) return;
     const s0 = path[0];
@@ -1526,7 +1573,8 @@
       G.reserveFlash = 1;
       hooks3.floatText?.(s0.x, s0.y - 14, "劍匣", "#c08a2e");
     } else {
-      const spend = Math.min(G.mana, stat.costBase + paidLen * perPx);
+      const gross = Math.min(G.mana, stat.costBase + paidLen * perPx);
+      const spend = netManaSpend(gross, stat.manaRefund);
       G.mana = Math.max(0, G.mana - spend);
       hooks3.dpsAdd?.("m", spend);
     }
@@ -1577,6 +1625,7 @@
       freeBack: false,
       passAt: buildStrokePasses(cut)
     };
+    if (c.formation === "inline") seedInlineTrail(c);
     G.commands.push(c);
     if (c.formation === "inline") spawnCmdSword(c, 0, 0);
     else for (let i = 0; i < n; i++) spawnCmdSword(c, i, 0);
@@ -1658,6 +1707,7 @@
         G.commands.splice(ci, 1);
         continue;
       }
+      appendInlineTrail(c);
       const ca = Math.cos(c.ang), sa = Math.sin(c.ang);
       for (let k = 0; k < c.slots; k++) {
         let sw = c.swords[k];
@@ -1688,13 +1738,14 @@
           sw.y = q.y;
           sw.ang = q.ang;
           sw.age++;
-          sw.trail.push({ x: sw.x, y: sw.y });
+          sw.trail.push({ x: sw.x, y: sw.y, ang: sw.ang, age: sw.age });
           if (sw.trail.length > 18) sw.trail.shift();
           continue;
         }
         let oa = off.along, os = off.side;
-        const nx = c.x + ca * oa - sa * os;
-        const ny = c.y + sa * oa + ca * os;
+        const follow = c.formation === "inline" ? sampleTrailPoint(c.inlineTrail, inlineTipLead() + k * inlineGap()) : null;
+        const nx = follow ? follow.x : c.x + ca * oa - sa * os;
+        const ny = follow ? follow.y : c.y + sa * oa + ca * os;
         if (sw.snap) {
           sw.px = nx;
           sw.py = ny;
@@ -1707,11 +1758,11 @@
         sw.vy = ny - sw.y;
         sw.x = nx;
         sw.y = ny;
-        sw.ang = c.ang + (off.ang || 0);
+        sw.ang = follow ? turnToward(sw.ang, follow.ang) : c.ang + (off.ang || 0);
         sw.age++;
         if (!c.free && c.passAt) sw.passId = c.passAt[Math.max(0, Math.min(c.passAt.length - 1, c.seg))] || 0;
         if (hooks3.getFX?.()?.trail) {
-          sw.trail.push({ x: sw.x, y: sw.y });
+          sw.trail.push({ x: sw.x, y: sw.y, ang: sw.ang, age: sw.age });
           if (sw.trail.length > 18) sw.trail.shift();
         } else if (sw.trail.length) sw.trail.length = 0;
       }
@@ -1818,7 +1869,7 @@
         s.y += s.vy;
         s.age++;
         if (hooks3.getFX?.()?.trail) {
-          s.trail.push({ x: s.x, y: s.y });
+          s.trail.push({ x: s.x, y: s.y, ang: s.ang, age: s.age });
           if (s.trail.length > 18) s.trail.shift();
         } else if (s.trail.length) s.trail.length = 0;
         if (s.x < -60 || s.x > W + 60 || s.y < -60 || s.y > H + 60) {
@@ -2024,7 +2075,7 @@
             hooks3.playCrit?.();
             hooks3.shake?.(4);
             hooks3.hitstop?.(3);
-            flash(0.12, "240,220,160");
+            hooks3.flash?.(0.12, "240,220,160");
             if (stat.whiteCut) {
               hooks3.whiteCut?.(s.x, s.y, s.ang);
               if (TF.whiteCutTwin) hooks3.whiteCut?.(s.x + (Math.random() - 0.5) * 18, s.y + (Math.random() - 0.5) * 18, s.ang + 1.1);
@@ -2415,6 +2466,9 @@
   function swMul(s) {
     return s && s.mergeScale && s.mergeScale !== 1 ? { size: s.mergeScale, alpha: 1 } : SW_FULL;
   }
+  function trailPose(point, fallbackAngle = 0) {
+    return { x: point?.x || 0, y: point?.y || 0, ang: Number.isFinite(point?.ang) ? point.ang : fallbackAngle };
+  }
   function drawJian(ctx2, s) {
     const FLYSWORD = hooks4.getFlyingSword?.();
     if (FLYSWORD.ok) {
@@ -2426,11 +2480,12 @@
         for (let g = 1; g <= 2; g++) {
           const q = s.trail[Math.max(0, s.trail.length - 1 - g * 3)];
           if (!q) continue;
+          const pose = trailPose(q, s.ang);
           ctx2.globalAlpha = 0.2 / g;
           const gw = (44 + stat.size * 0.9) * M.size * (1 - g * 0.08), gh = gw / FLYSWORD.aspect;
           ctx2.save();
-          ctx2.translate(q.x, q.y);
-          ctx2.rotate(s.ang);
+          ctx2.translate(pose.x, pose.y);
+          ctx2.rotate(pose.ang);
           ctx2.drawImage(FLYSWORD.image, -gw * FLYSWORD.grip, -gh / 2, gw, gh);
           ctx2.restore();
         }
@@ -2718,7 +2773,7 @@
       ctx.stroke();
       ctx.restore();
     }
-    if (DRAWLV >= 4 && G.anchorLinks.length) {
+    if (G.anchorLinks.length) {
       ctx.save();
       ctx.strokeStyle = "rgba(26,23,19,0.32)";
       ctx.lineWidth = 2.2;
@@ -2732,9 +2787,9 @@
       ctx.restore();
     }
     const anchorFieldOn = (stat.tierFlags || {}).anchorField;
-    if (DRAWLV >= 4) for (const A of G.anchors) {
+    for (const A of G.anchors) {
       const fade = Math.min(1, A.t / 30);
-      if (anchorFieldOn) {
+      if (anchorFieldOn && DRAWLV >= 4) {
         const pulse = 0.5 + 0.5 * Math.sin(G.t * 0.05 + A.x * 0.01);
         ctx.save();
         ctx.globalAlpha = 0.1 * fade * (0.7 + 0.3 * pulse);
@@ -2959,9 +3014,9 @@
     const SWDSPR = hooks4.getSwordSprite?.();
     const n = G.reserve, show = Math.min(n, 3);
     const BL = 34, gap = BL * 0.62;
-    const y = H - 30, flash2 = Math.max(0, G.reserveFlash);
+    const y = H - 30, flash = Math.max(0, G.reserveFlash);
     ctx.save();
-    ctx.globalAlpha = 0.86 + flash2 * 0.14;
+    ctx.globalAlpha = 0.86 + flash * 0.14;
     const im = SWDSPR.ok && SWDSPR.idle[0] && SWDSPR.idle[0].complete && SWDSPR.idle[0].naturalWidth ? SWDSPR.idle[0] : null;
     const totalW = (show - 1) * gap;
     for (let i = 0; i < show; i++) {
@@ -2998,8 +3053,8 @@
       ctx.fillText("×" + n, W / 2 + totalW / 2 + BL * 0.42, y - BL * 0.42);
       ctx.shadowColor = "transparent";
     }
-    if (flash2 > 0) {
-      ctx.globalAlpha = flash2 * 0.45;
+    if (flash > 0) {
+      ctx.globalAlpha = flash * 0.45;
       ctx.fillStyle = "rgba(246,240,226,1)";
       ctx.beginPath();
       ctx.ellipse(W / 2, y - BL * 0.35, totalW / 2 + BL * 0.7, BL * 0.75, 0, 0, 6.283);
@@ -4282,7 +4337,7 @@
     configureEnemy({
       floatText: (...args) => floatText(...args),
       playWave: () => SND.wave(),
-      flash: (...args) => flash2(...args),
+      flash: (...args) => flash(...args),
       shake: (...args) => shake(...args),
       ink: (...args) => ink(...args),
       playHit: () => SND.hit(),
@@ -4783,7 +4838,7 @@
     function hitstop(f) {
       G.hitstop = Math.max(G.hitstop, f);
     }
-    function flash2(a, c) {
+    function flash(a, c) {
       G.flash = Math.max(G.flash, a);
       G.flashC = c || "255,255,255";
     }
@@ -4940,7 +4995,7 @@
         G.mana = Math.min(stat.manaMax, G.mana + gained * GW.manaPerLevel);
         updateHUD();
         SND.level();
-        flash2(0.2, "246,240,214");
+        flash(0.2, "246,240,214");
         for (let k = 0; k < 14; k++) {
           const a = Math.random() * 6.283;
           ink(G.player.x, G.player.y, Math.cos(a) * 3.4, Math.sin(a) * 3.4, 10 + Math.random() * 12);
@@ -5542,7 +5597,7 @@
       G.wave++;
       SND.wave();
       SND.intensity(G.wave);
-      flash2(0.14, "250,244,226");
+      flash(0.14, "250,244,226");
       G.banner = { txt: "第 " + num2cn(G.wave) + " 境", life: 1 };
       updateHUD();
     }
@@ -6422,7 +6477,7 @@
         );
         stain(P.x, P.y + P.r * 0.6, P.r * 1.6, "44,38,32");
         shake(10);
-        flash2(0.14, "40,34,28");
+        flash(0.14, "40,34,28");
       }
       SND.over();
     }
@@ -6513,7 +6568,7 @@
       });
       floatText(G.player.x, G.player.y - 40, "劍意重塑", "#7a5a2b");
       SND.pick();
-      flash2(0.16, "240,232,210");
+      flash(0.16, "240,232,210");
       updateHUD();
     }
     function renderAutoBtn() {

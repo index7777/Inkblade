@@ -1,16 +1,16 @@
 # Graph Report - Inkblade  (2026-08-12)
 
 ## Corpus Check
-- 103 files · ~11,103,128 words
+- 103 files · ~11,119,177 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 3084 nodes · 5120 edges · 145 communities (131 shown, 14 thin omitted)
-- Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 10 edges (avg confidence: 0.53)
+- 3091 nodes · 5141 edges · 146 communities (132 shown, 14 thin omitted)
+- Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 11 edges (avg confidence: 0.55)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `6804b50f`
+- Built from commit: `fcaefd23`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -57,7 +57,7 @@
 - cfg_v48.js
 - properties
 - package.json
-- assetType
+- update
 - v88/data/game-config.js
 - properties
 - 墨劍訣 · 類別純化(劍陣不夾帶他類)分析與重設計
@@ -158,26 +158,27 @@
 - 全卡片功能與相容／互斥矩陣
 - replacementAssetId
 - runtimeResource
+- assetType
 
 ## God Nodes (most connected - your core abstractions)
 1. `墨劍訣 · 變更記錄(Ink Engine 整合)` - 112 edges
-2. `update()` - 28 edges
-3. `play()` - 21 edges
+2. `update()` - 30 edges
+3. `updateCombat()` - 22 edges
 4. `play()` - 21 edges
 5. `play()` - 21 edges
 6. `play()` - 21 edges
-7. `play()` - 20 edges
+7. `play()` - 21 edges
 8. `play()` - 20 edges
 9. `play()` - 20 edges
-10. `updateHUD()` - 19 edges
+10. `play()` - 20 edges
 
 ## Surprising Connections (you probably didn't know these)
+- `update()` --indirect_call--> `onScreen()`  [INFERRED]
+  src/main.js → src/enemy.js
 - `start()` --indirect_call--> `computePlayTop()`  [INFERRED]
   src/main.js → src/viewport.js
 - `move()` --calls--> `leadInLen()`  [EXTRACTED]
   src/main.js → src/combat.js
-- `draw()` --calls--> `leadInLen()`  [EXTRACTED]
-  src/render.js → src/combat.js
 - `drawStrokeCost()` --calls--> `cmdLife()`  [EXTRACTED]
   src/render.js → src/combat.js
 - `update()` --calls--> `nearestEnemy()`  [EXTRACTED]
@@ -186,7 +187,7 @@
 ## Import Cycles
 - None detected.
 
-## Communities (145 total, 14 thin omitted)
+## Communities (146 total, 14 thin omitted)
 
 ### Community 0 - "ASSET_RECIPE_SCHEMA.md"
 Cohesion: 0.02
@@ -209,8 +210,8 @@ Cohesion: 0.03
 Nodes (60): 10. Workflow Registry, 11. Model Profile, 12. Prompt Construction, 13. Candidate Count, 14. Seed Policy, 15. POC First Rule, 16. POC Purpose, 17. POC Animation Minimum (+52 more)
 
 ### Community 5 - "main.js"
-Cohesion: 0.04
-Nodes (83): resetBootClock(), beginXuanmingWave(), spawnEnemy(), spawnNetherSpider(), spawnXuanmingBoss(), updateBossShots(), waveDifficulty(), waveEnemyKind() (+75 more)
+Cohesion: 0.05
+Nodes (68): resetBootClock(), advanceRealm(), allowedLen(), applyOpeningVars(), artTierName(), beginDeath(), bisectDraw(), bisectMicro() (+60 more)
 
 ### Community 6 - "Repository subsystem map"
 Cohesion: 0.20
@@ -237,12 +238,12 @@ Cohesion: 0.05
 Nodes (36): `assets/scenes/dunhuang-bg.png`, `assets/scenes/dunhuang-motes.png`, `assets/scenes/dunhuang-near.png`, `assets/scenes/huangquan-bg.png`, `assets/scenes/huangquan-motes.png`, `assets/scenes/huangquan-near.png`, `assets/scenes/jiangnan-bg.png`, `assets/scenes/jiangnan-motes.png` (+28 more)
 
 ### Community 13 - "render.js"
-Cohesion: 0.10
-Nodes (44): supHash(), warmSwordTint(), bakeHero(), bakeHeroF(), buildCracks(), buildPaper(), configureRender(), draw() (+36 more)
+Cohesion: 0.09
+Nodes (46): leadInLen(), supHash(), applyIntent(), warmSwordTint(), bakeHero(), bakeHeroF(), buildCracks(), buildPaper() (+38 more)
 
 ### Community 14 - "combat.js"
 Cohesion: 0.09
-Nodes (39): bladeLength(), buildStrokePasses(), canReturn(), cmdLife(), configureCombat(), detonateAnchor(), durCost(), extendCommand() (+31 more)
+Nodes (43): appendInlineTrail(), bladeLength(), buildStrokePasses(), canReturn(), cmdLife(), configureCombat(), detonateAnchor(), durCost() (+35 more)
 
 ### Community 15 - "劍稟"
 Cohesion: 0.06
@@ -253,8 +254,8 @@ Cohesion: 0.09
 Nodes (35): applyInsight(), applyOperation(), canOfferInsight(), canPurchaseRebirth(), clampAllStats(), clearAllStatus(), clone(), createPermanentState() (+27 more)
 
 ### Community 17 - "enemy.js"
-Cohesion: 0.15
-Nodes (23): BOSS_PLAYER_Y_RATIO, bossDissolveMist(), bossMoveToSide(), bossOrbitRadius(), bossPhase(), bossSafeSide(), bossVisualLift(), completeXuanmingWave() (+15 more)
+Cohesion: 0.13
+Nodes (26): beginXuanmingWave(), BOSS_PLAYER_Y_RATIO, bossDissolveMist(), bossMoveToSide(), bossOrbitRadius(), bossPhase(), bossSafeSide(), bossVisualLift() (+18 more)
 
 ### Community 18 - "墨劍訣 · 戰鬥 v2 設計(站樁畫劍 × 彈幕抵銷 × 精英/BOSS × 60 波關卡)"
 Cohesion: 0.08
@@ -269,8 +270,8 @@ Cohesion: 0.18
 Nodes (10): additionalProperties, description, $id, required, $schema, title, type, assets (+2 more)
 
 ### Community 21 - "viewport.js"
-Cohesion: 0.07
-Nodes (29): bindBootEvents(), bindClick(), configureBoot(), gameLoop(), hooks, perfBuf, startBoot(), watchPerf() (+21 more)
+Cohesion: 0.08
+Nodes (26): bindBootEvents(), bindClick(), configureBoot(), gameLoop(), hooks, perfBuf, startBoot(), watchPerf() (+18 more)
 
 ### Community 22 - "三、分階段遷移(每階段可跑・可回滾・可驗收)"
 Cohesion: 0.10
@@ -339,6 +340,10 @@ Nodes (13): type, type, type, license, additionalProperties, properties, type, a
 ### Community 41 - "package.json"
 Cohesion: 0.13
 Nodes (14): esbuild, description, devDependencies, esbuild, name, private, scripts, build (+6 more)
+
+### Community 42 - "update"
+Cohesion: 0.16
+Nodes (16): autoCommandEndpoint(), selectAutoTarget(), spawnEnemy(), spawnNetherSpider(), updateBossShots(), waveDifficulty(), waveEnemyKind(), dmgTo() (+8 more)
 
 ### Community 43 - "v88/data/game-config.js"
 Cohesion: 0.09
@@ -716,7 +721,7 @@ _Questions this graph is uniquely positioned to answer:_
   _High betweenness centrality (0.004) - this node is a cross-community bridge._
 - **Why does `$defs` connect `$defs` to `enum`, `enum`, `properties`, `runtime`, `properties`, `required`, `asset_manifest.schema.json`, `enum`?**
   _High betweenness centrality (0.003) - this node is a cross-community bridge._
-- **Why does `properties` connect `properties` to `packageId`, `version`, `assetType`, `outputProfileId`, `replacementAssetId`, `review`, `runtimeResource`, `sourceRecipeId`, `sourceFiles`, `required`?**
+- **Why does `properties` connect `properties` to `packageId`, `version`, `outputProfileId`, `replacementAssetId`, `review`, `assetType`, `runtimeResource`, `sourceRecipeId`, `sourceFiles`, `required`?**
   _High betweenness centrality (0.002) - this node is a cross-community bridge._
 - **What connects `$schema`, `$id`, `title` to the rest of the system?**
   _1129 weakly-connected nodes found - possible documentation gaps or missing edges._

@@ -5,8 +5,8 @@
     "semantic_hash": ""
   },
   "data/game-config.js": {
-    "mtime": 1786505469.58941,
-    "ast_hash": "5bfa4f941d1d4ddee24a2834861a93ed",
+    "mtime": 1786530623.1603024,
+    "ast_hash": "37c2b3c8c883944f0e3e4b8bacb9fb65",
     "semantic_hash": ""
   },
   "data/sound-system.js": {
@@ -30,8 +30,8 @@
     "semantic_hash": ""
   },
   "src/enemy.js": {
-    "mtime": 1786437751.3179183,
-    "ast_hash": "d3f2d030c198fa40e83a964b864a43cd",
+    "mtime": 1786527353.0744507,
+    "ast_hash": "c856dcfc7b51403a27136caafec8d642",
     "semantic_hash": ""
   },
   "src/geom.js": {
@@ -2040,18 +2040,18 @@
     "semantic_hash": ""
   },
   "src/combat.js": {
-    "mtime": 1786511682.4614322,
-    "ast_hash": "f675f5cfc49c734ccba4bfc46595766b",
+    "mtime": 1786533086.506901,
+    "ast_hash": "1cd83d6bfe4ef4e8052183325fcafdc1",
     "semantic_hash": ""
   },
   "test/combat.test.js": {
-    "mtime": 1786511717.5423565,
-    "ast_hash": "4568373b09544054df56b6be6a0609f2",
+    "mtime": 1786527698.6846383,
+    "ast_hash": "3c68d2bde18937cd5613670f594603c9",
     "semantic_hash": ""
   },
   "src/render.js": {
-    "mtime": 1786441597.4282405,
-    "ast_hash": "7ea2a86baf89e4a50af051de70cba3c4",
+    "mtime": 1786533255.1209173,
+    "ast_hash": "713329b35d212f7cda03be6eba4762e2",
     "semantic_hash": ""
   },
   "src/ui.js": {
@@ -2677,6 +2677,56 @@
   "test/boot-loop.test.js": {
     "mtime": 1786505470.1674256,
     "ast_hash": "807a9632c60425957da7b3bf1f944875",
+    "semantic_hash": ""
+  },
+  "artifacts/visual-smoke/auto-sword-mobile-390x844.png": {
+    "mtime": 1786512072.3898852,
+    "ast_hash": "adefce3bf431ce7ec2551c0803b88cc8",
+    "semantic_hash": ""
+  },
+  "artifacts/visual-smoke/auto-sword-pc.png": {
+    "mtime": 1786512047.3744004,
+    "ast_hash": "a8bd217e908ad0d17c332cf187193cd4",
+    "semantic_hash": ""
+  },
+  "artifacts/visual-smoke/inline-chain-curve-mobile-390x844.png": {
+    "mtime": 1786513350.931667,
+    "ast_hash": "8d112498df12bda2032d616146009f20",
+    "semantic_hash": ""
+  },
+  "artifacts/visual-smoke/inline-chain-curve-pc-2.png": {
+    "mtime": 1786513289.7013147,
+    "ast_hash": "b5c7e1a6c25259a3053d32702109544a",
+    "semantic_hash": ""
+  },
+  "artifacts/visual-smoke/inline-chain-curve-pc.png": {
+    "mtime": 1786513280.3536785,
+    "ast_hash": "e5b2fdd998439fa7d12a4e016b7e4429",
+    "semantic_hash": ""
+  },
+  "artifacts/visual-smoke/inline-chain-follow-turn.png": {
+    "mtime": 1786513300.6229448,
+    "ast_hash": "61b049773f758f0abb40f2879b51f0ad",
+    "semantic_hash": ""
+  },
+  "artifacts/visual-smoke/anchor-low-quality-mobile-390x844.png": {
+    "mtime": 1786514002.106431,
+    "ast_hash": "85df171e5c9ac5c97dd484402de80050",
+    "semantic_hash": ""
+  },
+  "artifacts/visual-smoke/card-copy-mobile-390x844.png": {
+    "mtime": 1786527613.0235124,
+    "ast_hash": "a0f46331b4f6110752029bfe45f0523e",
+    "semantic_hash": ""
+  },
+  "artifacts/visual-smoke/card-copy-pc.png": {
+    "mtime": 1786527621.0607622,
+    "ast_hash": "66f2aa2292793ba69205fc71c28aab21",
+    "semantic_hash": ""
+  },
+  "artifacts/visual-smoke/swift-card-mobile-390x844.png": {
+    "mtime": 1786530789.2918632,
+    "ast_hash": "b7373910a4d8e888befa531f39d64704",
     "semantic_hash": ""
   }
 }
