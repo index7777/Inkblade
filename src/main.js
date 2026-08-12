@@ -3,7 +3,7 @@ import { G, stat } from './core.js';
 import { HERO_VISUAL_SCALE, HERO_BODY_SCALE, FAN_PHI, BASE_SPEED, MERGE_SPEED_K, MERGE_WIDTH_K, SOLO_TURN, HOMING_RANGE } from './constants.js';
 import { cv, ctx, W, H, DPR, PLAY_TOP, qual, applyQuality, resize, computePlayTop, configureViewport, startViewport, setDPR } from './viewport.js';
 import { onScreen, waveDifficulty, spawnEnemy, spawnNetherSpider, configureEnemy, BOSS_PLAYER_Y_RATIO, spawnXuanmingBoss, beginXuanmingWave, completeXuanmingWave, bossPhase, bossOrbitRadius, bossVisualLift, placeBoss, nextBossManifest, updateBossP1, updateEnemies, killEnemy, spawnSpiderWebShot, updateBossShots, inkCoreDissolve } from './enemy.js';
-import { configureCombat, pathLen, leadInLen, bladeLength, inlineGap, inlineTipLead, fanPose, formationOffset, cmdLife, speedMul, durCost, spawnCmdSword, nearestEnemy, extendCommand, spawnAutoCommand, buildStrokePasses, launchCommand, canReturn, launchSword, updateCombat } from './combat.js';
+import { configureCombat, pathLen, leadInLen, bladeLength, inlineGap, inlineTipLead, fanPose, formationOffset, cmdLife, speedMul, durCost, spawnCmdSword, nearestEnemy, extendCommand, spawnAutoCommand, buildStrokePasses, launchCommand, canReturn, launchSword, autoCommandEndpoint, selectAutoTarget, updateCombat } from './combat.js';
 import { configureRender, invalidatePaper, drawSplash, drawMistDissolve, swordFxTrail, drawBossShots, enemyVariantFrame, drawSwordSprite, drawInkFlyingSword, swMul, drawJian, drawTassel, heroSet, drawHero, tintFrame, drawEnemies, drawPlayer, draw, ensureSupV, ensureEroV } from './render.js';
 import { configureUI, num2cn, setTxt, setW, resetHudCache, renderManaBill, updateHUD, levelChoiceOpen, drawCards, drawStartingFormations, rerollCards, tryLevelUp, resetLevelChoice, isPausedByUser, resetPauseState, togglePause, renderVolumeSettings, bindVolumeSettings, toggleSound, renderSoundButton, bindSettingsSegments, bindPauseTabs, renderMeta as uiRenderMeta, openMeta as uiOpenMeta, closeMeta as uiCloseMeta, resetRespecConfirmation, renderRespec as uiRenderRespec, requestRespec, renderHeroChoices as uiRenderHeroChoices, bindHeroChoices, renderShop as uiRenderShop, openShop as uiOpenShop, closeShop as uiCloseShop, renderTierList as uiRenderTierList, enableDragScroll as uiEnableDragScroll } from './ui.js';
 import { configureBoot, resetBootClock, bindBootEvents, startBoot } from './boot.js';
@@ -1090,9 +1090,9 @@ function update(){
   if(G.auto){
     G.autoTimer++;
     if(G.autoTimer>=34){
-      let best=null,bd=1e9;
-      for(const en of G.enemies){ if(!onScreen(en)) continue;      // 不朝畫面外的墨獸出劍
-        const dd=(en.x-P.x)**2+(en.y-P.y)**2; if(dd<bd){bd=dd;best=en;} }
+      const AUTO_STROKE_MAX=220;
+      const contactPadding=stat.size+(stat.hitPadding||0);
+      const best=selectAutoTarget(G.enemies,P,AUTO_STROKE_MAX,contactPadding,onScreen);
       if(best){
         const aim=Math.atan2(best.y-P.y,best.x-P.x);
         let ang=aim;
@@ -1112,9 +1112,13 @@ function update(){
         }
         // 自動御劍固定由玩家中心出發；陣型補正只作用於終點。
         const nx=-Math.sin(ang)*shift, ny=Math.cos(ang)*shift;
-        const tx=stat.formation==='parallel'?best.x+nx:P.x+Math.cos(ang)*Math.hypot(best.x-P.x,best.y-P.y);
-        const ty=stat.formation==='parallel'?best.y+ny:P.y+Math.sin(ang)*Math.hypot(best.x-P.x,best.y-P.y);
-        const want=Math.hypot(tx-P.x,ty-P.y);
+        const target={
+          x:stat.formation==='parallel'?best.x+nx:P.x+Math.cos(ang)*Math.hypot(best.x-P.x,best.y-P.y),
+          y:stat.formation==='parallel'?best.y+ny:P.y+Math.sin(ang)*Math.hypot(best.x-P.x,best.y-P.y)
+        };
+        // 只畫到劍的掃掠半徑能碰到敵人外緣的位置；不再為命中中心支付整段距離。
+        const endpoint=autoCommandEndpoint(P,target,AUTO_STROKE_MAX,(best.r||0)+contactPadding);
+        const tx=endpoint.x,ty=endpoint.y,want=endpoint.length;
         if(allowedLen()+.01>=want){
           const before=G.mana; launchSword([{x:P.x,y:P.y},{x:tx,y:ty}]);
           if(G.mana<before){ G.autoUsed=true; G.autoTimer=0; } else { G.autoTimer=28; }

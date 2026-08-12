@@ -1246,6 +1246,27 @@
   function inlineTipLead() {
     return bladeLength() * 0.8;
   }
+  function autoCommandEndpoint(player, target, maxStroke = 220, contactReach = 0) {
+    if (!player || !target) return null;
+    const dx = target.x - player.x, dy = target.y - player.y, distance = Math.hypot(dx, dy);
+    if (distance <= 0) return { x: player.x, y: player.y, length: 0 };
+    const length = Math.min(maxStroke, Math.max(0, distance - Math.max(0, contactReach)));
+    return { x: player.x + dx / distance * length, y: player.y + dy / distance * length, length };
+  }
+  function selectAutoTarget(enemies, player, maxStroke = 220, contactReach = 0, isVisible = () => true) {
+    if (!player) return null;
+    let best = null, bestDistance = Infinity;
+    for (const enemy of enemies || []) {
+      if (!enemy || !isVisible(enemy)) continue;
+      const distance = Math.hypot(enemy.x - player.x, enemy.y - player.y);
+      const reach = maxStroke + Math.max(0, contactReach) + (enemy.r || 0);
+      if (distance <= reach && distance < bestDistance) {
+        best = enemy;
+        bestDistance = distance;
+      }
+    }
+    return best;
+  }
   function fanPose(c, a) {
     const dx = c.x - c.ox, dy = c.y - c.oy, ca = Math.cos(a), sa = Math.sin(a);
     let x = c.ox + dx * ca - dy * sa, y = c.oy + dx * sa + dy * ca;
@@ -5211,15 +5232,9 @@
       if (G.auto) {
         G.autoTimer++;
         if (G.autoTimer >= 34) {
-          let best = null, bd = 1e9;
-          for (const en of G.enemies) {
-            if (!onScreen(en)) continue;
-            const dd = (en.x - P.x) ** 2 + (en.y - P.y) ** 2;
-            if (dd < bd) {
-              bd = dd;
-              best = en;
-            }
-          }
+          const AUTO_STROKE_MAX = 220;
+          const contactPadding = stat.size + (stat.hitPadding || 0);
+          const best = selectAutoTarget(G.enemies, P, AUTO_STROKE_MAX, contactPadding, onScreen);
           if (best) {
             const aim = Math.atan2(best.y - P.y, best.x - P.x);
             let ang = aim;
@@ -5243,9 +5258,12 @@
               shift = -bo;
             }
             const nx = -Math.sin(ang) * shift, ny = Math.cos(ang) * shift;
-            const tx = stat.formation === "parallel" ? best.x + nx : P.x + Math.cos(ang) * Math.hypot(best.x - P.x, best.y - P.y);
-            const ty = stat.formation === "parallel" ? best.y + ny : P.y + Math.sin(ang) * Math.hypot(best.x - P.x, best.y - P.y);
-            const want = Math.hypot(tx - P.x, ty - P.y);
+            const target = {
+              x: stat.formation === "parallel" ? best.x + nx : P.x + Math.cos(ang) * Math.hypot(best.x - P.x, best.y - P.y),
+              y: stat.formation === "parallel" ? best.y + ny : P.y + Math.sin(ang) * Math.hypot(best.x - P.x, best.y - P.y)
+            };
+            const endpoint = autoCommandEndpoint(P, target, AUTO_STROKE_MAX, (best.r || 0) + contactPadding);
+            const tx = endpoint.x, ty = endpoint.y, want = endpoint.length;
             if (allowedLen() + 0.01 >= want) {
               const before = G.mana;
               launchSword([{ x: P.x, y: P.y }, { x: tx, y: ty }]);

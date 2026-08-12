@@ -13,7 +13,7 @@ globalThis.document={
 const { G,stat }=await import('../src/core.js');
 const {
   pathLen,leadInLen,bladeLength,inlineGap,formationOffset,
-  cmdLife,speedMul,durCost
+  cmdLife,speedMul,durCost,autoCommandEndpoint,selectAutoTarget
 }=await import('../src/combat.js');
 
 test('path length and remote lead-in are deterministic',()=>{
@@ -51,4 +51,26 @@ test('speed damage multiplier and armor durability cost retain balance rules',()
   assert.ok(Math.abs(durCost(40)-4/3)<1e-12);
   stat.armor=-10;
   assert.equal(durCost(40),4);
+});
+
+test('automatic command ends at contact range and caps stroke length',()=>{
+  const player={x:0,y:0};
+  assert.deepEqual(autoCommandEndpoint(player,{x:100,y:0},220,30),{x:70,y:0,length:70});
+  assert.deepEqual(autoCommandEndpoint(player,{x:500,y:0},220,30),{x:220,y:0,length:220});
+  const diagonal=autoCommandEndpoint(player,{x:300,y:400},220,30);
+  assert.equal(diagonal.length,220);
+  assert.ok(Math.abs(diagonal.x-132)<1e-12);
+  assert.ok(Math.abs(diagonal.y-176)<1e-12);
+});
+
+test('automatic target selection ignores offscreen and out-of-range enemies',()=>{
+  const player={x:0,y:0}, visible=new Set(['near','far']);
+  const enemies=[
+    {id:'hidden',x:20,y:0,r:10},
+    {id:'far',x:260,y:0,r:20},
+    {id:'near',x:180,y:0,r:10},
+    {id:'beyond',x:400,y:0,r:100}
+  ];
+  assert.equal(selectAutoTarget(enemies,player,220,12,enemy=>visible.has(enemy.id)).id,'near');
+  assert.equal(selectAutoTarget([{x:260,y:0,r:20}],player,220,12),null);
 });

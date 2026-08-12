@@ -22,6 +22,26 @@ export function bladeLength(){ return 44 + stat.size*0.9; }
 export function inlineGap(){ return bladeLength() + 28; }
 export function inlineTipLead(){ return bladeLength() * 0.8; }
 
+export function autoCommandEndpoint(player,target,maxStroke=220,contactReach=0){
+  if(!player||!target) return null;
+  const dx=target.x-player.x,dy=target.y-player.y,distance=Math.hypot(dx,dy);
+  if(distance<=0) return {x:player.x,y:player.y,length:0};
+  const length=Math.min(maxStroke,Math.max(0,distance-Math.max(0,contactReach)));
+  return {x:player.x+dx/distance*length,y:player.y+dy/distance*length,length};
+}
+
+export function selectAutoTarget(enemies,player,maxStroke=220,contactReach=0,isVisible=()=>true){
+  if(!player) return null;
+  let best=null,bestDistance=Infinity;
+  for(const enemy of enemies||[]){
+    if(!enemy||!isVisible(enemy)) continue;
+    const distance=Math.hypot(enemy.x-player.x,enemy.y-player.y);
+    const reach=maxStroke+Math.max(0,contactReach)+(enemy.r||0);
+    if(distance<=reach&&distance<bestDistance){ best=enemy; bestDistance=distance; }
+  }
+  return best;
+}
+
 export function fanPose(c, a){
   const dx=c.x-c.ox, dy=c.y-c.oy, ca=Math.cos(a), sa=Math.sin(a);
   let x=c.ox + dx*ca - dy*sa, y=c.oy + dx*sa + dy*ca;
