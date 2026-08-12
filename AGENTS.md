@@ -7,6 +7,61 @@
 
 This repository is the existing browser-based Inkblade game, detected from `package.json`, `src/`, `data/`, and the HTML entry points. Authoritative product source roots are `src/` and `data/`; `inkblade.html` and `index.html` are authored runtime entry points. `game.js` is the confirmed esbuild bundle produced by `npm run build` and is not authoritative source.
 
+
+## Mandatory tool-compliance gate
+
+For any task that may modify authoritative product source, tests, schemas, build configuration, or runtime behavior, complete this gate **before the first edit**. This is a required workflow, not a recommendation.
+
+1. Read the applicable repository instructions in this `AGENTS.md`.
+2. Discover required deferred tools before concluding that a tool is unavailable. A tool not appearing in the initially expanded tool list is **not** evidence that it is unavailable.
+3. When Serena is installed/available:
+   - invoke Serena `initial_instructions` (or the equivalent initialization step);
+   - activate the Inkblade project at `C:\Inkblade`;
+   - use Serena to inspect the target named symbols, their references, and only the relevant symbol bodies before editing.
+4. Use Graphify to inspect architecture, dependencies, paths, and blast radius before editing. When `graphify-out/graph.json` exists, prefer scoped `graphify query`, `graphify path`, or `graphify explain` as described below.
+5. Use `rg` / structured parsing for exact strings, JSON, manifests, metadata, filenames, and other non-symbol searches. Do not substitute `rg` or broad file reads for Serena symbol/reference navigation when Serena is available.
+6. Only after steps 1–5 may product edits begin.
+
+If Serena is genuinely unavailable or fails:
+
+- stop before editing and explicitly record the exact failure/unavailability reason;
+- record what discovery/initialization was attempted;
+- use Graphify + `rg` + minimum targeted source reads as the fallback;
+- do not claim or imply that Serena was used;
+- re-run Serena-based symbol/reference validation later in the same task if Serena becomes available.
+
+Any product edit performed before this gate is complete is **non-compliant**. Before declaring the task complete, the affected symbols and references must be revalidated with Serena (when available), and the final report must disclose the gate violation.
+
+### Required tool plan and evidence
+
+Before editing, maintain a concise task-local tool plan covering the tools relevant to the task, for example:
+
+```text
+Tool plan
+- Graphify: architecture / dependency / blast radius
+- Serena: named symbols / references / targeted bodies
+- rg / structured parsing: literals / JSON / manifests / metadata
+- Browser: visual smoke test when required
+```
+
+Before declaring completion, report tool-compliance evidence in this form:
+
+```text
+AGENTS compliance: PASS | FAIL
+Serena discovered: YES | NO
+Serena used: YES | NO
+Serena project: C:\Inkblade | N/A
+Serena symbols/references checked: <names or N/A>
+Graphify used: YES | NO
+Graphify updated after code changes: YES | NO | N/A
+Fallback used: YES | NO
+Fallback reason: <exact reason or N/A>
+Required build/tests/checks: PASS | FAIL | N/A
+Required visual smoke test: PASS | FAIL | N/A
+```
+
+A completion claim is not allowed when this evidence shows a required gate or verification step was skipped.
+
 ## Repository exploration
 
 - Use Graphify for architecture, dependency, path, and blast-radius discovery.
