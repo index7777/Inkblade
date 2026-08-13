@@ -1,16 +1,16 @@
-# Graph Report - Inkblade  (2026-08-14)
+# Graph Report - Inkblade  (2026-08-13)
 
 ## Corpus Check
-- 119 files · ~11,870,278 words
+- 111 files · ~11,130,574 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 3290 nodes · 5384 edges · 163 communities (144 shown, 19 thin omitted)
+- 3256 nodes · 5335 edges · 156 communities (142 shown, 14 thin omitted)
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 11 edges (avg confidence: 0.55)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `774ea47c`
+- Built from commit: `5e3bfd6a`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -56,7 +56,7 @@
 - cfg_v47.js
 - cfg_v48.js
 - properties
-- scripts
+- package.json
 - animation-architecture.test.js
 - v88/data/game-config.js
 - properties
@@ -125,7 +125,7 @@
 - [2026-08-09] #84 移除滑過去的音效;效果文字把「幾成傷」改成看得懂的基準
 - cfg_v37.js
 - vercel.json
-- replacementAssetId
+- outputProfileId
 - cfg_v38.js
 - review
 - cfg_v39.js
@@ -152,11 +152,12 @@
 - snd_v7.js
 - snd_v5.js
 - properties
-- runtimeResource
+- runtime
 - VISUAL-SMOKE-TEST.md
 - UI-BASELINE.md
 - 全卡片功能與相容／互斥矩陣
-- runtime
+- replacementAssetId
+- runtimeResource
 - properties
 - required
 - properties
@@ -165,17 +166,9 @@
 - point
 - properties
 - actor-animation-manifest.schema.json
-- art_pipeline.py
 - enum
 - enum
-- animations
-- control/README.md
-- ink_blade_walk.md
-- comfyui/README.md
-- ink_blade/README.md
-- source/README.md
-- runtime
-- outputProfileId
+- assetType
 
 ## God Nodes (most connected - your core abstractions)
 1. `墨劍訣 · 變更記錄(Ink Engine 整合)` - 112 edges
@@ -194,17 +187,17 @@
   src/main.js → src/enemy.js
 - `start()` --indirect_call--> `computePlayTop()`  [INFERRED]
   src/main.js → src/viewport.js
-- `start()` --calls--> `resetBootClock()`  [EXTRACTED]
-  src/main.js → src/boot.js
 - `move()` --calls--> `leadInLen()`  [EXTRACTED]
   src/main.js → src/combat.js
-- `drawStrokeCost()` --calls--> `cmdLife()`  [EXTRACTED]
-  src/render.js → src/combat.js
+- `update()` --calls--> `nearestEnemy()`  [EXTRACTED]
+  src/main.js → src/combat.js
+- `update()` --calls--> `spawnAutoCommand()`  [EXTRACTED]
+  src/main.js → src/combat.js
 
 ## Import Cycles
 - None detected.
 
-## Communities (163 total, 19 thin omitted)
+## Communities (156 total, 14 thin omitted)
 
 ### Community 0 - "ASSET_RECIPE_SCHEMA.md"
 Cohesion: 0.02
@@ -227,8 +220,8 @@ Cohesion: 0.03
 Nodes (60): 10. Workflow Registry, 11. Model Profile, 12. Prompt Construction, 13. Candidate Count, 14. Seed Policy, 15. POC First Rule, 16. POC Purpose, 17. POC Animation Minimum (+52 more)
 
 ### Community 5 - "main.js"
-Cohesion: 0.05
-Nodes (79): autoCommandEndpoint(), selectAutoTarget(), updateBossShots(), advanceRealm(), allowedLen(), applyOpeningVars(), artTierName(), beginDeath() (+71 more)
+Cohesion: 0.04
+Nodes (79): resetBootClock(), autoCommandEndpoint(), selectAutoTarget(), updateBossShots(), advanceRealm(), allowedLen(), applyOpeningVars(), artTierName() (+71 more)
 
 ### Community 6 - "Repository subsystem map"
 Cohesion: 0.20
@@ -236,7 +229,7 @@ Nodes (9): Assets and content, Audit gaps, Enemy and boss, Gameplay source, Geom
 
 ### Community 7 - "data/game-config.js"
 Cohesion: 0.08
-Nodes (41): applyInsight(), applyInsightEffects(), applyOperation(), canOfferInsight(), canPurchaseRebirth(), chooseActiveTruth(), chooseStartingFormation(), clampAllStats() (+33 more)
+Nodes (40): applyInsight(), applyInsightEffects(), applyOperation(), canOfferInsight(), canPurchaseRebirth(), chooseActiveTruth(), chooseStartingFormation(), clampAllStats() (+32 more)
 
 ### Community 8 - "墨劍訣 · Inkblade"
 Cohesion: 0.05
@@ -256,11 +249,11 @@ Nodes (36): `assets/scenes/dunhuang-bg.png`, `assets/scenes/dunhuang-motes.png`,
 
 ### Community 13 - "render.js"
 Cohesion: 0.08
-Nodes (51): leadInLen(), supHash(), applyIntent(), warmSwordTint(), bakeHero(), bakeHeroF(), buildCracks(), buildPaper() (+43 more)
+Nodes (52): cmdLife(), leadInLen(), supHash(), applyIntent(), warmSwordTint(), bakeHero(), bakeHeroF(), buildCracks() (+44 more)
 
 ### Community 14 - "combat.js"
 Cohesion: 0.09
-Nodes (43): appendInlineTrail(), bladeLength(), buildStrokePasses(), canReturn(), cmdLife(), configureCombat(), detonateAnchor(), durCost() (+35 more)
+Nodes (42): appendInlineTrail(), bladeLength(), buildStrokePasses(), canReturn(), configureCombat(), detonateAnchor(), durCost(), extendCommand() (+34 more)
 
 ### Community 15 - "劍稟"
 Cohesion: 0.06
@@ -288,7 +281,7 @@ Nodes (10): additionalProperties, description, $id, schemaVersion, required, $sc
 
 ### Community 21 - "viewport.js"
 Cohesion: 0.07
-Nodes (29): bindBootEvents(), bindClick(), configureBoot(), gameLoop(), hooks, perfBuf, resetBootClock(), startBoot() (+21 more)
+Nodes (28): bindBootEvents(), bindClick(), configureBoot(), gameLoop(), hooks, perfBuf, startBoot(), watchPerf() (+20 more)
 
 ### Community 22 - "三、分階段遷移(每階段可跑・可回滾・可驗收)"
 Cohesion: 0.10
@@ -315,8 +308,8 @@ Cohesion: 0.11
 Nodes (17): 10. 實作策略, 11.1 手機安全邊界與斬妖數互動（2026-08-10）, 11. 驗收清單, 1. 設計目標, 2. 配色, 3. 字體, 4.1 狀態條, 4.2 圓形墨鈕 (+9 more)
 
 ### Community 30 - "Three Kingdoms Online (legacy, not applicable here)"
-Cohesion: 0.08
-Nodes (23): Architecture rules, Asset capability, Character-progression rules, Death-risk and economy-observability rules, graphify, Guild, city, and siege rules, Guild economy and multi-city rules, Historical chapter content rules (+15 more)
+Cohesion: 0.09
+Nodes (21): Architecture rules, Asset capability, Character-progression rules, Death-risk and economy-observability rules, graphify, Guild, city, and siege rules, Guild economy and multi-city rules, Historical chapter content rules (+13 more)
 
 ### Community 31 - "enum"
 Cohesion: 0.12
@@ -332,7 +325,7 @@ Nodes (53): applyBattleMode(), bindHeroChoices(), bindPauseTabs(), bindSettingGr
 
 ### Community 35 - "properties"
 Cohesion: 0.13
-Nodes (15): $ref, properties, $ref, $ref, $ref, animationContractId, assetId, assetType (+7 more)
+Nodes (15): $ref, properties, $ref, $ref, animationContractId, assetId, license, provenance (+7 more)
 
 ### Community 36 - "$defs"
 Cohesion: 0.22
@@ -354,9 +347,9 @@ Nodes (35): applyInsight(), applyOperation(), canOfferInsight(), canPurchaseRebi
 Cohesion: 0.15
 Nodes (13): type, type, type, license, additionalProperties, properties, type, attributionRequired (+5 more)
 
-### Community 41 - "scripts"
-Cohesion: 0.11
-Nodes (17): esbuild, description, devDependencies, esbuild, name, private, scripts, art:fixture (+9 more)
+### Community 41 - "package.json"
+Cohesion: 0.13
+Nodes (14): esbuild, description, devDependencies, esbuild, name, private, scripts, build (+6 more)
 
 ### Community 42 - "animation-architecture.test.js"
 Cohesion: 0.07
@@ -448,7 +441,7 @@ Nodes (8): 44. Example Faction Vertical Slice Manifest Minimum, Boss, Civilian, 
 
 ### Community 64 - "enum"
 Cohesion: 0.25
-Nodes (8): sourceType, hand_authored, enum, type, generated, hybrid, licensed_external, procedural
+Nodes (8): sourceType, enum, type, generated, hand_authored, hybrid, licensed_external, procedural
 
 ### Community 65 - "[2026-08-09] #83 全卡稽核:25 項問題一次修完"
 Cohesion: 0.25
@@ -710,6 +703,10 @@ Nodes (35): applyVolume(), bandOf(), boom(), cast(), chooseVoice(), crit(), ensu
 Cohesion: 0.18
 Nodes (11): items, type, $ref, pattern, type, properties, assets, manifestVersion (+3 more)
 
+### Community 139 - "runtime"
+Cohesion: 0.29
+Nodes (7): runtime, scale, additionalProperties, properties, type, exclusiveMinimum, type
+
 ### Community 140 - "VISUAL-SMOKE-TEST.md"
 Cohesion: 0.06
 Nodes (31): 10. 手機 9:16 強制測試, 11. Safe Area, 12. PC Regression Test, 13. 共用 CSS 特別規則, 14. 截圖自證要求, 15. 截圖必須自行審查, 16. 最終回報格式, 17. 不可跳過原則 (+23 more)
@@ -731,8 +728,8 @@ Cohesion: 0.12
 Nodes (17): required, type, $defs, clip, layer, properties, required, type (+9 more)
 
 ### Community 147 - "properties"
-Cohesion: 0.12
-Nodes (16): pattern, type, enum, default, type, properties, actorId, kind (+8 more)
+Cohesion: 0.13
+Nodes (15): pattern, type, $ref, additionalProperties, type, default, type, properties (+7 more)
 
 ### Community 148 - "enum"
 Cohesion: 0.14
@@ -754,30 +751,18 @@ Nodes (9): $ref, properties, type, body, layers, weaponBack, weaponFront, $ref (
 Cohesion: 0.17
 Nodes (11): additionalProperties, $id, schemaVersion, required, $schema, type, actorId, animations (+3 more)
 
-### Community 153 - "art_pipeline.py"
-Cohesion: 0.39
-Nodes (11): Path, fixture(), frame_gaps(), grouped(), inspect(), main(), normalize(), process() (+3 more)
+### Community 153 - "enum"
+Cohesion: 0.40
+Nodes (5): enum, kind, boss, enemy, player
 
 ### Community 154 - "enum"
 Cohesion: 0.29
 Nodes (7): status, enum, type, approved_final, approved_prototype, deprecated, disabled
 
-### Community 156 - "enum"
-Cohesion: 0.40
-Nodes (5): enum, hand-authored, assetSource, ai-runtime, legacy
-
-### Community 157 - "animations"
-Cohesion: 0.50
-Nodes (4): $ref, additionalProperties, type, animations
-
-### Community 170 - "runtime"
-Cohesion: 0.29
-Nodes (7): runtime, scale, additionalProperties, properties, type, exclusiveMinimum, type
-
 ## Knowledge Gaps
-- **1218 isolated node(s):** `$schema`, `$id`, `type`, `additionalProperties`, `schemaVersion` (+1213 more)
+- **1206 isolated node(s):** `$schema`, `$id`, `type`, `additionalProperties`, `schemaVersion` (+1201 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **19 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **14 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
@@ -789,7 +774,7 @@ _Questions this graph is uniquely positioned to answer:_
 - **Why does `assetEntry` connect `required` to `properties`, `$defs`?**
   _High betweenness centrality (0.002) - this node is a cross-community bridge._
 - **What connects `$schema`, `$id`, `type` to the rest of the system?**
-  _1218 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _1206 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `ASSET_RECIPE_SCHEMA.md` be split into smaller, more focused modules?**
   _Cohesion score 0.017094017094017096 - nodes in this community are weakly interconnected._
 - **Should `墨劍訣 · 變更記錄(Ink Engine 整合)` be split into smaller, more focused modules?**

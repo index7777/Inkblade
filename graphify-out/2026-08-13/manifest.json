@@ -5,8 +5,8 @@
     "semantic_hash": ""
   },
   "data/game-config.js": {
-    "mtime": 1786638940.5572114,
-    "ast_hash": "e63dc0e630b868cd0f4996efc52a13f6",
+    "mtime": 1786546228.1205091,
+    "ast_hash": "37c2b3c8c883944f0e3e4b8bacb9fb65",
     "semantic_hash": ""
   },
   "data/sound-system.js": {
@@ -15,13 +15,13 @@
     "semantic_hash": ""
   },
   "package.json": {
-    "mtime": 1786556748.8923352,
-    "ast_hash": "6b6692e71f49c5dd1387a0e5ccd3bc53",
+    "mtime": 1786450999.2931511,
+    "ast_hash": "b2ea382944a92c9b0112651eed201796",
     "semantic_hash": ""
   },
   "src/constants.js": {
-    "mtime": 1786636763.7525692,
-    "ast_hash": "fe85e7cf437800b6a5ecd2c6fa973104",
+    "mtime": 1786450999.2931511,
+    "ast_hash": "6bc1d58327e9dd158a9cab3435914e4a",
     "semantic_hash": ""
   },
   "src/core.js": {
@@ -40,8 +40,8 @@
     "semantic_hash": ""
   },
   "src/main.js": {
-    "mtime": 1786639415.755448,
-    "ast_hash": "3ca2194baf0575f73679f2e7f07551a1",
+    "mtime": 1786555424.4213462,
+    "ast_hash": "74c1d45f1728edf6d74180b855a007fa",
     "semantic_hash": ""
   },
   "src/viewport.js": {
@@ -60,8 +60,8 @@
     "semantic_hash": ""
   },
   "AGENTS.md": {
-    "mtime": 1786558762.944647,
-    "ast_hash": "5a73cf8b2c6b11c42383fc72c6a8bc8c",
+    "mtime": 1786465635.9417186,
+    "ast_hash": "ce1eb2afd7ca977109b204931d1b7a78",
     "semantic_hash": ""
   },
   "ASSET_GENERATION_PIPELINE.md": {
@@ -270,8 +270,8 @@
     "semantic_hash": ""
   },
   "inkblade.html": {
-    "mtime": 1786636932.432234,
-    "ast_hash": "c653d50c17289ccace0662e6118d73ec",
+    "mtime": 1786466654.9518697,
+    "ast_hash": "8a4c61d3dad13a63d1979e985ce62839",
     "semantic_hash": ""
   },
   "music-prompts.md": {
@@ -2025,8 +2025,8 @@
     "semantic_hash": ""
   },
   "test/game-config.test.js": {
-    "mtime": 1786637068.6369674,
-    "ast_hash": "230567fb3b4515a1f82e8719ffad4cf0",
+    "mtime": 1786462103.9369314,
+    "ast_hash": "ed170e102aa5d08ec2b4675dabda5fbc",
     "semantic_hash": ""
   },
   "test/geom.test.js": {
@@ -2040,8 +2040,8 @@
     "semantic_hash": ""
   },
   "src/combat.js": {
-    "mtime": 1786637334.9421432,
-    "ast_hash": "f5658ec4064dab8e7c354515354849eb",
+    "mtime": 1786546228.1531262,
+    "ast_hash": "1cd83d6bfe4ef4e8052183325fcafdc1",
     "semantic_hash": ""
   },
   "test/combat.test.js": {
@@ -2050,13 +2050,13 @@
     "semantic_hash": ""
   },
   "src/render.js": {
-    "mtime": 1786639615.792164,
-    "ast_hash": "28b009f786a8de79662939d4dc500644",
+    "mtime": 1786555146.9011278,
+    "ast_hash": "4d6fcb0b9508eacffca4e28e1f429bf0",
     "semantic_hash": ""
   },
   "src/ui.js": {
-    "mtime": 1786636928.0254977,
-    "ast_hash": "235228ba09ad3962a2dcbcca58c5ddbd",
+    "mtime": 1786462956.980402,
+    "ast_hash": "cef3ea7fa44206d8e9a1dc257ba1bd16",
     "semantic_hash": ""
   },
   "_stage/cfg_v10.js": {
@@ -2730,8 +2730,8 @@
     "semantic_hash": ""
   },
   "actor-animation-manifest.schema.json": {
-    "mtime": 1786556625.9810069,
-    "ast_hash": "234d065ae7850dd554211c5ed10d5445",
+    "mtime": 1786552938.7059572,
+    "ast_hash": "822a9929f41e436f324396db70a40b40",
     "semantic_hash": ""
   },
   "src/animation/animation-controller.js": {
@@ -2740,8 +2740,8 @@
     "semantic_hash": ""
   },
   "src/animation/direction.js": {
-    "mtime": 1786556980.7007062,
-    "ast_hash": "2622a5b3b042a6534b470458fd35932a",
+    "mtime": 1786552638.1154902,
+    "ast_hash": "fe00fa3f525b715d99118b0e42d5df1a",
     "semantic_hash": ""
   },
   "src/assets/asset-loader.js": {
@@ -2755,13 +2755,13 @@
     "semantic_hash": ""
   },
   "src/render/layered-character-renderer.js": {
-    "mtime": 1786556631.701305,
-    "ast_hash": "eddf0737ad2adaa4fa7f69c3ec7fd5ea",
+    "mtime": 1786555249.992277,
+    "ast_hash": "fbcd80e06cd44b8601cf6335fbef94d0",
     "semantic_hash": ""
   },
   "test/animation-architecture.test.js": {
-    "mtime": 1786556982.950306,
-    "ast_hash": "9bc3b753bfa67c6c7b058906a972bc02",
+    "mtime": 1786555252.425252,
+    "ast_hash": "a87cb854ed83f748e91f7d601ee03cf9",
     "semantic_hash": ""
   },
   "artifacts/visual-smoke/actor-poc-battle-mobile-390x844.png": {
@@ -2792,746 +2792,6 @@
   "artifacts/visual-smoke/actor-poc-starting-choice-mobile-390x844.png": {
     "mtime": 1786553247.2382102,
     "ast_hash": "daddace5dd064b752248cd3b4b98be95",
-    "semantic_hash": ""
-  },
-  "tools/art_pipeline.py": {
-    "mtime": 1786636934.8097477,
-    "ast_hash": "75add557f202197003310fba6bcec5c1",
-    "semantic_hash": ""
-  },
-  "art/comfyui/README.md": {
-    "mtime": 1786556635.883944,
-    "ast_hash": "c76e29545b0f82904a0e1228c0106914",
-    "semantic_hash": ""
-  },
-  "art/comfyui/control/README.md": {
-    "mtime": 1786556649.7242477,
-    "ast_hash": "3ec9be8b9e8059f99fd86a5ba71a6c94",
-    "semantic_hash": ""
-  },
-  "art/comfyui/prompts/ink_blade_walk.md": {
-    "mtime": 1786556645.0179482,
-    "ast_hash": "65365f93995d0947c738344615c1ee27",
-    "semantic_hash": ""
-  },
-  "art/references/actors/ink_blade/README.md": {
-    "mtime": 1786556668.134224,
-    "ast_hash": "1e1596c685d6a4201c74cc7c4496e650",
-    "semantic_hash": ""
-  },
-  "assets/actors/enemies/ink_blade/source/README.md": {
-    "mtime": 1786556676.7645442,
-    "ast_hash": "4e26ca5a90b4a80feea3fa14d951fca6",
-    "semantic_hash": ""
-  },
-  "art/comfyui/outputs/ink_blade/ink_blade_body_walk_E_01.png": {
-    "mtime": 1786556773.5038414,
-    "ast_hash": "e49313054a84080bfb755526d9b2a273",
-    "semantic_hash": ""
-  },
-  "art/comfyui/outputs/ink_blade/ink_blade_body_walk_E_02.png": {
-    "mtime": 1786556773.5646622,
-    "ast_hash": "b6065a94345c5cada384a0939ce997bd",
-    "semantic_hash": ""
-  },
-  "art/comfyui/outputs/ink_blade/ink_blade_body_walk_E_03.png": {
-    "mtime": 1786556773.629162,
-    "ast_hash": "cc680551518246bd1ad28aa8773c0598",
-    "semantic_hash": ""
-  },
-  "art/comfyui/outputs/ink_blade/ink_blade_body_walk_E_04.png": {
-    "mtime": 1786556773.6901076,
-    "ast_hash": "38fc5f81b486af40609c30b8b13b8256",
-    "semantic_hash": ""
-  },
-  "art/comfyui/outputs/ink_blade/ink_blade_body_walk_N_01.png": {
-    "mtime": 1786556772.932454,
-    "ast_hash": "e49313054a84080bfb755526d9b2a273",
-    "semantic_hash": ""
-  },
-  "art/comfyui/outputs/ink_blade/ink_blade_body_walk_N_02.png": {
-    "mtime": 1786556772.996734,
-    "ast_hash": "b6065a94345c5cada384a0939ce997bd",
-    "semantic_hash": ""
-  },
-  "art/comfyui/outputs/ink_blade/ink_blade_body_walk_N_03.png": {
-    "mtime": 1786556773.0568993,
-    "ast_hash": "cc680551518246bd1ad28aa8773c0598",
-    "semantic_hash": ""
-  },
-  "art/comfyui/outputs/ink_blade/ink_blade_body_walk_N_04.png": {
-    "mtime": 1786556773.118337,
-    "ast_hash": "38fc5f81b486af40609c30b8b13b8256",
-    "semantic_hash": ""
-  },
-  "art/comfyui/outputs/ink_blade/ink_blade_body_walk_S_01.png": {
-    "mtime": 1786556774.113621,
-    "ast_hash": "e49313054a84080bfb755526d9b2a273",
-    "semantic_hash": ""
-  },
-  "art/comfyui/outputs/ink_blade/ink_blade_body_walk_S_02.png": {
-    "mtime": 1786556774.2177322,
-    "ast_hash": "b6065a94345c5cada384a0939ce997bd",
-    "semantic_hash": ""
-  },
-  "art/comfyui/outputs/ink_blade/ink_blade_body_walk_S_03.png": {
-    "mtime": 1786556774.308323,
-    "ast_hash": "cc680551518246bd1ad28aa8773c0598",
-    "semantic_hash": ""
-  },
-  "art/comfyui/outputs/ink_blade/ink_blade_body_walk_S_04.png": {
-    "mtime": 1786556774.4551764,
-    "ast_hash": "38fc5f81b486af40609c30b8b13b8256",
-    "semantic_hash": ""
-  },
-  "art/reports/actorpoc-E.png": {
-    "mtime": 1786557183.5854783,
-    "ast_hash": "5b31e93ad02ae5917777a4963d56c751",
-    "semantic_hash": ""
-  },
-  "art/reports/actorpoc-N.png": {
-    "mtime": 1786557168.4726262,
-    "ast_hash": "9437792bfd389f3cbb68ad25aa14a7d0",
-    "semantic_hash": ""
-  },
-  "art/reports/actorpoc-S.png": {
-    "mtime": 1786557222.9543717,
-    "ast_hash": "b3e28bafebc27e54629c6421afa64cd1",
-    "semantic_hash": ""
-  },
-  "art/reports/actorpoc-W.png": {
-    "mtime": 1786557189.6181822,
-    "ast_hash": "ca3a1e6162fd7f932afe163d6eab4838",
-    "semantic_hash": ""
-  },
-  "art/staging/actors/ink_blade/approved/ink_blade_body_walk_E_01.png": {
-    "mtime": 1786556773.5038414,
-    "ast_hash": "e49313054a84080bfb755526d9b2a273",
-    "semantic_hash": ""
-  },
-  "art/staging/actors/ink_blade/approved/ink_blade_body_walk_E_02.png": {
-    "mtime": 1786556773.5646622,
-    "ast_hash": "b6065a94345c5cada384a0939ce997bd",
-    "semantic_hash": ""
-  },
-  "art/staging/actors/ink_blade/approved/ink_blade_body_walk_E_03.png": {
-    "mtime": 1786556773.629162,
-    "ast_hash": "cc680551518246bd1ad28aa8773c0598",
-    "semantic_hash": ""
-  },
-  "art/staging/actors/ink_blade/approved/ink_blade_body_walk_E_04.png": {
-    "mtime": 1786556773.6901076,
-    "ast_hash": "38fc5f81b486af40609c30b8b13b8256",
-    "semantic_hash": ""
-  },
-  "art/staging/actors/ink_blade/approved/ink_blade_body_walk_N_01.png": {
-    "mtime": 1786556772.932454,
-    "ast_hash": "e49313054a84080bfb755526d9b2a273",
-    "semantic_hash": ""
-  },
-  "art/staging/actors/ink_blade/approved/ink_blade_body_walk_N_02.png": {
-    "mtime": 1786556772.996734,
-    "ast_hash": "b6065a94345c5cada384a0939ce997bd",
-    "semantic_hash": ""
-  },
-  "art/staging/actors/ink_blade/approved/ink_blade_body_walk_N_03.png": {
-    "mtime": 1786556773.0568993,
-    "ast_hash": "cc680551518246bd1ad28aa8773c0598",
-    "semantic_hash": ""
-  },
-  "art/staging/actors/ink_blade/approved/ink_blade_body_walk_N_04.png": {
-    "mtime": 1786556773.118337,
-    "ast_hash": "38fc5f81b486af40609c30b8b13b8256",
-    "semantic_hash": ""
-  },
-  "art/staging/actors/ink_blade/approved/ink_blade_body_walk_S_01.png": {
-    "mtime": 1786556774.113621,
-    "ast_hash": "e49313054a84080bfb755526d9b2a273",
-    "semantic_hash": ""
-  },
-  "art/staging/actors/ink_blade/approved/ink_blade_body_walk_S_02.png": {
-    "mtime": 1786556774.2177322,
-    "ast_hash": "b6065a94345c5cada384a0939ce997bd",
-    "semantic_hash": ""
-  },
-  "art/staging/actors/ink_blade/approved/ink_blade_body_walk_S_03.png": {
-    "mtime": 1786556774.308323,
-    "ast_hash": "cc680551518246bd1ad28aa8773c0598",
-    "semantic_hash": ""
-  },
-  "art/staging/actors/ink_blade/approved/ink_blade_body_walk_S_04.png": {
-    "mtime": 1786556774.4551764,
-    "ast_hash": "38fc5f81b486af40609c30b8b13b8256",
-    "semantic_hash": ""
-  },
-  "art/staging/actors/ink_blade/ink_blade_body_walk_E_01.png": {
-    "mtime": 1786556773.5038414,
-    "ast_hash": "e49313054a84080bfb755526d9b2a273",
-    "semantic_hash": ""
-  },
-  "art/staging/actors/ink_blade/ink_blade_body_walk_E_02.png": {
-    "mtime": 1786556773.5646622,
-    "ast_hash": "b6065a94345c5cada384a0939ce997bd",
-    "semantic_hash": ""
-  },
-  "art/staging/actors/ink_blade/ink_blade_body_walk_E_03.png": {
-    "mtime": 1786556773.629162,
-    "ast_hash": "cc680551518246bd1ad28aa8773c0598",
-    "semantic_hash": ""
-  },
-  "art/staging/actors/ink_blade/ink_blade_body_walk_E_04.png": {
-    "mtime": 1786556773.6901076,
-    "ast_hash": "38fc5f81b486af40609c30b8b13b8256",
-    "semantic_hash": ""
-  },
-  "art/staging/actors/ink_blade/ink_blade_body_walk_E_05.png": {
-    "mtime": 1786556773.7523973,
-    "ast_hash": "92bf41a088911fb81771325d1fe507e7",
-    "semantic_hash": ""
-  },
-  "art/staging/actors/ink_blade/ink_blade_body_walk_E_06.png": {
-    "mtime": 1786556773.8126462,
-    "ast_hash": "9ee81f9748e456d9480c0c4b8ab5d878",
-    "semantic_hash": ""
-  },
-  "art/staging/actors/ink_blade/ink_blade_body_walk_E_07.png": {
-    "mtime": 1786556773.875836,
-    "ast_hash": "f6223ab0b8ea9f9828d172f40b4382c9",
-    "semantic_hash": ""
-  },
-  "art/staging/actors/ink_blade/ink_blade_body_walk_E_08.png": {
-    "mtime": 1786556773.9421043,
-    "ast_hash": "e7575bd3a3dc33d1f574fe380965f320",
-    "semantic_hash": ""
-  },
-  "art/staging/actors/ink_blade/ink_blade_body_walk_E_09.png": {
-    "mtime": 1786556774.0271719,
-    "ast_hash": "8ecac388c1798d92de549e188645bc81",
-    "semantic_hash": ""
-  },
-  "art/staging/actors/ink_blade/ink_blade_body_walk_N_01.png": {
-    "mtime": 1786556772.932454,
-    "ast_hash": "e49313054a84080bfb755526d9b2a273",
-    "semantic_hash": ""
-  },
-  "art/staging/actors/ink_blade/ink_blade_body_walk_N_02.png": {
-    "mtime": 1786556772.996734,
-    "ast_hash": "b6065a94345c5cada384a0939ce997bd",
-    "semantic_hash": ""
-  },
-  "art/staging/actors/ink_blade/ink_blade_body_walk_N_03.png": {
-    "mtime": 1786556773.0568993,
-    "ast_hash": "cc680551518246bd1ad28aa8773c0598",
-    "semantic_hash": ""
-  },
-  "art/staging/actors/ink_blade/ink_blade_body_walk_N_04.png": {
-    "mtime": 1786556773.118337,
-    "ast_hash": "38fc5f81b486af40609c30b8b13b8256",
-    "semantic_hash": ""
-  },
-  "art/staging/actors/ink_blade/ink_blade_body_walk_N_05.png": {
-    "mtime": 1786556773.1845884,
-    "ast_hash": "92bf41a088911fb81771325d1fe507e7",
-    "semantic_hash": ""
-  },
-  "art/staging/actors/ink_blade/ink_blade_body_walk_N_06.png": {
-    "mtime": 1786556773.2484708,
-    "ast_hash": "9ee81f9748e456d9480c0c4b8ab5d878",
-    "semantic_hash": ""
-  },
-  "art/staging/actors/ink_blade/ink_blade_body_walk_N_07.png": {
-    "mtime": 1786556773.3136032,
-    "ast_hash": "f6223ab0b8ea9f9828d172f40b4382c9",
-    "semantic_hash": ""
-  },
-  "art/staging/actors/ink_blade/ink_blade_body_walk_N_08.png": {
-    "mtime": 1786556773.3730135,
-    "ast_hash": "e7575bd3a3dc33d1f574fe380965f320",
-    "semantic_hash": ""
-  },
-  "art/staging/actors/ink_blade/ink_blade_body_walk_N_09.png": {
-    "mtime": 1786556773.440012,
-    "ast_hash": "8ecac388c1798d92de549e188645bc81",
-    "semantic_hash": ""
-  },
-  "art/staging/actors/ink_blade/ink_blade_body_walk_S_01.png": {
-    "mtime": 1786556774.113621,
-    "ast_hash": "e49313054a84080bfb755526d9b2a273",
-    "semantic_hash": ""
-  },
-  "art/staging/actors/ink_blade/ink_blade_body_walk_S_02.png": {
-    "mtime": 1786556774.2177322,
-    "ast_hash": "b6065a94345c5cada384a0939ce997bd",
-    "semantic_hash": ""
-  },
-  "art/staging/actors/ink_blade/ink_blade_body_walk_S_03.png": {
-    "mtime": 1786556774.308323,
-    "ast_hash": "cc680551518246bd1ad28aa8773c0598",
-    "semantic_hash": ""
-  },
-  "art/staging/actors/ink_blade/ink_blade_body_walk_S_04.png": {
-    "mtime": 1786556774.4551764,
-    "ast_hash": "38fc5f81b486af40609c30b8b13b8256",
-    "semantic_hash": ""
-  },
-  "art/staging/actors/ink_blade/ink_blade_body_walk_S_05.png": {
-    "mtime": 1786556774.5644202,
-    "ast_hash": "92bf41a088911fb81771325d1fe507e7",
-    "semantic_hash": ""
-  },
-  "art/staging/actors/ink_blade/ink_blade_body_walk_S_06.png": {
-    "mtime": 1786556774.6551926,
-    "ast_hash": "9ee81f9748e456d9480c0c4b8ab5d878",
-    "semantic_hash": ""
-  },
-  "art/staging/actors/ink_blade/ink_blade_body_walk_S_07.png": {
-    "mtime": 1786556774.7366633,
-    "ast_hash": "f6223ab0b8ea9f9828d172f40b4382c9",
-    "semantic_hash": ""
-  },
-  "art/staging/actors/ink_blade/ink_blade_body_walk_S_08.png": {
-    "mtime": 1786556774.8284564,
-    "ast_hash": "e7575bd3a3dc33d1f574fe380965f320",
-    "semantic_hash": ""
-  },
-  "art/staging/actors/ink_blade/ink_blade_body_walk_S_09.png": {
-    "mtime": 1786556774.9192953,
-    "ast_hash": "8ecac388c1798d92de549e188645bc81",
-    "semantic_hash": ""
-  },
-  "assets/actors/enemies/ink_blade/runtime/body/walk/E/ink_blade_body_walk_E_01.png": {
-    "mtime": 1786636963.2536294,
-    "ast_hash": "e1b0ecaa08681d3c1c82f0f2cb4032df",
-    "semantic_hash": ""
-  },
-  "assets/actors/enemies/ink_blade/runtime/body/walk/E/ink_blade_body_walk_E_02.png": {
-    "mtime": 1786636963.2792153,
-    "ast_hash": "747f1e490d5e98b645a0cb432a45ea9b",
-    "semantic_hash": ""
-  },
-  "assets/actors/enemies/ink_blade/runtime/body/walk/E/ink_blade_body_walk_E_03.png": {
-    "mtime": 1786636963.3032863,
-    "ast_hash": "0477da2fb3f788839f0d150f9094daf3",
-    "semantic_hash": ""
-  },
-  "assets/actors/enemies/ink_blade/runtime/body/walk/E/ink_blade_body_walk_E_04.png": {
-    "mtime": 1786636963.3243718,
-    "ast_hash": "28ccbd438702ec8e370c1ab3665e4c50",
-    "semantic_hash": ""
-  },
-  "assets/actors/enemies/ink_blade/runtime/body/walk/N/ink_blade_body_walk_N_01.png": {
-    "mtime": 1786636963.05574,
-    "ast_hash": "e1b0ecaa08681d3c1c82f0f2cb4032df",
-    "semantic_hash": ""
-  },
-  "assets/actors/enemies/ink_blade/runtime/body/walk/N/ink_blade_body_walk_N_02.png": {
-    "mtime": 1786636963.079189,
-    "ast_hash": "747f1e490d5e98b645a0cb432a45ea9b",
-    "semantic_hash": ""
-  },
-  "assets/actors/enemies/ink_blade/runtime/body/walk/N/ink_blade_body_walk_N_03.png": {
-    "mtime": 1786636963.1013904,
-    "ast_hash": "0477da2fb3f788839f0d150f9094daf3",
-    "semantic_hash": ""
-  },
-  "assets/actors/enemies/ink_blade/runtime/body/walk/N/ink_blade_body_walk_N_04.png": {
-    "mtime": 1786636963.1225662,
-    "ast_hash": "28ccbd438702ec8e370c1ab3665e4c50",
-    "semantic_hash": ""
-  },
-  "assets/actors/enemies/ink_blade/runtime/body/walk/S/ink_blade_body_walk_S_01.png": {
-    "mtime": 1786636963.5012026,
-    "ast_hash": "e1b0ecaa08681d3c1c82f0f2cb4032df",
-    "semantic_hash": ""
-  },
-  "assets/actors/enemies/ink_blade/runtime/body/walk/S/ink_blade_body_walk_S_02.png": {
-    "mtime": 1786636963.5312972,
-    "ast_hash": "747f1e490d5e98b645a0cb432a45ea9b",
-    "semantic_hash": ""
-  },
-  "assets/actors/enemies/ink_blade/runtime/body/walk/S/ink_blade_body_walk_S_03.png": {
-    "mtime": 1786636963.5578933,
-    "ast_hash": "0477da2fb3f788839f0d150f9094daf3",
-    "semantic_hash": ""
-  },
-  "assets/actors/enemies/ink_blade/runtime/body/walk/S/ink_blade_body_walk_S_04.png": {
-    "mtime": 1786636963.5845778,
-    "ast_hash": "28ccbd438702ec8e370c1ab3665e4c50",
-    "semantic_hash": ""
-  },
-  "assets/actors/enemies/ink_blade/source/body/walk/E/ink_blade_body_walk_E_01.png": {
-    "mtime": 1786556773.5038414,
-    "ast_hash": "e49313054a84080bfb755526d9b2a273",
-    "semantic_hash": ""
-  },
-  "assets/actors/enemies/ink_blade/source/body/walk/E/ink_blade_body_walk_E_02.png": {
-    "mtime": 1786556773.5646622,
-    "ast_hash": "b6065a94345c5cada384a0939ce997bd",
-    "semantic_hash": ""
-  },
-  "assets/actors/enemies/ink_blade/source/body/walk/E/ink_blade_body_walk_E_03.png": {
-    "mtime": 1786556773.629162,
-    "ast_hash": "cc680551518246bd1ad28aa8773c0598",
-    "semantic_hash": ""
-  },
-  "assets/actors/enemies/ink_blade/source/body/walk/E/ink_blade_body_walk_E_04.png": {
-    "mtime": 1786556773.6901076,
-    "ast_hash": "38fc5f81b486af40609c30b8b13b8256",
-    "semantic_hash": ""
-  },
-  "assets/actors/enemies/ink_blade/source/body/walk/N/ink_blade_body_walk_N_01.png": {
-    "mtime": 1786556772.932454,
-    "ast_hash": "e49313054a84080bfb755526d9b2a273",
-    "semantic_hash": ""
-  },
-  "assets/actors/enemies/ink_blade/source/body/walk/N/ink_blade_body_walk_N_02.png": {
-    "mtime": 1786556772.996734,
-    "ast_hash": "b6065a94345c5cada384a0939ce997bd",
-    "semantic_hash": ""
-  },
-  "assets/actors/enemies/ink_blade/source/body/walk/N/ink_blade_body_walk_N_03.png": {
-    "mtime": 1786556773.0568993,
-    "ast_hash": "cc680551518246bd1ad28aa8773c0598",
-    "semantic_hash": ""
-  },
-  "assets/actors/enemies/ink_blade/source/body/walk/N/ink_blade_body_walk_N_04.png": {
-    "mtime": 1786556773.118337,
-    "ast_hash": "38fc5f81b486af40609c30b8b13b8256",
-    "semantic_hash": ""
-  },
-  "assets/actors/enemies/ink_blade/source/body/walk/S/ink_blade_body_walk_S_01.png": {
-    "mtime": 1786556774.113621,
-    "ast_hash": "e49313054a84080bfb755526d9b2a273",
-    "semantic_hash": ""
-  },
-  "assets/actors/enemies/ink_blade/source/body/walk/S/ink_blade_body_walk_S_02.png": {
-    "mtime": 1786556774.2177322,
-    "ast_hash": "b6065a94345c5cada384a0939ce997bd",
-    "semantic_hash": ""
-  },
-  "assets/actors/enemies/ink_blade/source/body/walk/S/ink_blade_body_walk_S_03.png": {
-    "mtime": 1786556774.308323,
-    "ast_hash": "cc680551518246bd1ad28aa8773c0598",
-    "semantic_hash": ""
-  },
-  "assets/actors/enemies/ink_blade/source/body/walk/S/ink_blade_body_walk_S_04.png": {
-    "mtime": 1786556774.4551764,
-    "ast_hash": "38fc5f81b486af40609c30b8b13b8256",
-    "semantic_hash": ""
-  },
-  "art/comfyui/outputs/ink_blade/ink_blade_body_walk_E_05.png": {
-    "mtime": 1786556773.7523973,
-    "ast_hash": "92bf41a088911fb81771325d1fe507e7",
-    "semantic_hash": ""
-  },
-  "art/comfyui/outputs/ink_blade/ink_blade_body_walk_E_06.png": {
-    "mtime": 1786556773.8126462,
-    "ast_hash": "9ee81f9748e456d9480c0c4b8ab5d878",
-    "semantic_hash": ""
-  },
-  "art/comfyui/outputs/ink_blade/ink_blade_body_walk_E_07.png": {
-    "mtime": 1786556773.875836,
-    "ast_hash": "f6223ab0b8ea9f9828d172f40b4382c9",
-    "semantic_hash": ""
-  },
-  "art/comfyui/outputs/ink_blade/ink_blade_body_walk_E_08.png": {
-    "mtime": 1786556773.9421043,
-    "ast_hash": "e7575bd3a3dc33d1f574fe380965f320",
-    "semantic_hash": ""
-  },
-  "art/comfyui/outputs/ink_blade/ink_blade_body_walk_E_09.png": {
-    "mtime": 1786556774.0271719,
-    "ast_hash": "8ecac388c1798d92de549e188645bc81",
-    "semantic_hash": ""
-  },
-  "art/comfyui/outputs/ink_blade/ink_blade_body_walk_N_05.png": {
-    "mtime": 1786556773.1845884,
-    "ast_hash": "92bf41a088911fb81771325d1fe507e7",
-    "semantic_hash": ""
-  },
-  "art/comfyui/outputs/ink_blade/ink_blade_body_walk_N_06.png": {
-    "mtime": 1786556773.2484708,
-    "ast_hash": "9ee81f9748e456d9480c0c4b8ab5d878",
-    "semantic_hash": ""
-  },
-  "art/comfyui/outputs/ink_blade/ink_blade_body_walk_N_07.png": {
-    "mtime": 1786556773.3136032,
-    "ast_hash": "f6223ab0b8ea9f9828d172f40b4382c9",
-    "semantic_hash": ""
-  },
-  "art/comfyui/outputs/ink_blade/ink_blade_body_walk_N_08.png": {
-    "mtime": 1786556773.3730135,
-    "ast_hash": "e7575bd3a3dc33d1f574fe380965f320",
-    "semantic_hash": ""
-  },
-  "art/comfyui/outputs/ink_blade/ink_blade_body_walk_N_09.png": {
-    "mtime": 1786556773.440012,
-    "ast_hash": "8ecac388c1798d92de549e188645bc81",
-    "semantic_hash": ""
-  },
-  "art/comfyui/outputs/ink_blade/ink_blade_body_walk_S_05.png": {
-    "mtime": 1786556774.5644202,
-    "ast_hash": "92bf41a088911fb81771325d1fe507e7",
-    "semantic_hash": ""
-  },
-  "art/comfyui/outputs/ink_blade/ink_blade_body_walk_S_06.png": {
-    "mtime": 1786556774.6551926,
-    "ast_hash": "9ee81f9748e456d9480c0c4b8ab5d878",
-    "semantic_hash": ""
-  },
-  "art/comfyui/outputs/ink_blade/ink_blade_body_walk_S_07.png": {
-    "mtime": 1786556774.7366633,
-    "ast_hash": "f6223ab0b8ea9f9828d172f40b4382c9",
-    "semantic_hash": ""
-  },
-  "art/comfyui/outputs/ink_blade/ink_blade_body_walk_S_08.png": {
-    "mtime": 1786556774.8284564,
-    "ast_hash": "e7575bd3a3dc33d1f574fe380965f320",
-    "semantic_hash": ""
-  },
-  "art/comfyui/outputs/ink_blade/ink_blade_body_walk_S_09.png": {
-    "mtime": 1786556774.9192953,
-    "ast_hash": "8ecac388c1798d92de549e188645bc81",
-    "semantic_hash": ""
-  },
-  "art/staging/actors/ink_blade/approved/ink_blade_body_walk_E_05.png": {
-    "mtime": 1786556773.7523973,
-    "ast_hash": "92bf41a088911fb81771325d1fe507e7",
-    "semantic_hash": ""
-  },
-  "art/staging/actors/ink_blade/approved/ink_blade_body_walk_E_06.png": {
-    "mtime": 1786556773.8126462,
-    "ast_hash": "9ee81f9748e456d9480c0c4b8ab5d878",
-    "semantic_hash": ""
-  },
-  "art/staging/actors/ink_blade/approved/ink_blade_body_walk_E_07.png": {
-    "mtime": 1786556773.875836,
-    "ast_hash": "f6223ab0b8ea9f9828d172f40b4382c9",
-    "semantic_hash": ""
-  },
-  "art/staging/actors/ink_blade/approved/ink_blade_body_walk_E_08.png": {
-    "mtime": 1786556773.9421043,
-    "ast_hash": "e7575bd3a3dc33d1f574fe380965f320",
-    "semantic_hash": ""
-  },
-  "art/staging/actors/ink_blade/approved/ink_blade_body_walk_E_09.png": {
-    "mtime": 1786556774.0271719,
-    "ast_hash": "8ecac388c1798d92de549e188645bc81",
-    "semantic_hash": ""
-  },
-  "art/staging/actors/ink_blade/approved/ink_blade_body_walk_N_05.png": {
-    "mtime": 1786556773.1845884,
-    "ast_hash": "92bf41a088911fb81771325d1fe507e7",
-    "semantic_hash": ""
-  },
-  "art/staging/actors/ink_blade/approved/ink_blade_body_walk_N_06.png": {
-    "mtime": 1786556773.2484708,
-    "ast_hash": "9ee81f9748e456d9480c0c4b8ab5d878",
-    "semantic_hash": ""
-  },
-  "art/staging/actors/ink_blade/approved/ink_blade_body_walk_N_07.png": {
-    "mtime": 1786556773.3136032,
-    "ast_hash": "f6223ab0b8ea9f9828d172f40b4382c9",
-    "semantic_hash": ""
-  },
-  "art/staging/actors/ink_blade/approved/ink_blade_body_walk_N_08.png": {
-    "mtime": 1786556773.3730135,
-    "ast_hash": "e7575bd3a3dc33d1f574fe380965f320",
-    "semantic_hash": ""
-  },
-  "art/staging/actors/ink_blade/approved/ink_blade_body_walk_N_09.png": {
-    "mtime": 1786556773.440012,
-    "ast_hash": "8ecac388c1798d92de549e188645bc81",
-    "semantic_hash": ""
-  },
-  "art/staging/actors/ink_blade/approved/ink_blade_body_walk_S_05.png": {
-    "mtime": 1786556774.5644202,
-    "ast_hash": "92bf41a088911fb81771325d1fe507e7",
-    "semantic_hash": ""
-  },
-  "art/staging/actors/ink_blade/approved/ink_blade_body_walk_S_06.png": {
-    "mtime": 1786556774.6551926,
-    "ast_hash": "9ee81f9748e456d9480c0c4b8ab5d878",
-    "semantic_hash": ""
-  },
-  "art/staging/actors/ink_blade/approved/ink_blade_body_walk_S_07.png": {
-    "mtime": 1786556774.7366633,
-    "ast_hash": "f6223ab0b8ea9f9828d172f40b4382c9",
-    "semantic_hash": ""
-  },
-  "art/staging/actors/ink_blade/approved/ink_blade_body_walk_S_08.png": {
-    "mtime": 1786556774.8284564,
-    "ast_hash": "e7575bd3a3dc33d1f574fe380965f320",
-    "semantic_hash": ""
-  },
-  "art/staging/actors/ink_blade/approved/ink_blade_body_walk_S_09.png": {
-    "mtime": 1786556774.9192953,
-    "ast_hash": "8ecac388c1798d92de549e188645bc81",
-    "semantic_hash": ""
-  },
-  "assets/actors/enemies/ink_blade/runtime/body/walk/E/ink_blade_body_walk_E_05.png": {
-    "mtime": 1786636963.3505785,
-    "ast_hash": "244c5eddbdc88e0888c9a0b177000916",
-    "semantic_hash": ""
-  },
-  "assets/actors/enemies/ink_blade/runtime/body/walk/E/ink_blade_body_walk_E_06.png": {
-    "mtime": 1786636963.3791788,
-    "ast_hash": "2c2c23da574b7e62a86bf1d7be586863",
-    "semantic_hash": ""
-  },
-  "assets/actors/enemies/ink_blade/runtime/body/walk/E/ink_blade_body_walk_E_07.png": {
-    "mtime": 1786636963.4052422,
-    "ast_hash": "8b14a8122b62e11c51704b06c5aee5d9",
-    "semantic_hash": ""
-  },
-  "assets/actors/enemies/ink_blade/runtime/body/walk/E/ink_blade_body_walk_E_08.png": {
-    "mtime": 1786636963.4354658,
-    "ast_hash": "f93bbab0a1c7bd015dedfcac32c02bd6",
-    "semantic_hash": ""
-  },
-  "assets/actors/enemies/ink_blade/runtime/body/walk/E/ink_blade_body_walk_E_09.png": {
-    "mtime": 1786636963.469107,
-    "ast_hash": "afd73b22e37a3db771e730072c525ae4",
-    "semantic_hash": ""
-  },
-  "assets/actors/enemies/ink_blade/runtime/body/walk/N/ink_blade_body_walk_N_05.png": {
-    "mtime": 1786636963.1476195,
-    "ast_hash": "244c5eddbdc88e0888c9a0b177000916",
-    "semantic_hash": ""
-  },
-  "assets/actors/enemies/ink_blade/runtime/body/walk/N/ink_blade_body_walk_N_06.png": {
-    "mtime": 1786636963.1692,
-    "ast_hash": "2c2c23da574b7e62a86bf1d7be586863",
-    "semantic_hash": ""
-  },
-  "assets/actors/enemies/ink_blade/runtime/body/walk/N/ink_blade_body_walk_N_07.png": {
-    "mtime": 1786636963.189249,
-    "ast_hash": "8b14a8122b62e11c51704b06c5aee5d9",
-    "semantic_hash": ""
-  },
-  "assets/actors/enemies/ink_blade/runtime/body/walk/N/ink_blade_body_walk_N_08.png": {
-    "mtime": 1786636963.2113004,
-    "ast_hash": "f93bbab0a1c7bd015dedfcac32c02bd6",
-    "semantic_hash": ""
-  },
-  "assets/actors/enemies/ink_blade/runtime/body/walk/N/ink_blade_body_walk_N_09.png": {
-    "mtime": 1786636963.2343795,
-    "ast_hash": "afd73b22e37a3db771e730072c525ae4",
-    "semantic_hash": ""
-  },
-  "assets/actors/enemies/ink_blade/runtime/body/walk/S/ink_blade_body_walk_S_05.png": {
-    "mtime": 1786636963.6151593,
-    "ast_hash": "244c5eddbdc88e0888c9a0b177000916",
-    "semantic_hash": ""
-  },
-  "assets/actors/enemies/ink_blade/runtime/body/walk/S/ink_blade_body_walk_S_06.png": {
-    "mtime": 1786636963.649314,
-    "ast_hash": "2c2c23da574b7e62a86bf1d7be586863",
-    "semantic_hash": ""
-  },
-  "assets/actors/enemies/ink_blade/runtime/body/walk/S/ink_blade_body_walk_S_07.png": {
-    "mtime": 1786636963.6849082,
-    "ast_hash": "8b14a8122b62e11c51704b06c5aee5d9",
-    "semantic_hash": ""
-  },
-  "assets/actors/enemies/ink_blade/runtime/body/walk/S/ink_blade_body_walk_S_08.png": {
-    "mtime": 1786636963.7120955,
-    "ast_hash": "f93bbab0a1c7bd015dedfcac32c02bd6",
-    "semantic_hash": ""
-  },
-  "assets/actors/enemies/ink_blade/runtime/body/walk/S/ink_blade_body_walk_S_09.png": {
-    "mtime": 1786636963.7413476,
-    "ast_hash": "afd73b22e37a3db771e730072c525ae4",
-    "semantic_hash": ""
-  },
-  "assets/actors/enemies/ink_blade/source/body/walk/E/ink_blade_body_walk_E_05.png": {
-    "mtime": 1786556773.7523973,
-    "ast_hash": "92bf41a088911fb81771325d1fe507e7",
-    "semantic_hash": ""
-  },
-  "assets/actors/enemies/ink_blade/source/body/walk/E/ink_blade_body_walk_E_06.png": {
-    "mtime": 1786556773.8126462,
-    "ast_hash": "9ee81f9748e456d9480c0c4b8ab5d878",
-    "semantic_hash": ""
-  },
-  "assets/actors/enemies/ink_blade/source/body/walk/E/ink_blade_body_walk_E_07.png": {
-    "mtime": 1786556773.875836,
-    "ast_hash": "f6223ab0b8ea9f9828d172f40b4382c9",
-    "semantic_hash": ""
-  },
-  "assets/actors/enemies/ink_blade/source/body/walk/E/ink_blade_body_walk_E_08.png": {
-    "mtime": 1786556773.9421043,
-    "ast_hash": "e7575bd3a3dc33d1f574fe380965f320",
-    "semantic_hash": ""
-  },
-  "assets/actors/enemies/ink_blade/source/body/walk/E/ink_blade_body_walk_E_09.png": {
-    "mtime": 1786556774.0271719,
-    "ast_hash": "8ecac388c1798d92de549e188645bc81",
-    "semantic_hash": ""
-  },
-  "assets/actors/enemies/ink_blade/source/body/walk/N/ink_blade_body_walk_N_05.png": {
-    "mtime": 1786556773.1845884,
-    "ast_hash": "92bf41a088911fb81771325d1fe507e7",
-    "semantic_hash": ""
-  },
-  "assets/actors/enemies/ink_blade/source/body/walk/N/ink_blade_body_walk_N_06.png": {
-    "mtime": 1786556773.2484708,
-    "ast_hash": "9ee81f9748e456d9480c0c4b8ab5d878",
-    "semantic_hash": ""
-  },
-  "assets/actors/enemies/ink_blade/source/body/walk/N/ink_blade_body_walk_N_07.png": {
-    "mtime": 1786556773.3136032,
-    "ast_hash": "f6223ab0b8ea9f9828d172f40b4382c9",
-    "semantic_hash": ""
-  },
-  "assets/actors/enemies/ink_blade/source/body/walk/N/ink_blade_body_walk_N_08.png": {
-    "mtime": 1786556773.3730135,
-    "ast_hash": "e7575bd3a3dc33d1f574fe380965f320",
-    "semantic_hash": ""
-  },
-  "assets/actors/enemies/ink_blade/source/body/walk/N/ink_blade_body_walk_N_09.png": {
-    "mtime": 1786556773.440012,
-    "ast_hash": "8ecac388c1798d92de549e188645bc81",
-    "semantic_hash": ""
-  },
-  "assets/actors/enemies/ink_blade/source/body/walk/S/ink_blade_body_walk_S_05.png": {
-    "mtime": 1786556774.5644202,
-    "ast_hash": "92bf41a088911fb81771325d1fe507e7",
-    "semantic_hash": ""
-  },
-  "assets/actors/enemies/ink_blade/source/body/walk/S/ink_blade_body_walk_S_06.png": {
-    "mtime": 1786556774.6551926,
-    "ast_hash": "9ee81f9748e456d9480c0c4b8ab5d878",
-    "semantic_hash": ""
-  },
-  "assets/actors/enemies/ink_blade/source/body/walk/S/ink_blade_body_walk_S_07.png": {
-    "mtime": 1786556774.7366633,
-    "ast_hash": "f6223ab0b8ea9f9828d172f40b4382c9",
-    "semantic_hash": ""
-  },
-  "assets/actors/enemies/ink_blade/source/body/walk/S/ink_blade_body_walk_S_08.png": {
-    "mtime": 1786556774.8284564,
-    "ast_hash": "e7575bd3a3dc33d1f574fe380965f320",
-    "semantic_hash": ""
-  },
-  "assets/actors/enemies/ink_blade/source/body/walk/S/ink_blade_body_walk_S_09.png": {
-    "mtime": 1786556774.9192953,
-    "ast_hash": "8ecac388c1798d92de549e188645bc81",
-    "semantic_hash": ""
-  },
-  "assets/sword/blade-types/FLYING_SWORD_LONG_MASTER.png": {
-    "mtime": 1786639232.2687654,
-    "ast_hash": "fe4eb18649f0814c95e5a75ab5bd39cc",
-    "semantic_hash": ""
-  },
-  "assets/sword/blade-types/FLYING_SWORD_SHORT_MASTER.png": {
-    "mtime": 1786639394.1323855,
-    "ast_hash": "4b166a7165ca06d5cad90f257fc2c9ad",
-    "semantic_hash": ""
-  },
-  "assets/sword/blade-types/FLYING_SWORD_WIDE_MASTER.png": {
-    "mtime": 1786639394.0606227,
-    "ast_hash": "c1559fbb7e2ab42b837d90525ac95d5a",
     "semantic_hash": ""
   }
 }

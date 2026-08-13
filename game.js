@@ -123,7 +123,7 @@
 
   // src/constants.js
   var HERO_VISUAL_SCALE = 0.85;
-  var HERO_BODY_SCALE = HERO_VISUAL_SCALE * 0.72;
+  var HERO_BODY_SCALE = HERO_VISUAL_SCALE * 0.72 * 1.3;
   var FAN_PHI = 0.52;
   var BASE_SPEED = 14;
   var MERGE_SPEED_K = 0.18;
@@ -1840,13 +1840,6 @@
           }
         }
       }
-      if (c.formation === "parallel" && !c.auto) {
-        for (const sw of c.swords) if (sw && !sw.dead && sw.hitSet.size === 0 && sw.pierceLeft > 0) {
-          sw.solo = true;
-          sw.px = sw.x;
-          sw.py = sw.y;
-        }
-      }
       c.free = true;
       c.ang = Math.atan2(c.y - (c.py != null ? c.py : c.y), c.x - (c.px != null ? c.px : c.x)) || c.ang;
       {
@@ -1861,6 +1854,16 @@
         continue;
       }
       if (s.delay > 0) continue;
+      if (s.anchorAfter && !s.solo) {
+        const en = s.anchorAfter, dx = s.x - en.x, dy = s.y - en.y;
+        const forward = dx * Math.cos(s.ang) + dy * Math.sin(s.ang);
+        if (forward > en.r + Math.max(24, stat.size * 2.2)) {
+          spawnAnchor(s);
+          s.dead = true;
+          G.swords.splice(i, 1);
+          continue;
+        }
+      }
       if (s.solo) {
         const sp = stat.flySpeed || stat.speed || 14;
         const tg = nearestEnemy(s.x, s.y, 1e9);
@@ -2120,12 +2123,8 @@
             killEnemy(j);
           }
           s.pierceLeft -= durCost(dmgForDur);
+          if (C && C.formation === "inline" && stat.beadSlow && s.pierceLeft > 0 && !s.anchorAfter) s.anchorAfter = en;
           if (s.pierceLeft <= 0) {
-            if (C && C.formation === "inline" && stat.beadSlow) {
-              spawnAnchor(s);
-              s.dead = true;
-              break;
-            }
             s.dead = true;
             swordDissolve(s);
             break;
@@ -2510,7 +2509,7 @@
   }
   function drawInkFlyingSword(ctx2, s) {
     const speed = Math.hypot(s.vx || 0, s.vy || 0), k = stat.size * swMul(s).size;
-    const BL = 38 + k * 1.8 + Math.min(12, speed * 0.7), bw = 2.8 + k * 0.22;
+    const BL = (38 + k * 1.8 + Math.min(12, speed * 0.7)) * 1.3, bw = (2.8 + k * 0.22) * 1.3;
     const EL = hooks4.getElement?.(stat.element) || hooks4.getElement?.("none"), phase = (G.t + s.age * 3) * 0.08;
     ctx2.save();
     ctx2.translate(s.x, s.y);
@@ -2750,7 +2749,9 @@
       if (stEro) hooks4.drawErosion?.(en, stEro);
       if (stSup) hooks4.drawSuppression?.(en, stSup);
       if (!en.isBoss && (en.isElite || en.hp < en.max)) {
-        const w = Math.max(30, Math.min(62, en.r * 2.45)), h = 4, x = en.x - w / 2, y = en.y - en.r - 12;
+        const manifestHeight = en.visualHeight || en.r * 2.1;
+        const manifestTop = inkBlade && renderedByManifest ? en.y - manifestHeight * (inkBlade.manifest.canvas?.footPivot?.y ?? 1) : null;
+        const w = Math.max(30, Math.min(62, en.r * 2.45)), h = 4, x = en.x - w / 2, y = manifestTop == null ? en.y - en.r - 12 : manifestTop - 9;
         ctx.fillStyle = "rgba(20,17,14,.88)";
         ctx.fillRect(x - 1, y - 1, w + 2, h + 2);
         ctx.fillStyle = "rgba(76,66,55,.72)";
@@ -3738,7 +3739,7 @@
     choices.forEach((item) => {
       const element = document.createElement("div");
       element.className = "card truth-card";
-      element.innerHTML = `<div class="cardcategory">意</div><div class="rune">${item.rune}</div>
+      element.innerHTML = `<div class="cardcategory">意</div>
       <div class="cname">${item.name}</div><div class="cdesc">${item.description}</div>
       <div class="ctrade">${item.active.duration ? "持續 " + item.active.duration + " 秒" : "瞬發"}</div>`;
       element.onclick = () => selectInsightCard(item);
@@ -3799,7 +3800,7 @@
       hooks5.floatText?.(G.player.x, G.player.y - 38, "劍意盈滿", "#4aa0b8");
     }
     if (item.maxRank > 1 && rankBefore + 1 >= item.maxRank && item.tiers && item.tiers.length) {
-      G.banner = { txt: item.name + " 滿階 · 小成 " + item.tiers[0].kills + " 斬", life: 1 };
+      G.banner = { txt: item.name + " 滿階", life: 1 };
       hooks5.floatText?.(G.player.x, G.player.y - 56, item.name + " 滿階", "#c08a2e");
     }
     if (truthSelectionOpen) {
@@ -4466,6 +4467,7 @@
     let pendingFormationStart = null;
     const ACTOR_POC = new URLSearchParams(location.search).has("actorpoc");
     const TRUTH_POC = new URLSearchParams(location.search).get("truthpoc");
+    const BLADE_POC = new URLSearchParams(location.search).get("bladepoc");
     let actorPocDiag = null;
     const assetRegistry = new AssetRegistry();
     assetRegistry.loadActorManifest("assets/actors/enemies/ink_blade/actor.manifest.json").then(() => {
@@ -4563,6 +4565,7 @@
       getDrawState: () => ({ drawing, path, curLen, meta, ELEM }),
       allowedLen: () => allowedLen(),
       getSwordSprite: () => SWDSPR,
+      getBladeSword: () => BLADE_SWORDS[runState?.activeBlade] || null,
       getFlyingSword: () => FLYSWORD,
       getElement: (element) => ELEM[element] || ELEM.none,
       getTrailFx: () => TRAILFX,
@@ -4716,6 +4719,23 @@
       FLYSWORD.ok = false;
     };
     FLYSWORD.image.src = "assets/sword/FLYING_SWORD_MASTER_v2.png";
+    const BLADE_SWORDS = {
+      cultivate_breadth: loadBladeSword("assets/sword/blade-types/FLYING_SWORD_WIDE_MASTER.png", 0.215, 1),
+      cultivate_temper: loadBladeSword("assets/sword/blade-types/FLYING_SWORD_SHORT_MASTER.png", 0.39, 0.76),
+      cultivate_edge: loadBladeSword("assets/sword/blade-types/FLYING_SWORD_LONG_MASTER.png", 0.23, 1.22)
+    };
+    function loadBladeSword(src, grip, lengthScale) {
+      const sword = { image: new Image(), ok: false, aspect: 5, grip, lengthScale };
+      sword.image.onload = () => {
+        sword.aspect = sword.image.naturalWidth / sword.image.naturalHeight;
+        sword.ok = true;
+      };
+      sword.image.onerror = () => {
+        sword.ok = false;
+      };
+      sword.image.src = src;
+      return sword;
+    }
     const TRAILFX = { image: new Image(), ok: false, aspect: 2.15 };
     TRAILFX.image.onload = () => {
       TRAILFX.aspect = TRAILFX.image.naturalWidth / TRAILFX.image.naturalHeight;
@@ -5366,7 +5386,7 @@
       if (!item) return;
       const sec = Math.ceil(truthCooldown / 60);
       b.classList.toggle("cooling", truthCooldown > 0);
-      b.querySelector("span").textContent = item.rune + " · " + item.name.slice(0, 2);
+      b.querySelector("span").textContent = item.name;
       b.querySelector("small").textContent = truthCooldown > 0 ? sec + " 息" : "200 劍意";
     }
     function castActiveTruth() {
@@ -5463,22 +5483,9 @@
         }
       } else if (F.id === "truth_single_stroke") {
         const pass = Math.max(0, Math.min(1, progress / 0.82));
-        const x = -W * 0.72 + W * 2.44 * pass, y = P.y - H * 0.12;
-        const giantScale = Math.max(18, W / normalW * 1.38);
-        ctx.save();
-        ctx.globalAlpha = 0.22;
-        ctx.strokeStyle = "#17130f";
-        ctx.lineCap = "round";
-        for (let i = 0; i < 9; i++) {
-          const yy = y + (i - 4) * 18;
-          ctx.lineWidth = 4 + i % 3 * 3;
-          ctx.beginPath();
-          ctx.moveTo(Math.max(0, x - W * 0.9), yy);
-          ctx.lineTo(Math.min(W, x + W * 0.72), yy + (i % 2 ? 12 : -10));
-          ctx.stroke();
-        }
-        ctx.restore();
-        sword(x, y, 0, giantScale, 0.82);
+        const x = P.x, y = H + normalH * 10 - (H + normalH * 20) * pass;
+        const giantScale = Math.max(14, H / normalW * 0.72);
+        sword(x, y, -Math.PI / 2, giantScale, 0.86);
       } else if (F.id === "truth_return_hidden") {
         const n = F.swordCount || Math.max(1, stat.count), phase = F.t % 120 / 120;
         const outward = phase < 0.5, r = (outward ? phase * 2 : (1 - phase) * 2) * Math.hypot(W, H) * 0.56;
@@ -5651,7 +5658,7 @@
           }
         }
       }
-      if (!G.bossTest && !ACTOR_POC && G.wave < 60) {
+      if (!G.bossTest && !ACTOR_POC && G.wave <= 60) {
         G.waveTimer++;
         if (G.waveKills >= realmKillTarget(G.wave)) {
           if (G.wave === 59) beginBossWave();
@@ -5904,7 +5911,7 @@
       return w >= 60 ? 1 : Math.min(60, 10 + Math.floor((w - 1) * 0.72) + (w % 10 === 0 ? 5 : 0));
     }
     function realmTimeFrames(w) {
-      return (w >= 60 ? 180 : 45) * 60;
+      return (w >= 60 ? 360 : 45) * 60;
     }
     function realmClockText() {
       const left = Math.max(0, Math.ceil((realmTimeFrames(G.wave) - G.waveTimer) / 60));
@@ -6574,6 +6581,10 @@
       });
     }
     function continueAfterFormation(fastRestart) {
+      if (BLADE_POC && INK_CONFIG.insightById[BLADE_POC]) {
+        INK_CONFIG.runtime.applyInsight(runState, BLADE_POC);
+        syncStat();
+      }
       G.paused = false;
       SND.startMusic();
       if (ACTOR_POC) spawnActorPocBlade();
@@ -7033,7 +7044,10 @@
       list.innerHTML = Object.keys(groups).map((cat) => '<section class="artgroup"><h3>' + ART_CATEGORY_NAME[cat] + "</h3>" + groups[cat].map((a) => {
         const rank = Number(runState.ranks[a.id] || 0);
         const totals = INK_CONFIG.runtime.cumulativeEffectLines(a, rank);
-        return '<div class="artrow"><div class="arttitle"><b>' + a.name + "</b><span>" + artTierName(rank) + '</span></div><ul class="arttotals">' + totals.map((line) => "<li>" + line + "</li>").join("") + "</ul></div>";
+        const tier = runState.tierLevel?.[a.id] || 0, kills = runState.tierKills?.[a.id];
+        const mastery = tier > 0 ? ["", "小成", "大成", "圓滿"][tier] : kills == null ? "" : "精進中";
+        const killText = kills == null ? "" : " · " + kills + " 斬";
+        return '<div class="artrow"><div class="arttitle"><b>' + a.name + "</b><span>" + artTierName(rank) + (mastery ? " · " + mastery : "") + killText + '</span></div><ul class="arttotals">' + totals.map((line) => "<li>" + line + "</li>").join("") + "</ul></div>";
       }).join("") + "</section>").join("");
     }
     function toggleSwordArts(force) {
@@ -7043,14 +7057,6 @@
       panel.setAttribute("aria-hidden", String(!open));
       if (G.running) G.paused = open || isPausedByUser();
       if (!meta.mute) SND.ui();
-    }
-    function toggleScorePanel(e) {
-      e.stopPropagation();
-      const wrap = document.getElementById("scorewrap"), panel = document.getElementById("dpsbox");
-      const open = wrap.classList.toggle("open");
-      e.currentTarget.setAttribute("aria-expanded", String(open));
-      e.currentTarget.setAttribute("aria-label", open ? "收合本境進度" : "展開本境進度");
-      panel.setAttribute("aria-hidden", String(!open));
     }
     renderSoundButton();
     bindVolumeSettings();
@@ -7183,7 +7189,6 @@
         artsPanel: (e) => {
           if (e.target.id === "artsPanel") toggleSwordArts(false);
         },
-        scoretribtn: toggleScorePanel,
         pausebtn: () => togglePause(),
         autobtn: toggleAuto,
         truthbtn: castActiveTruth,

@@ -18,7 +18,7 @@ MANIFEST = ROOT / "assets/actors/enemies/ink_blade/actor.manifest.json"
 REPORT = ROOT / "art/reports/ink_blade_pipeline.json"
 CANVAS = (362, 201)
 FIXTURE_CANVAS = (548, 512)
-FOOT_PIVOT = {"x": .5, "y": .58}
+FOOT_PIVOT = {"x": .5, "y": .88}
 
 def scan(folder: Path):
     valid, orphan = [], []

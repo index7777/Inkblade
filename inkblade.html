@@ -295,8 +295,9 @@
   .artgroup { margin:0 0 3.2cqw; }
   .artgroup h3 { padding-bottom:.7cqw; border-bottom:1px solid rgba(58,48,37,.35); color:#7f2a25;
     font-size:clamp(13px,3cqw,22px); letter-spacing:.16em; }
-  .artrow { display:block; padding:1.5cqw .5cqw 1.2cqw;
-    border-bottom:1px dashed rgba(58,48,37,.18); }
+  .artrow { display:block; margin:1.2cqw 0; padding:2.2cqw 2.6cqw 2cqw;
+    min-height:18cqw; box-sizing:border-box; border:0;
+    background:url("assets/ui/insight-card-bookpage.png") center/100% 100% no-repeat; }
   .arttitle { display:flex; align-items:baseline; justify-content:space-between; gap:1cqw; }
   .artrow b { font-size:clamp(13px,3cqw,21px); }
   .artrow span { color:#675b4c; font-size:clamp(11px,2.5cqw,18px); }
@@ -700,11 +701,7 @@
     </div>
     <div id="scorewrap">
       <div class="scorelabel">斬妖數</div>
-      <div class="scoreline"><div class="big" id="killtxt">0 / 0</div><button class="scoretri" id="scoretribtn" type="button" aria-label="展開本境進度" aria-expanded="false"></button></div>
-      <div id="dpsbox" aria-hidden="true">
-        <div class="drow"><span>尚餘</span><b id="remainkilltxt">0 妖</b></div>
-        <div class="drow"><span>限時</span><b id="scoreclocktxt">00:45</b></div>
-      </div>
+      <div class="scoreline"><div class="big" id="killtxt">0 / 0</div></div>
     </div>
     <button id="swordartsbtn" type="button" aria-label="查看已習得劍訣">劍訣</button>
     <button id="truthbtn" type="button" hidden aria-label="施放真意"><span>真意</span><small></small></button>
@@ -824,10 +821,6 @@
           <div class="seg" data-bmode="wait">等待</div><div class="seg" data-bmode="live">即時</div>
         </div>
         <div class="sethint" id="bmodehint"></div>
-        </div>
-        <div id="tierbox">
-        <div class="sethead">劍 訣 精 進</div>
-        <div id="tierlist"></div>
         </div>
         <div id="respec">
         <div class="sethead">重 塑 劍 意</div>

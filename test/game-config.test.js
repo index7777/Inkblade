@@ -85,6 +85,22 @@ test('drafts keep categories distinct and boost a category learned to rank two',
   assert.ok(boosted>baseline,`${boosted} should exceed ${baseline}`);
 });
 
+test('draft remains three choices when only two categories have eligible cards', () => {
+  const state=runtime.createRunState();
+  runtime.chooseStartingFormation(state,'form_scatter');
+  for(const item of CONFIG.insights){
+    if(item.category!=='cultivation'&&item.category!=='blade') state.ranks[item.id]=item.maxRank;
+  }
+  state.activeBlade='cultivate_edge';
+  state.ranks.cultivate_edge=2;
+  const offer=runtime.rollInsights(state,3,new runtime.SeededRandom(17));
+  assert.equal(offer.length,3);
+  assert.equal(new Set(offer.map(item=>item.id)).size,3);
+  const counts=offer.reduce((out,item)=>(out[item.category]=(out[item.category]||0)+1,out),{});
+  assert.equal(counts.cultivation,2);
+  assert.equal(counts.blade,1);
+});
+
 test('cumulative effect lines total all learned ranks', () => {
   assert.ok(runtime.cumulativeEffectLines('intent_restore',3).some(line=>line.includes('2.34')));
 });

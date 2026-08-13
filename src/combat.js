@@ -505,14 +505,7 @@ export function updateCombat(){
         if(en && extendCommand(c,en.x,en.y)){ c.extended++; return; }
       }
     }
-    // 齊鋒式:筆跡走完的那一刻,凡是「一隻都沒斬到」的劍脫離陣列自行追跡。
-    // 齊鋒的弱點是轉向遲緩、整排一起撲空;讓撲空的劍自己去找目標,
-    // 等於把「沒斬到」這件事本身變成它的機制,而不是白白飛出畫面。
-    if(c.formation==='parallel' && !c.auto){
-      for(const sw of c.swords) if(sw && !sw.dead && sw.hitSet.size===0 && sw.pierceLeft>0){
-        sw.solo=true; sw.px=sw.x; sw.py=sw.y;
-      }
-    }
+    // 齊鋒本身不替撲空的單劍追蹤；只有另行習得的引鋒可修正續飛方向。
     // 筆跡走完 → 轉續飛(不是消散)。折返改在邊界觸發,這裡不再掉頭。
     c.free=true;
     c.ang=Math.atan2(c.y-(c.py!=null?c.py:c.y), c.x-(c.px!=null?c.px:c.x)) || c.ang;
@@ -528,6 +521,15 @@ export function updateCombat(){
     const s=G.swords[i];
     if(s.dead){ G.swords.splice(i,1); continue; }
     if(s.delay>0) continue;
+    // 定鋒：仍有耐久的串珠劍完整穿過命中目標後，才在自身槽位落地。
+    // 每把劍各自在原本陣列位置判定，因此不會把整串吸到同一落點。
+    if(s.anchorAfter && !s.solo){
+      const en=s.anchorAfter, dx=s.x-en.x, dy=s.y-en.y;
+      const forward=dx*Math.cos(s.ang)+dy*Math.sin(s.ang);
+      if(forward>en.r+Math.max(24,stat.size*2.2)){
+        spawnAnchor(s); s.dead=true; G.swords.splice(i,1); continue;
+      }
+    }
     // 脫隊追跡(齊鋒):不再由劍令擺位,自己轉向、自己前進、自己出界。
     if(s.solo){
       const sp=(stat.flySpeed||stat.speed||14);
@@ -721,10 +723,10 @@ export function updateCombat(){
         // 耐久制:**每一次命中都扣**,回頭重斬同一隻也一樣。扣多少看這一擊有多重。
         // 能穿過墨獸,是因為耐久還沒耗盡;耗盡就當場化墨消散。
         s.pierceLeft -= durCost(dmgForDur);
+        if(C && C.formation==='inline' && stat.beadSlow && s.pierceLeft>0 && !s.anchorAfter) s.anchorAfter=en;
         if(s.pierceLeft<=0){
-          // 定鋒(基礎):串珠飛劍耐久耗盡不消散,改插地成劍樁駐留(學了定鋒即有,以 beadSlow 為「已學」訊號)。
+          // 耐久已耗盡的劍照常化墨；只有仍有耐久且完整穿過敵人的劍會依上方 anchorAfter 邏輯插地。
           // 墨域減速/回補=小成、墨鏈=大成、引爆=圓滿,分別在各自邏輯處以 tier 旗標再加。
-          if(C && C.formation==='inline' && stat.beadSlow){ spawnAnchor(s); s.dead=true; break; }
           s.dead=true; swordDissolve(s); break;
         }
       }

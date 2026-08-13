@@ -1,11 +1,11 @@
 # Graph Report - Inkblade  (2026-08-14)
 
 ## Corpus Check
-- 119 files · ~11,870,278 words
+- 119 files · ~11,870,270 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 3290 nodes · 5384 edges · 163 communities (144 shown, 19 thin omitted)
+- 3290 nodes · 5384 edges · 164 communities (145 shown, 19 thin omitted)
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 11 edges (avg confidence: 0.55)
 - Token cost: 0 input · 0 output
 
@@ -125,7 +125,7 @@
 - [2026-08-09] #84 移除滑過去的音效;效果文字把「幾成傷」改成看得懂的基準
 - cfg_v37.js
 - vercel.json
-- replacementAssetId
+- assetType
 - cfg_v38.js
 - review
 - cfg_v39.js
@@ -152,19 +152,20 @@
 - snd_v7.js
 - snd_v5.js
 - properties
-- runtimeResource
+- required
 - VISUAL-SMOKE-TEST.md
 - UI-BASELINE.md
 - 全卡片功能與相容／互斥矩陣
 - runtime
+- status
 - properties
-- required
+- actor-animation-manifest.schema.json
 - properties
 - enum
 - additionalProperties
 - point
 - properties
-- actor-animation-manifest.schema.json
+- required
 - art_pipeline.py
 - enum
 - enum
@@ -204,7 +205,7 @@
 ## Import Cycles
 - None detected.
 
-## Communities (163 total, 19 thin omitted)
+## Communities (164 total, 19 thin omitted)
 
 ### Community 0 - "ASSET_RECIPE_SCHEMA.md"
 Cohesion: 0.02
@@ -332,7 +333,7 @@ Nodes (53): applyBattleMode(), bindHeroChoices(), bindPauseTabs(), bindSettingGr
 
 ### Community 35 - "properties"
 Cohesion: 0.13
-Nodes (15): $ref, properties, $ref, $ref, $ref, animationContractId, assetId, assetType (+7 more)
+Nodes (15): $ref, properties, $ref, $ref, animationContractId, assetId, license, provenance (+7 more)
 
 ### Community 36 - "$defs"
 Cohesion: 0.22
@@ -710,6 +711,10 @@ Nodes (35): applyVolume(), bandOf(), boom(), cast(), chooseVoice(), crit(), ensu
 Cohesion: 0.18
 Nodes (11): items, type, $ref, pattern, type, properties, assets, manifestVersion (+3 more)
 
+### Community 139 - "required"
+Cohesion: 0.29
+Nodes (7): required, type, clip, directions, fps, frameCount, loop
+
 ### Community 140 - "VISUAL-SMOKE-TEST.md"
 Cohesion: 0.06
 Nodes (31): 10. 手機 9:16 強制測試, 11. Safe Area, 12. PC Regression Test, 13. 共用 CSS 特別規則, 14. 截圖自證要求, 15. 截圖必須自行審查, 16. 最終回報格式, 17. 不可跳過原則 (+23 more)
@@ -726,9 +731,9 @@ Nodes (9): 全卡片功能與相容／互斥矩陣, 劍型（擇一鎖路）, �
 Cohesion: 0.22
 Nodes (9): properties, exclusiveMinimum, type, minimum, type, type, fps, frameCount (+1 more)
 
-### Community 146 - "required"
-Cohesion: 0.12
-Nodes (17): required, type, $defs, clip, layer, properties, required, type (+9 more)
+### Community 146 - "actor-animation-manifest.schema.json"
+Cohesion: 0.13
+Nodes (14): additionalProperties, $defs, layer, $id, properties, required, type, type (+6 more)
 
 ### Community 147 - "properties"
 Cohesion: 0.12
@@ -750,9 +755,9 @@ Nodes (11): point, x, y, additionalProperties, properties, required, type, x (+3
 Cohesion: 0.22
 Nodes (9): $ref, properties, type, body, layers, weaponBack, weaponFront, $ref (+1 more)
 
-### Community 152 - "actor-animation-manifest.schema.json"
-Cohesion: 0.17
-Nodes (11): additionalProperties, $id, schemaVersion, required, $schema, type, actorId, animations (+3 more)
+### Community 152 - "required"
+Cohesion: 0.29
+Nodes (7): schemaVersion, required, actorId, animations, authoredDirections, canvas, layers
 
 ### Community 153 - "art_pipeline.py"
 Cohesion: 0.39

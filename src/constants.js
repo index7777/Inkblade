@@ -3,7 +3,7 @@
 
 // 角色立繪縮放
 export const HERO_VISUAL_SCALE=0.85;              // 腳下環繞與既有演出基準,不跟著立繪縮放
-export const HERO_BODY_SCALE=HERO_VISUAL_SCALE*.72; // 立繪在基準上再縮小(使用者要求 ×0.72),不動碰撞與環繞
+export const HERO_BODY_SCALE=HERO_VISUAL_SCALE*.72*1.3; // 只放大角色立繪30%,不動碰撞與腳下環繞
 
 // 陣型 / 飛行 / 追蹤
 export const FAN_PHI=0.52;        // 散鋒半錐角

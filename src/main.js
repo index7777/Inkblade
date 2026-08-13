@@ -14,6 +14,7 @@ let booted=false;
 let pendingFormationStart=null;
 const ACTOR_POC=new URLSearchParams(location.search).has('actorpoc');
 const TRUTH_POC=new URLSearchParams(location.search).get('truthpoc');
+const BLADE_POC=new URLSearchParams(location.search).get('bladepoc');
 let actorPocDiag=null;
 const assetRegistry=new AssetRegistry();
 assetRegistry.loadActorManifest('assets/actors/enemies/ink_blade/actor.manifest.json')
@@ -80,6 +81,7 @@ configureRender({
   getDrawState:()=>({drawing,path,curLen,meta,ELEM}),
   allowedLen:()=>allowedLen(),
   getSwordSprite:()=>SWDSPR,
+  getBladeSword:()=>BLADE_SWORDS[runState?.activeBlade]||null,
   getFlyingSword:()=>FLYSWORD,
   getElement:element=>ELEM[element]||ELEM.none,
   getTrailFx:()=>TRAILFX,
@@ -421,6 +423,18 @@ const FLYSWORD={ image:new Image(), ok:false, aspect:5.2, grip:0.2013 };
 FLYSWORD.image.onload=()=>{ FLYSWORD.aspect=FLYSWORD.image.naturalWidth/FLYSWORD.image.naturalHeight; FLYSWORD.ok=true; };
 FLYSWORD.image.onerror=()=>{ FLYSWORD.ok=false; };
 FLYSWORD.image.src='assets/sword/FLYING_SWORD_MASTER_v2.png';
+const BLADE_SWORDS={
+  cultivate_breadth:loadBladeSword('assets/sword/blade-types/FLYING_SWORD_WIDE_MASTER.png',.215,1),
+  cultivate_temper:loadBladeSword('assets/sword/blade-types/FLYING_SWORD_SHORT_MASTER.png',.39,.76),
+  cultivate_edge:loadBladeSword('assets/sword/blade-types/FLYING_SWORD_LONG_MASTER.png',.23,1.22)
+};
+function loadBladeSword(src,grip,lengthScale){
+  const sword={image:new Image(),ok:false,aspect:5,grip,lengthScale};
+  sword.image.onload=()=>{ sword.aspect=sword.image.naturalWidth/sword.image.naturalHeight; sword.ok=true; };
+  sword.image.onerror=()=>{ sword.ok=false; };
+  sword.image.src=src;
+  return sword;
+}
 // CC0 刀光 FX：只取透明輪廓作水墨著色，取代直線軌跡形成的實心三角緞帶。
 const TRAILFX={image:new Image(),ok:false,aspect:2.15};
 TRAILFX.image.onload=()=>{TRAILFX.aspect=TRAILFX.image.naturalWidth/TRAILFX.image.naturalHeight;TRAILFX.ok=true;};
@@ -989,7 +1003,7 @@ function refreshTruthButton(){
   const item=runState&&runState.activeTruth&&INK_CONFIG.insightById[runState.activeTruth];
   b.hidden=!item||!G.running; if(!item) return;
   const sec=Math.ceil(truthCooldown/60); b.classList.toggle('cooling',truthCooldown>0);
-  b.querySelector('span').textContent=item.rune+' · '+item.name.slice(0,2);
+  b.querySelector('span').textContent=item.name;
   b.querySelector('small').textContent=truthCooldown>0?sec+' 息':'200 劍意';
 }
 function castActiveTruth(){
@@ -1060,16 +1074,11 @@ function drawTruthFx(){
       sword(x,y,Math.PI/2,1,.9);
     }
   } else if(F.id==='truth_single_stroke'){
-    // Deliberately aircraft-scale: the blade is wider than the play field and
-    // crosses it slowly enough for the silhouette to read.
+    // 一筆開天由下往上貫穿畫卷；劍身本身就是演出，不疊程序墨痕。
     const pass=Math.max(0,Math.min(1,progress/.82));
-    const x=-W*.72+(W*2.44)*pass, y=P.y-H*.12;
-    const giantScale=Math.max(18,W/normalW*1.38);
-    ctx.save(); ctx.globalAlpha=.22; ctx.strokeStyle='#17130f'; ctx.lineCap='round';
-    for(let i=0;i<9;i++){ const yy=y+(i-4)*18; ctx.lineWidth=4+(i%3)*3; ctx.beginPath();
-      ctx.moveTo(Math.max(0,x-W*.9),yy); ctx.lineTo(Math.min(W,x+W*.72),yy+(i%2?12:-10)); ctx.stroke(); }
-    ctx.restore();
-    sword(x,y,0,giantScale,.82);
+    const x=P.x, y=H+normalH*10-(H+normalH*20)*pass;
+    const giantScale=Math.max(14,H/normalW*.72);
+    sword(x,y,-Math.PI/2,giantScale,.86);
   } else if(F.id==='truth_return_hidden'){
     const n=F.swordCount||Math.max(1,stat.count), phase=(F.t%120)/120;
     const outward=phase<.5, r=(outward?phase*2:(1-phase)*2)*Math.hypot(W,H)*.56;
@@ -1187,7 +1196,7 @@ function update(){
     }
   }
   // 境界以本境斬妖目標推進；倒數歸零仍未完成即失敗。
-  if(!G.bossTest && !ACTOR_POC && G.wave<60){
+  if(!G.bossTest && !ACTOR_POC && G.wave<=60){
     G.waveTimer++;
     if(G.waveKills>=realmKillTarget(G.wave)){
       if(G.wave===59) beginBossWave(); else advanceRealm();
@@ -1355,7 +1364,7 @@ const ENEMY_TONE={
 
 
 function realmKillTarget(w){ return w>=60?1:Math.min(60,10+Math.floor((w-1)*.72)+(w%10===0?5:0)); }
-function realmTimeFrames(w){ return (w>=60?180:45)*60; }
+function realmTimeFrames(w){ return (w>=60?360:45)*60; }
 function realmClockText(){
   const left=Math.max(0,Math.ceil((realmTimeFrames(G.wave)-G.waveTimer)/60));
   return String(Math.floor(left/60)).padStart(2,'0')+':'+String(left%60).padStart(2,'0');
@@ -1803,6 +1812,10 @@ function start(mode){
 }
 
 function continueAfterFormation(fastRestart){
+  if(BLADE_POC && INK_CONFIG.insightById[BLADE_POC]){
+    INK_CONFIG.runtime.applyInsight(runState,BLADE_POC);
+    syncStat();
+  }
   G.paused=false;
   SND.startMusic();
   if(ACTOR_POC) spawnActorPocBlade();
@@ -2095,7 +2108,10 @@ function renderSwordArts(){
   list.innerHTML=Object.keys(groups).map(cat=>'<section class="artgroup"><h3>'+ART_CATEGORY_NAME[cat]+'</h3>'+
     groups[cat].map(a=>{ const rank=Number(runState.ranks[a.id]||0);
       const totals=INK_CONFIG.runtime.cumulativeEffectLines(a,rank);
-      return '<div class="artrow"><div class="arttitle"><b>'+a.name+'</b><span>'+artTierName(rank)+'</span></div>'+
+      const tier=runState.tierLevel?.[a.id]||0, kills=runState.tierKills?.[a.id];
+      const mastery=tier>0?['','小成','大成','圓滿'][tier]:(kills==null?'':'精進中');
+      const killText=kills==null?'':' · '+kills+' 斬';
+      return '<div class="artrow"><div class="arttitle"><b>'+a.name+'</b><span>'+artTierName(rank)+(mastery?' · '+mastery:'')+killText+'</span></div>'+
         '<ul class="arttotals">'+totals.map(line=>'<li>'+line+'</li>').join('')+'</ul></div>'; }).join('')+'</section>').join('');
 }
 function toggleSwordArts(force){
@@ -2103,14 +2119,6 @@ function toggleSwordArts(force){
   if(open) renderSwordArts(); panel.classList.toggle('show',open); panel.setAttribute('aria-hidden',String(!open));
   if(G.running) G.paused=open||isPausedByUser();
   if(!meta.mute) SND.ui();
-}
-function toggleScorePanel(e){
-  e.stopPropagation();
-  const wrap=document.getElementById('scorewrap'), panel=document.getElementById('dpsbox');
-  const open=wrap.classList.toggle('open');
-  e.currentTarget.setAttribute('aria-expanded',String(open));
-  e.currentTarget.setAttribute('aria-label',open?'收合本境進度':'展開本境進度');
-  panel.setAttribute('aria-hidden',String(!open));
 }
 renderSoundButton(); bindVolumeSettings(); renderVolumeSettings();
 // 首次互動即解鎖音訊(瀏覽器自動播放限制);還在首頁就淡入首頁 BGM(game_op_loop,Loop)。
@@ -2203,7 +2211,7 @@ bindBootEvents({
     bosstestretry:()=>start('boss-fast'), againbtn:start, metabtn:uiOpenMeta, splashmetabtn:uiOpenMeta,
     metaplaybtn:start, metaclosebtn:uiCloseMeta, swordartsbtn:()=>toggleSwordArts(true),
     artsclose:()=>toggleSwordArts(false), artsPanel:e=>{ if(e.target.id==='artsPanel') toggleSwordArts(false); },
-    scoretribtn:toggleScorePanel, pausebtn:()=>togglePause(), autobtn:toggleAuto, truthbtn:castActiveTruth, rerollbtn:rerollCards,
+    pausebtn:()=>togglePause(), autobtn:toggleAuto, truthbtn:castActiveTruth, rerollbtn:rerollCards,
     sndbtn:toggleSound, resumebtn:()=>togglePause(false), respecbtn:requestRespec,
     pausequitbtn:()=>{ togglePause(false); gameOver(); }, splashshopbtn:uiOpenShop,
     metashopbtn:uiOpenShop, shopclosebtn:uiCloseShop

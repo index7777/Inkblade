@@ -115,20 +115,24 @@ export function drawBossShots(){
 
 export function drawSwordSprite(ctx,s){
   const SWDSPR=hooks.getSwordSprite?.(); if(!SWDSPR) return;
+  const blade=hooks.getBladeSword?.();
   const speed=Math.hypot(s.vx||0,s.vy||0), k=stat.size;
-  const BL=38+k*1.8+Math.min(12,speed*.7);          // 沿用原本的刀身長度手感
-  const w=BL/SWDSPR.blade, h=w/SWDSPR.aspect;
+  const BL=(38+k*1.8+Math.min(12,speed*.7))*1.3;    // 飛劍視覺放大30%,不改碰撞與間距
+  const typed=blade?.ok&&blade.image.complete&&blade.image.naturalWidth;
+  const w=typed?(BL/SWDSPR.blade)*blade.lengthScale:BL/SWDSPR.blade;
+  const h=typed?Math.max(8,w/blade.aspect):w/SWDSPR.aspect;
   let im;
-  if(s.age<24){ im=SWDSPR.atk[Math.min(5,Math.floor(s.age/4))]; }
+  if(typed){ im=blade.image; }
+  else if(s.age<24){ im=SWDSPR.atk[Math.min(5,Math.floor(s.age/4))]; }
   else { const t=(G.t*0.055+s.age*0.02+(s.seed||0)); im=SWDSPR.idle[Math.floor(((t%8)+8)%8)]; }
   if(!im||!im.complete||!im.naturalWidth) return;
   ctx.save(); ctx.translate(s.x,s.y); ctx.rotate(s.ang);
-  ctx.drawImage(im, -w*SWDSPR.grip, -h/2, w, h);
+  ctx.drawImage(im, -w*(typed?blade.grip:SWDSPR.grip), -h/2, w, h);
   ctx.restore();
 }
 export function drawInkFlyingSword(ctx,s){
   const speed=Math.hypot(s.vx||0,s.vy||0), k=stat.size*swMul(s).size;
-  const BL=38+k*1.8+Math.min(12,speed*.7), bw=2.8+k*.22;
+  const BL=(38+k*1.8+Math.min(12,speed*.7))*1.3, bw=(2.8+k*.22)*1.3;
   const EL=hooks.getElement?.(stat.element)||hooks.getElement?.('none'), phase=(G.t+s.age*3)*.08;
   ctx.save(); ctx.translate(s.x,s.y); ctx.rotate(s.ang);
   ctx.lineCap='round'; ctx.lineJoin='round';
@@ -351,7 +355,12 @@ export function drawEnemies(){
     if(stSup) hooks.drawSuppression?.(en, stSup);
     // 敵方血條：深墨底槽、朱紅血量與一像素框線，對齊示意圖的細長比例。
     if(!en.isBoss&&(en.isElite||en.hp<en.max)){
-      const w=Math.max(30,Math.min(62,en.r*2.45)), h=4, x=en.x-w/2, y=en.y-en.r-12;
+      const manifestHeight=en.visualHeight||en.r*2.1;
+      const manifestTop=inkBlade&&renderedByManifest
+        ? en.y-manifestHeight*(inkBlade.manifest.canvas?.footPivot?.y??1)
+        : null;
+      const w=Math.max(30,Math.min(62,en.r*2.45)), h=4, x=en.x-w/2,
+            y=manifestTop==null?en.y-en.r-12:manifestTop-9;
       ctx.fillStyle='rgba(20,17,14,.88)'; ctx.fillRect(x-1,y-1,w+2,h+2);
       ctx.fillStyle='rgba(76,66,55,.72)'; ctx.fillRect(x,y,w,h);
       ctx.fillStyle='#a22f2b'; ctx.fillRect(x,y,Math.max(0,w*Math.min(1,en.hp/en.max)),h);

@@ -214,7 +214,7 @@ function drawTruthChoices(){
   const box=document.getElementById('cards'); box.innerHTML='';
   choices.forEach(item=>{
     const element=document.createElement('div'); element.className='card truth-card';
-    element.innerHTML=`<div class="cardcategory">意</div><div class="rune">${item.rune}</div>
+    element.innerHTML=`<div class="cardcategory">意</div>
       <div class="cname">${item.name}</div><div class="cdesc">${item.description}</div>
       <div class="ctrade">${item.active.duration?'持續 '+item.active.duration+' 秒':'瞬發'}</div>`;
     element.onclick=()=>selectInsightCard(item); box.appendChild(element);
@@ -273,7 +273,7 @@ export function selectInsightCard(item){
     hooks.floatText?.(G.player.x,G.player.y-38,'劍意盈滿','#4aa0b8');
   }
   if(item.maxRank>1&&rankBefore+1>=item.maxRank&&item.tiers&&item.tiers.length){
-    G.banner={txt:item.name+' 滿階 · 小成 '+item.tiers[0].kills+' 斬',life:1};
+    G.banner={txt:item.name+' 滿階',life:1};
     hooks.floatText?.(G.player.x,G.player.y-56,item.name+' 滿階','#c08a2e');
   }
   if(truthSelectionOpen){
