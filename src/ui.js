@@ -166,6 +166,13 @@ export function drawCards(isReroll=false){
   document.getElementById('rerollleft').hidden=false;
   const choices=runtime.rollInsights(runState,3);
   const box=document.getElementById('cards'); box.innerHTML='';
+  if(!choices.length){
+    G.pendingLevels=0;
+    document.getElementById('overlay').classList.remove('show');
+    levelChoiceLocked=false;
+    G.paused=pausedByUser;
+    return;
+  }
   choices.forEach(item=>{
     const displayName=cardDisplayName(item);
     const displayRune=Array.from(displayName)[0]||'劍';

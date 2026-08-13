@@ -545,12 +545,12 @@
     return Math.max(0.1, base);
   }
 
-  function weightedPick(items, rng, state) {
-    const total = items.reduce((sum, item) => sum + getDynamicRarityWeight(state, item), 0);
+  function weightedPick(items, rng, state, weightOf = (item) => getDynamicRarityWeight(state, item)) {
+    const total = items.reduce((sum, item) => sum + weightOf(item), 0);
     if (total <= 0) return undefined;
     let cursor = rng.next() * total;
     for (const item of items) {
-      cursor -= getDynamicRarityWeight(state, item);
+      cursor -= weightOf(item);
       if (cursor <= 0) return item;
     }
     return items[items.length - 1];
@@ -562,16 +562,37 @@
     // 過濾被封鎖傳承對應悟道
     pool = pool.filter(item => !state.lockedInheritance.some(lock => item.requires.includes(lock)));
     const result = [];
+    const usedCategories = new Set();
+    const categoryRank = new Map();
+    for (const item of INSIGHTS) {
+      const rank = Number(state.ranks[item.id] || 0);
+      categoryRank.set(item.category, Math.max(categoryRank.get(item.category) || 0, rank));
+    }
+    // Once a category reaches rank two it becomes the draft's primary lane.  The
+    // category is weighted, not duplicated: every remaining card must still come
+    // from a different category.
+    const categoryBoost = (category) => {
+      const rank = categoryRank.get(category) || 0;
+      return rank >= 2 ? 2.5 + (rank - 2) * 0.5 : 1;
+    };
+    const pickFrom = (candidates) => {
+      const available = candidates.filter(item => !usedCategories.has(item.category));
+      if (!available.length) return undefined;
+      const chosen = weightedPick(available, rng, state,
+        item => getDynamicRarityWeight(state, item) * categoryBoost(item.category));
+      if (chosen) usedCategories.add(chosen.category);
+      return chosen;
+    };
     const forceInkListening = state.flags.listenToInk && pool.some((item) => item.category === CATEGORY.MOMENTUM || item.category === CATEGORY.INTENT);
     if (forceInkListening && count > 0) {
       const focused = pool.filter((item) => item.category === CATEGORY.MOMENTUM || item.category === CATEGORY.INTENT);
-      const chosen = weightedPick(focused, rng, state);
+      const chosen = pickFrom(focused);
       if (chosen) result.push(chosen);
     }
     while (result.length < count) {
-      const candidates = pool.filter((item) => !result.includes(item));
+      const candidates = pool.filter((item) => !result.includes(item) && !usedCategories.has(item.category));
       if (!candidates.length) break;
-      const chosen = weightedPick(candidates, rng, state);
+      const chosen = pickFrom(candidates);
       if (!chosen) break;
       result.push(chosen);
     }
@@ -778,6 +799,26 @@
     if (typeof item === 'string') item = insightById[item];
     if (!item) return [];
     return opLines(item.effects).slice(0, EFFECT_MAX_LINES);
+  }
+
+  function cumulativeEffectLines(item, rank) {
+    if (typeof item === 'string') item = insightById[item];
+    const appliedRank = Math.max(0, Math.min(Number(rank) || 0, Number(item?.maxRank) || 0));
+    if (!item || !appliedRank) return [];
+    const aggregated = [];
+    const keyed = new Map();
+    for (const effect of item.effects || []) {
+      const key = `${effect.op}:${effect.path}`;
+      if (effect.op === 'add') {
+        keyed.set(key, { ...effect, value: (Number(effect.value) || 0) * appliedRank });
+      } else if (effect.op === 'mul') {
+        keyed.set(key, { ...effect, value: Math.pow(Number(effect.value) || 1, appliedRank) });
+      } else if (!keyed.has(key)) {
+        keyed.set(key, effect);
+      }
+    }
+    aggregated.push(...keyed.values());
+    return opLines(aggregated);
   }
 
   // 計算本次洗點消耗劍意(0=免費)。免費 1 次後遞增,封頂 250。
@@ -1122,6 +1163,7 @@
       noteKill,
       getTierView,
       effectLines,
+      cumulativeEffectLines,
       tierLines,
       textWidth,
       validateConfig

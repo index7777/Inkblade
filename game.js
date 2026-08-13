@@ -3688,6 +3688,13 @@
     const choices = runtime.rollInsights(runState, 3);
     const box = document.getElementById("cards");
     box.innerHTML = "";
+    if (!choices.length) {
+      G.pendingLevels = 0;
+      document.getElementById("overlay").classList.remove("show");
+      levelChoiceLocked = false;
+      G.paused = pausedByUser;
+      return;
+    }
     choices.forEach((item) => {
       const displayName = cardDisplayName(item);
       const displayRune = Array.from(displayName)[0] || "劍";
@@ -4458,6 +4465,7 @@
     let booted = false;
     let pendingFormationStart = null;
     const ACTOR_POC = new URLSearchParams(location.search).has("actorpoc");
+    const TRUTH_POC = new URLSearchParams(location.search).get("truthpoc");
     let actorPocDiag = null;
     const assetRegistry = new AssetRegistry();
     assetRegistry.loadActorManifest("assets/actors/enemies/ink_blade/actor.manifest.json").then(() => {
@@ -5368,9 +5376,11 @@
         SND.nomana();
         return;
       }
-      G.mana -= cost;
-      truthCooldown = Math.round(item.active.cooldown * 60);
-      truthFx = { id: item.id, t: 0, dur: Math.max(54, Math.round((item.active.duration || 0.9) * 60)), hits: /* @__PURE__ */ new WeakMap() };
+      if (!TRUTH_POC) G.mana -= cost;
+      truthCooldown = TRUTH_POC ? 0 : Math.round(item.active.cooldown * 60);
+      const swordCount = Math.max(1, (stat.count | 0) + (G.reserve | 0));
+      const authoredDuration = item.id === "truth_ten_thousand" ? 240 : item.id === "truth_single_stroke" ? 210 : Math.round((item.active.duration || 0.9) * 60);
+      truthFx = { id: item.id, t: 0, dur: Math.max(54, authoredDuration), hits: /* @__PURE__ */ new WeakMap(), swordCount };
       SND.cast(Math.max(W, H));
       G.banner = { txt: "真意 · " + item.name, life: 1 };
       refreshTruthButton();
@@ -5384,22 +5394,28 @@
       }
       const F = truthFx, P = G.player;
       F.t++;
-      const progress = F.t / F.dur, swords = Math.max(1, stat.count | 0), base = stat.damage;
+      const progress = Math.min(1, F.t / F.dur), swords = F.swordCount || Math.max(1, stat.count | 0), base = stat.damage;
+      const diagonal = Math.hypot(W, H), edgeRadius = diagonal * 0.56;
       for (const en of G.enemies) {
         if (en.dead || en.showcaseGhost) continue;
         let hit = false, dmg = base;
         if (F.id === "truth_ten_thousand") {
-          hit = Math.abs(Math.hypot(en.x - P.x, en.y - P.y) / Math.hypot(W, H) - progress) < 0.085;
+          const ring = Math.min(5, Math.floor(progress * 6)), ringRadius = ring / 5 * edgeRadius;
+          hit = Math.abs(Math.hypot(en.x - P.x, en.y - P.y) - ringRadius) < 82;
         } else if (F.id === "truth_single_stroke") {
-          const y = H - (H + 140) * progress;
-          hit = Math.abs(en.y - y) < 70;
-          dmg = base * swords * 0.16;
+          const y = H + 260 - (H + 520) * progress;
+          const passed = en.y >= y - 36, qiSpread = Math.min(W * 0.5, Math.max(0, F.t - 8) * 18);
+          hit = Math.abs(en.x - W * 0.5) < 86 && Math.abs(en.y - y) < 190 || passed && Math.abs(en.x - W * 0.5) <= qiSpread;
+          dmg = base * swords;
         } else if (F.id === "truth_return_hidden") {
-          const phase = F.t % 120 / 120, radius = (phase < 0.5 ? phase * 2 : (1 - phase) * 2) * Math.hypot(W, H) * 0.52;
-          hit = Math.abs(Math.hypot(en.x - P.x, en.y - P.y) - radius) < 34;
+          const phase = F.t % 120 / 120, radius = (phase < 0.5 ? phase * 2 : (1 - phase) * 2) * edgeRadius;
+          const a = Math.atan2(en.y - P.y, en.x - P.x), slot = Math.round(a / (Math.PI * 2) * swords);
+          const ray = slot * Math.PI * 2 / swords, lateral = Math.abs(Math.sin(a - ray) * Math.hypot(en.x - P.x, en.y - P.y));
+          hit = Math.abs(Math.hypot(en.x - P.x, en.y - P.y) - radius) < 58 && lateral < 34;
         } else if (F.id === "truth_moon_return") {
-          hit = Math.abs(Math.hypot(en.x - P.x, en.y - P.y) - Math.min(W, H) * 0.25) < 42;
-          dmg = base * Math.max(1, stat.flySpeed / 14) * 0.22;
+          const radius = Math.min(W, H) * 0.27, bladeLength2 = 72;
+          hit = Math.abs(Math.hypot(en.x - P.x, en.y - P.y) - (radius + bladeLength2 * 0.48)) < 52;
+          dmg = base * Math.max(1, stat.flySpeed * swords / 14);
         }
         const last = F.hits.get(en) || -99;
         if (hit && F.t - last >= 10) {
@@ -5408,35 +5424,90 @@
           applyIntent(en);
         }
       }
-      if (F.t >= F.dur) truthFx = null;
+      if (F.t >= F.dur) {
+        truthFx = null;
+        if (TRUTH_POC) {
+          truthCooldown = 0;
+          G.mana = Math.max(G.mana, 400);
+          refreshTruthButton();
+        }
+      }
       if (G.t % 15 === 0) refreshTruthButton();
     }
     function drawTruthFx() {
       if (!truthFx || !G.player || !FLYSWORD.image.complete) return;
-      const F = truthFx, P = G.player, progress = F.t / F.dur, im = FLYSWORD.image;
+      const F = truthFx, P = G.player, progress = Math.min(1, F.t / F.dur), im = FLYSWORD.image;
+      const normalW = 44 + stat.size * 0.9, normalH = normalW / FLYSWORD.aspect * 2.2;
       ctx.save();
       ctx.globalCompositeOperation = "multiply";
-      const sword = (x, y, a, scale = 1) => {
+      const sword = (x, y, a, scale = 1, alpha = 0.76) => {
         ctx.save();
         ctx.translate(x, y);
         ctx.rotate(a);
-        ctx.globalAlpha = 0.72;
-        ctx.drawImage(im, -48 * scale, -7 * scale, 96 * scale, 14 * scale);
+        ctx.globalAlpha = alpha;
+        ctx.drawImage(im, -normalW * FLYSWORD.grip * scale, -normalH * 0.5 * scale, normalW * scale, normalH * scale);
         ctx.restore();
       };
       if (F.id === "truth_ten_thousand") {
-        const r = progress * Math.hypot(W, H);
-        for (let i = 0; i < Math.max(12, stat.count * 4); i++) {
-          const a = i * 2.399;
-          sword(P.x + Math.cos(a) * r, P.y + Math.sin(a) * r, a + Math.PI / 2, 0.9);
+        const total = Math.max(72, (F.swordCount || stat.count) * 10), columns = 12;
+        for (let i = 0; i < total; i++) {
+          const row = Math.floor(i / columns), col = i % columns;
+          const start2 = col % 3 * 0.018 + row * 0.052;
+          const fall = Math.max(0, Math.min(1, (progress - start2) / 0.34));
+          if (fall <= 0 || fall >= 1) continue;
+          const lane = (col + 0.5) / columns, outerX = lane * W;
+          const gather = 0.48 + 0.52 * (1 - fall);
+          const x = P.x + (outerX - P.x) * gather + Math.sin(i * 2.17) * 10;
+          const y = -normalW + (P.y + normalW * 1.2) * fall + row * 7;
+          sword(x, y, Math.PI / 2, 1, 0.9);
         }
-      } else if (F.id === "truth_single_stroke") sword(W * 0.5, H - (H + 140) * progress, -Math.PI / 2, 3.2);
-      else {
-        const n = Math.max(6, stat.count), phase = F.id === "truth_return_hidden" ? F.t % 120 / 120 : 0;
-        const r = F.id === "truth_return_hidden" ? (phase < 0.5 ? phase * 2 : (1 - phase) * 2) * Math.hypot(W, H) * 0.52 : Math.min(W, H) * 0.25;
+      } else if (F.id === "truth_single_stroke") {
+        const pass = Math.max(0, Math.min(1, progress / 0.82));
+        const x = -W * 0.72 + W * 2.44 * pass, y = P.y - H * 0.12;
+        const giantScale = Math.max(18, W / normalW * 1.38);
+        ctx.save();
+        ctx.globalAlpha = 0.22;
+        ctx.strokeStyle = "#17130f";
+        ctx.lineCap = "round";
+        for (let i = 0; i < 9; i++) {
+          const yy = y + (i - 4) * 18;
+          ctx.lineWidth = 4 + i % 3 * 3;
+          ctx.beginPath();
+          ctx.moveTo(Math.max(0, x - W * 0.9), yy);
+          ctx.lineTo(Math.min(W, x + W * 0.72), yy + (i % 2 ? 12 : -10));
+          ctx.stroke();
+        }
+        ctx.restore();
+        sword(x, y, 0, giantScale, 0.82);
+      } else if (F.id === "truth_return_hidden") {
+        const n = F.swordCount || Math.max(1, stat.count), phase = F.t % 120 / 120;
+        const outward = phase < 0.5, r = (outward ? phase * 2 : (1 - phase) * 2) * Math.hypot(W, H) * 0.56;
         for (let i = 0; i < n; i++) {
-          const a = F.t * 0.055 + i * Math.PI * 2 / n;
-          sword(P.x + Math.cos(a) * r, P.y + Math.sin(a) * r, a + Math.PI / 2, 1.15);
+          const a = i * Math.PI * 2 / n, facing = outward ? a : a + Math.PI;
+          ctx.save();
+          ctx.globalAlpha = 0.18;
+          ctx.strokeStyle = "#211c17";
+          ctx.lineWidth = Math.max(2, normalH * 0.45);
+          ctx.beginPath();
+          ctx.moveTo(P.x, P.y);
+          ctx.lineTo(P.x + Math.cos(a) * r, P.y + Math.sin(a) * r);
+          ctx.stroke();
+          ctx.restore();
+          sword(P.x + Math.cos(a) * r, P.y + Math.sin(a) * r, facing, 1.15, 0.82);
+        }
+      } else if (F.id === "truth_moon_return") {
+        const n = F.swordCount || Math.max(1, stat.count), r = Math.min(W, H) * 0.27;
+        const spin = F.t * 0.012 * Math.max(1, stat.flySpeed * n / 14);
+        ctx.save();
+        ctx.strokeStyle = "rgba(31,27,23,.25)";
+        ctx.lineWidth = Math.max(3, normalH * 0.55);
+        ctx.beginPath();
+        ctx.arc(P.x, P.y, r, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+        for (let i = 0; i < n; i++) {
+          const a = spin + i * Math.PI * 2 / n;
+          sword(P.x + Math.cos(a) * r, P.y + Math.sin(a) * r, a, 1.15, 0.84);
         }
       }
       ctx.restore();
@@ -6507,6 +6578,29 @@
       SND.startMusic();
       if (ACTOR_POC) spawnActorPocBlade();
     }
+    function startTruthPoc(id) {
+      if (!INK_CONFIG.insightById[id]) return;
+      start("boss-fast");
+      const formation = INK_CONFIG.insights.find((item) => item.category === "formation");
+      if (formation) INK_CONFIG.runtime.chooseStartingFormation(runState, formation.id);
+      pendingFormationStart = null;
+      resetLevelChoice();
+      G.paused = false;
+      runState.activeTruth = id;
+      stat.count = 8;
+      G.reserve = 2;
+      G.mana = Math.max(stat.manaMax, 400);
+      G.hpLocked = true;
+      document.getElementById("splash").style.display = "none";
+      document.getElementById("overlay")?.classList.remove("show");
+      const testTools = document.getElementById("bosstesttools");
+      testTools.classList.add("show");
+      testTools.style.display = "";
+      truthCooldown = 0;
+      truthFx = null;
+      refreshTruthButton();
+      updateHUD();
+    }
     function spawnActorPocBlade() {
       if (!ACTOR_POC || !G.player) return;
       G.enemies = G.enemies.filter((en) => !en.actorPoc);
@@ -6922,8 +7016,9 @@
       setTimeout(() => wrap.remove(), 850);
     }
     const ART_CATEGORY_NAME = { form: "劍陣", momentum: "劍行", intent: "劍痕", cultivation: "劍稟", blade: "劍型", truth: "真意" };
+    const ART_RANK_NAME = ["零階", "一階", "二階", "三階", "四階", "五階"];
     function artTierName(rank) {
-      return rank <= 1 ? "一階" : rank === 2 ? "二階" : "三階";
+      return ART_RANK_NAME[Math.max(0, Math.min(5, Number(rank) || 0))];
     }
     function renderSwordArts() {
       const list = document.getElementById("artslist");
@@ -6936,8 +7031,9 @@
       const groups = {};
       for (const a of learned) (groups[a.category] || (groups[a.category] = [])).push(a);
       list.innerHTML = Object.keys(groups).map((cat) => '<section class="artgroup"><h3>' + ART_CATEGORY_NAME[cat] + "</h3>" + groups[cat].map((a) => {
-        const raw = Number(runState.ranks[a.id] || 0), stage = Math.min(3, Math.max(1, Math.ceil(raw / Math.max(1, a.maxRank || 1) * 3)));
-        return '<div class="artrow"><b>' + a.name + "</b><span>" + artTierName(stage) + "</span></div>";
+        const rank = Number(runState.ranks[a.id] || 0);
+        const totals = INK_CONFIG.runtime.cumulativeEffectLines(a, rank);
+        return '<div class="artrow"><div class="arttitle"><b>' + a.name + "</b><span>" + artTierName(rank) + '</span></div><ul class="arttotals">' + totals.map((line) => "<li>" + line + "</li>").join("") + "</ul></div>";
       }).join("") + "</section>").join("");
     }
     function toggleSwordArts(force) {
@@ -7105,5 +7201,6 @@
       }
     });
     startBoot();
+    if (TRUTH_POC) setTimeout(() => startTruthPoc(TRUTH_POC), 1400);
   })();
 })();

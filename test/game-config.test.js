@@ -69,6 +69,26 @@ test('normal drafts and respec preserve the committed formation lane', () => {
   assert.equal(state.ranks[extra.id],undefined);
 });
 
+test('drafts keep categories distinct and boost a category learned to rank two', () => {
+  let baseline=0, boosted=0;
+  for(let seed=1;seed<=200;seed+=1){
+    const plain=runtime.createRunState(); runtime.chooseStartingFormation(plain,'form_scatter');
+    const plainOffer=runtime.rollInsights(plain,3,new runtime.SeededRandom(seed));
+    assert.equal(new Set(plainOffer.map(item=>item.category)).size,plainOffer.length);
+    if(plainOffer.some(item=>item.category==='momentum')) baseline+=1;
+    const focused=runtime.createRunState(); runtime.chooseStartingFormation(focused,'form_scatter');
+    runtime.applyInsight(focused,'momentum_swift'); runtime.applyInsight(focused,'momentum_swift');
+    const focusedOffer=runtime.rollInsights(focused,3,new runtime.SeededRandom(seed));
+    assert.equal(new Set(focusedOffer.map(item=>item.category)).size,focusedOffer.length);
+    if(focusedOffer.some(item=>item.category==='momentum')) boosted+=1;
+  }
+  assert.ok(boosted>baseline,`${boosted} should exceed ${baseline}`);
+});
+
+test('cumulative effect lines total all learned ranks', () => {
+  assert.ok(runtime.cumulativeEffectLines('intent_restore',3).some(line=>line.includes('2.34')));
+});
+
 test('trace and blade-type families lock to the first chosen lane', () => {
   const state=runtime.createRunState();
   runtime.chooseStartingFormation(state,'form_scatter');
