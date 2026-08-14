@@ -30,8 +30,8 @@
     "semantic_hash": ""
   },
   "src/enemy.js": {
-    "mtime": 1786555149.8088677,
-    "ast_hash": "be7919b3b6a0d2075f4f0428eb294c08",
+    "mtime": 1786643006.977822,
+    "ast_hash": "286bd8dfe5eb52d2eeefd6c9492ec886",
     "semantic_hash": ""
   },
   "src/geom.js": {
@@ -40,8 +40,8 @@
     "semantic_hash": ""
   },
   "src/main.js": {
-    "mtime": 1786639415.755448,
-    "ast_hash": "3ca2194baf0575f73679f2e7f07551a1",
+    "mtime": 1786642938.67054,
+    "ast_hash": "231cce33eafe531cae15d0b95f288a61",
     "semantic_hash": ""
   },
   "src/viewport.js": {
@@ -270,8 +270,8 @@
     "semantic_hash": ""
   },
   "inkblade.html": {
-    "mtime": 1786636932.432234,
-    "ast_hash": "c653d50c17289ccace0662e6118d73ec",
+    "mtime": 1786642573.135797,
+    "ast_hash": "78c6dc2a29ebc9cfdf605d70b608ce66",
     "semantic_hash": ""
   },
   "music-prompts.md": {
@@ -2020,8 +2020,8 @@
     "semantic_hash": ""
   },
   "test/enemy-rules.test.js": {
-    "mtime": 1786450999.3087778,
-    "ast_hash": "d35ac2a13635693075b4eee00c48ca71",
+    "mtime": 1786640266.9233353,
+    "ast_hash": "4c3058bda35c5b2b47328890328df408",
     "semantic_hash": ""
   },
   "test/game-config.test.js": {
@@ -2050,13 +2050,13 @@
     "semantic_hash": ""
   },
   "src/render.js": {
-    "mtime": 1786638715.2037249,
-    "ast_hash": "fd4c143840476d4d9a45daceb9578b16",
+    "mtime": 1786642872.8084538,
+    "ast_hash": "a26199fea1dc84f7e8a20bf1b14d2beb",
     "semantic_hash": ""
   },
   "src/ui.js": {
-    "mtime": 1786636928.0254977,
-    "ast_hash": "235228ba09ad3962a2dcbcca58c5ddbd",
+    "mtime": 1786642570.9571395,
+    "ast_hash": "cde2471d6b7f89883bdc6a0c15602e54",
     "semantic_hash": ""
   },
   "_stage/cfg_v10.js": {

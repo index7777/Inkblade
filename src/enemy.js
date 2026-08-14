@@ -67,13 +67,18 @@ export function spawnEnemy(){
     chargeX:0,chargeY:0,anim:Math.random()*1000,ember:0,emberT:0,chill:0,hit:0,broken:0,wob:Math.random()*7,st:{}});
 }
 
-export function spawnNetherSpider(){
-  const q=waveDifficulty(30),hp=850*q.hp;
-  G.enemies.push({x:W*.5,y:Math.max(18,PLAY_TOP+42),r:42,hp,max:hp,sp:.78*q.speed,c:'#173e31',tier:2,type:'spider',
-    species:'netherSpider',speciesName:'幽冥墨蛛',ai:'spider',isElite:true,
-    contactDamage:Math.round(24*q.damage),xpValue:12,aiT:0,aiSeed:Math.random()*6.283,orbitDir:Math.random()<.5?-1:1,
-    chargeX:0,chargeY:1,anim:0,ember:0,emberT:0,chill:0,hit:0,broken:0,wob:Math.random()*7,st:{}});
-  G.banner={txt:'第三十境 · 幽冥墨蛛',life:1};
+export function eliteSpiderCountForWave(w){ return w===30?1:w===40?2:w===55?3:0; }
+
+export function spawnNetherSpider(w=30,count=1){
+  const q=waveDifficulty(w),hp=850*q.hp;
+  for(let i=0;i<count;i++){
+    const x=count===1?W*.5:W*(.28+.44*(i/(count-1)));
+    G.enemies.push({x,y:Math.max(18,PLAY_TOP+42+(i%2)*18),r:42,hp,max:hp,sp:.78*q.speed,c:'#173e31',tier:2,type:'spider',
+      species:'netherSpider',speciesName:'幽冥墨蛛',ai:'spider',isElite:true,
+      contactDamage:Math.round(24*q.damage),xpValue:12,aiT:i*17,aiSeed:Math.random()*6.283,orbitDir:i%2?-1:1,
+      chargeX:0,chargeY:1,anim:i*41,ember:0,emberT:0,chill:0,hit:0,broken:0,wob:Math.random()*7,st:{}});
+  }
+  G.banner={txt:'第 '+w+' 境 · 幽冥墨蛛 ×'+count,life:1};
   if(hooks.floatText) hooks.floatText(W*.5,H*.22,'小精英現形','#25684f');
   if(hooks.playWave) hooks.playWave();
   if(hooks.flash) hooks.flash(.12,'190,225,205');
@@ -109,7 +114,7 @@ export const XUANMING_CONFIG={
   }
 };
 
-export const BOSS_PLAYER_Y_RATIO=.54;
+export const BOSS_PLAYER_Y_RATIO=.64;
 
 export function spawnXuanmingBoss(testMode){
   const hp=XUANMING_HP;
@@ -174,23 +179,21 @@ export function bossOrbitRadius(side){
 }
 
 export function placeBoss(en,ang,r){
-  if(en.bossSide===0){ en.x=W*.5; en.y=H*.29-bossVisualLift(0); }
-  else if(en.bossSide===1){ en.x=W+W*.12; en.y=H*.34; }
-  else if(en.bossSide===2){ en.x=W*.5; en.y=H*.90-bossVisualLift(2); }
-  else { en.x=-W*.12; en.y=H*.34; }
+  // 玄冥墨蛟固定盤踞於玩家前方。攻擊狀態可以改變動作，但不再幻型到四側。
+  en.bossSide=0;
+  en.bossAngle=-Math.PI/2;
+  en.x=W*.5;
+  en.y=H*.38-bossVisualLift(0);
 }
 
 export function bossSafeSide(en){
-  const candidates=[0,1,2,3].filter(side=>side!==en.bossSide);
-  const valid=candidates.filter(side=>bossOrbitRadius(side)>=150+G.player.r);
-  const pool=valid.length?valid:candidates;
-  return pool[Math.floor(Math.random()*Math.max(1,pool.length))]??0;
+  return 0;
 }
 
 export function bossMoveToSide(en,side,state){
-  en.bossSide=side;
-  en.bossAngle=[-Math.PI/2,0,Math.PI/2,Math.PI][side];
-  placeBoss(en,en.bossAngle,bossOrbitRadius(side));
+  en.bossSide=0;
+  en.bossAngle=-Math.PI/2;
+  placeBoss(en,en.bossAngle,bossOrbitRadius(0));
   en.bossState=state; en.bossT=0; en.bossHit=false;
 }
 
@@ -219,14 +222,14 @@ export function updateBossP1(en){
   const orbitFrames=G.bossTest?54:100;
   if(state==='phase'){
     placeBoss(en,en.bossAngle,R);
-    en.alpha=Math.max(0,1-en.bossT/32);
+    en.alpha=1;
     if(en.bossT%3===0) bossDissolveMist(en);
     if(en.bossT>=90) nextBossManifest(en);
   } else if(state==='telegraph'){
-    placeBoss(en,en.bossAngle,R); en.alpha=.05;
+    placeBoss(en,en.bossAngle,R); en.alpha=1;
     if(en.bossT>=telegraphFrames){ en.bossState='manifest'; en.bossT=0; }
   } else if(state==='manifest'){
-    placeBoss(en,en.bossAngle,R); en.alpha=Math.min(1,en.bossT/Math.max(1,manifestFrames-4));
+    placeBoss(en,en.bossAngle,R); en.alpha=1;
     if(en.bossT>=manifestFrames){ en.bossState='orbit'; en.bossT=0; en.alpha=1; }
   } else if(state==='orbit'){
     placeBoss(en,en.bossAngle,R); en.alpha=1;
@@ -240,11 +243,11 @@ export function updateBossP1(en){
     }
     if(en.bossT>=58){ en.bossState='dissolve'; en.bossT=0; }
   } else if(state==='dissolve'){
-    en.alpha=Math.max(0,1-en.bossT/46);
+    en.alpha=1;
     if(en.bossT>=46) nextBossManifest(en);
   }
   en.depth=Math.max(0,Math.min(1,(en.y-(G.player.y-R))/(R*2)));
-  en.visualScale=en.bossSide===0?1.85:en.bossSide===2?2.05:2.40;
+  en.visualScale=2.12;
   en.lean=Math.max(-.16,Math.min(.16,(en.x-(en.px==null?en.x:en.px))*.025));
   en.face=Math.atan2(G.player.y-en.y,G.player.x-en.x);
   en.px=en.x; en.py=en.y;
@@ -523,7 +526,7 @@ export function spawnBossRing(en){
     if(Math.abs(da)<Math.PI/N*1.3) continue;
     const x=P.x+Math.cos(a)*R,y=P.y+Math.sin(a)*R,spd=(en.hp/en.max<=.4)?1.18:1.02;
     G.bossShots.push({x,y,px:x,py:y,vx:-Math.cos(a)*spd,vy:-Math.sin(a)*spd,
-      r:10,hp:1,max:1,dmg:9,age:0,seed:Math.random()*100});
+      r:10,hp:1,max:1,dmg:9,ring:true,age:0,seed:Math.random()*100});
   }
 }
 

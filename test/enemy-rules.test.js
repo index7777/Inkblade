@@ -6,7 +6,7 @@ globalThis.document={
   getElementById(){ return {getContext(){ return {}; }}; }
 };
 
-const { waveDifficulty, bossPhase }=await import('../src/enemy.js');
+const { waveDifficulty, bossPhase, eliteSpiderCountForWave }=await import('../src/enemy.js');
 
 test('waveDifficulty preserves early-wave values and capped scaling', () => {
   const wave1=waveDifficulty(1);
@@ -36,4 +36,12 @@ test('bossPhase transitions exactly at 70% and 35% HP', () => {
   assert.equal(bossPhase({hp:36,max:100}),2);
   assert.equal(bossPhase({hp:35,max:100}),3);
   assert.equal(bossPhase({hp:0,max:100}),3);
+});
+
+test('elite spider formations occur only at waves 30, 40, and 55', () => {
+  assert.equal(eliteSpiderCountForWave(30),1);
+  assert.equal(eliteSpiderCountForWave(40),2);
+  assert.equal(eliteSpiderCountForWave(55),3);
+  assert.equal(eliteSpiderCountForWave(39),0);
+  assert.equal(eliteSpiderCountForWave(56),0);
 });

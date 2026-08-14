@@ -2,7 +2,7 @@ import { truncatePath, segCircleDist } from './geom.js';
 import { G, stat } from './core.js';
 import { HERO_VISUAL_SCALE, HERO_BODY_SCALE, FAN_PHI, BASE_SPEED, MERGE_SPEED_K, MERGE_WIDTH_K, SOLO_TURN, HOMING_RANGE } from './constants.js';
 import { cv, ctx, W, H, DPR, PLAY_TOP, qual, applyQuality, resize, computePlayTop, configureViewport, startViewport, setDPR } from './viewport.js';
-import { onScreen, waveDifficulty, spawnEnemy, spawnNetherSpider, configureEnemy, BOSS_PLAYER_Y_RATIO, spawnXuanmingBoss, beginXuanmingWave, completeXuanmingWave, bossPhase, bossOrbitRadius, bossVisualLift, placeBoss, nextBossManifest, updateBossP1, updateEnemies, killEnemy, spawnSpiderWebShot, updateBossShots, inkCoreDissolve } from './enemy.js';
+import { onScreen, waveDifficulty, spawnEnemy, spawnNetherSpider, eliteSpiderCountForWave, configureEnemy, BOSS_PLAYER_Y_RATIO, spawnXuanmingBoss, beginXuanmingWave, completeXuanmingWave, bossPhase, bossOrbitRadius, bossVisualLift, placeBoss, nextBossManifest, updateBossP1, updateEnemies, killEnemy, spawnSpiderWebShot, updateBossShots, inkCoreDissolve } from './enemy.js';
 import { configureCombat, pathLen, leadInLen, bladeLength, inlineGap, inlineTipLead, fanPose, formationOffset, cmdLife, speedMul, durCost, spawnCmdSword, nearestEnemy, extendCommand, spawnAutoCommand, buildStrokePasses, launchCommand, canReturn, launchSword, autoCommandEndpoint, selectAutoTarget, updateCombat } from './combat.js';
 import { configureRender, invalidatePaper, drawSplash, drawMistDissolve, swordFxTrail, drawBossShots, enemyVariantFrame, drawSwordSprite, drawInkFlyingSword, swMul, drawJian, drawTassel, heroSet, drawHero, tintFrame, drawEnemies, drawPlayer, draw, ensureSupV, ensureEroV } from './render.js';
 import { configureUI, num2cn, setTxt, setW, resetHudCache, renderManaBill, updateHUD, levelChoiceOpen, drawCards, drawStartingFormations, rerollCards, tryLevelUp, resetLevelChoice, isPausedByUser, resetPauseState, togglePause, renderVolumeSettings, bindVolumeSettings, toggleSound, renderSoundButton, bindSettingsSegments, bindPauseTabs, renderMeta as uiRenderMeta, openMeta as uiOpenMeta, closeMeta as uiCloseMeta, resetRespecConfirmation, renderRespec as uiRenderRespec, requestRespec, renderHeroChoices as uiRenderHeroChoices, bindHeroChoices, renderShop as uiRenderShop, openShop as uiOpenShop, closeShop as uiCloseShop, renderTierList as uiRenderTierList, enableDragScroll as uiEnableDragScroll } from './ui.js';
@@ -15,6 +15,7 @@ let pendingFormationStart=null;
 const ACTOR_POC=new URLSearchParams(location.search).has('actorpoc');
 const TRUTH_POC=new URLSearchParams(location.search).get('truthpoc');
 const BLADE_POC=new URLSearchParams(location.search).get('bladepoc');
+const WAVE_POC=Number(new URLSearchParams(location.search).get('wavepoc'))||0;
 let actorPocDiag=null;
 const assetRegistry=new AssetRegistry();
 assetRegistry.loadActorManifest('assets/actors/enemies/ink_blade/actor.manifest.json')
@@ -33,6 +34,11 @@ configureUI({
   realmClockText:()=>realmClockText(),
   realmTimeFrames:wave=>realmTimeFrames(wave),
   bossTestAttackCountdown:boss=>bossTestAttackCountdown(boss),
+  getBossHudPlacement:boss=>({
+    x:Math.max(W*.29,Math.min(W*.71,boss.bossHudAnchorX??boss.x)),
+    y:Math.max(PLAY_TOP+18,Math.min(H*.42,(boss.bossHudAnchorY??boss.y)-64)),
+    width:Math.min(330,W*.48)
+  }),
   getBossStateLabel:state=>BOSS_STATE_CN[state],
   isDpsOpen:()=>DPS.open,
   renderDps:()=>renderDps(),
@@ -76,6 +82,7 @@ configureRender({
   getFX:()=>FX,
   getDrawLevel:()=>DRAWLV,
   getEnemySprites:()=>ENESPR,
+  getBossFx:()=>ENESPR.boss.p1.projectiles,
   getAssetRegistry:()=>assetRegistry,
   onActorPocFrame:info=>{ actorPocDiag=info; },
   getDrawState:()=>({drawing,path,curLen,meta,ELEM}),
@@ -467,7 +474,7 @@ function warmSwordTint(){
 // 敵人/Boss sprite 載入器:偵測到真透明 PNG 就用,否則回退程序化墨團(見敵人繪製)。
 // 檔名對應 docs/ch1-asset-library.md;放進對應資料夾即自動生效,無需改碼。
 const ENESPR = { inkling:{frames:[],ok:false}, blade:{frames:[],ok:false}, raven:{frames:[],attack:[],ok:false}, fang:{frames:[],attack:[],ok:false}, spider:{frames:[],attack:[],ok:false},
-  boss:{frames:[],attack:[],dissolve:[],top:{idle:null,attack:[]},bottom:{idle:null,attack:[]},ok:false} };
+  boss:{frames:[],attack:[],dissolve:[],p1:{manifest:[],skill:[],hurt:[],projectiles:{heavyCore:[],ringWave:[]},ok:false},top:{idle:null,attack:[]},bottom:{idle:null,attack:[]},ok:false} };
 (function(){
   const srcs={
     inkling:['assets/enemies/ENE_INKLING_move_01.png','assets/enemies/ENE_INKLING_move_02.png',
@@ -1204,8 +1211,12 @@ function update(){
       G.banner={txt:'時限已盡',life:1}; gameOver();
     }
   }
-  if(!G.bossTest && !ACTOR_POC && G.wave<60){
-    if(G.wave===30 && !G.eliteSpawned[30]){ G.eliteSpawned[30]=true; spawnNetherSpider(); }
+  if(!G.bossTest && (!ACTOR_POC||WAVE_POC) && G.wave<60){
+    const eliteCount=eliteSpiderCountForWave(G.wave);
+    if(eliteCount && !G.eliteSpawned[G.wave]){
+      G.eliteSpawned[G.wave]=true;
+      spawnNetherSpider(G.wave,eliteCount);
+    }
     const q=waveDifficulty(G.wave);
     G.spawnAcc += q.spawn;
     while(G.spawnAcc>=60){ G.spawnAcc-=60; if(G.enemies.length<q.cap) spawnEnemy(); }
@@ -1817,6 +1828,18 @@ function continueAfterFormation(fastRestart){
     syncStat();
   }
   G.paused=false;
+  if(WAVE_POC===40||WAVE_POC===55){
+    G.wave=WAVE_POC; G.waveTimer=0; G.waveKills=0; G.spawnAcc=0;
+  }
+  const p1=ENESPR.boss.p1, base='assets/boss/xuanming-p1/';
+  const loadP1=(bucket,index,path)=>{ const img=new Image(); img.onload=()=>{ bucket[index]=img; p1.ok=p1.manifest.filter(Boolean).length===4; }; img.src=base+path; };
+  for(let i=1;i<=4;i++) loadP1(p1.manifest,i-1,'BOSS_XUANMING_P1_manifest_'+String(i).padStart(2,'0')+'.png');
+  for(let i=1;i<=3;i++) loadP1(p1.skill,i-1,'BOSS_XUANMING_P1_skill_'+String(i).padStart(2,'0')+'.png');
+  for(let i=1;i<=4;i++) loadP1(p1.hurt,i-1,'BOSS_XUANMING_P1_hurt_'+String(i).padStart(2,'0')+'.png');
+  for(let i=1;i<=4;i++){
+    loadP1(p1.projectiles.heavyCore,i-1,'projectiles/BOSS_XUANMING_HEAVY_CORE_'+String(i).padStart(2,'0')+'.png');
+    loadP1(p1.projectiles.ringWave,i-1,'projectiles/BOSS_XUANMING_RING_WAVE_'+String(i).padStart(2,'0')+'.png');
+  }
   SND.startMusic();
   if(ACTOR_POC) spawnActorPocBlade();
 }

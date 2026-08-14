@@ -1,16 +1,16 @@
 # Graph Report - Inkblade  (2026-08-14)
 
 ## Corpus Check
-- 119 files · ~11,870,270 words
+- 119 files · ~11,870,313 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 3290 nodes · 5384 edges · 164 communities (145 shown, 19 thin omitted)
+- 3291 nodes · 5386 edges · 163 communities (144 shown, 19 thin omitted)
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 11 edges (avg confidence: 0.55)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `774ea47c`
+- Built from commit: `d577177e`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -125,7 +125,7 @@
 - [2026-08-09] #84 移除滑過去的音效;效果文字把「幾成傷」改成看得懂的基準
 - cfg_v37.js
 - vercel.json
-- assetType
+- replacementAssetId
 - cfg_v38.js
 - review
 - cfg_v39.js
@@ -152,20 +152,19 @@
 - snd_v7.js
 - snd_v5.js
 - properties
-- required
+- status
 - VISUAL-SMOKE-TEST.md
 - UI-BASELINE.md
 - 全卡片功能與相容／互斥矩陣
 - runtime
-- status
 - properties
-- actor-animation-manifest.schema.json
+- required
 - properties
 - enum
 - additionalProperties
 - point
 - properties
-- required
+- actor-animation-manifest.schema.json
 - art_pipeline.py
 - enum
 - enum
@@ -180,7 +179,7 @@
 
 ## God Nodes (most connected - your core abstractions)
 1. `墨劍訣 · 變更記錄(Ink Engine 整合)` - 112 edges
-2. `update()` - 30 edges
+2. `update()` - 31 edges
 3. `updateCombat()` - 22 edges
 4. `play()` - 21 edges
 5. `play()` - 21 edges
@@ -199,13 +198,13 @@
   src/main.js → src/boot.js
 - `move()` --calls--> `leadInLen()`  [EXTRACTED]
   src/main.js → src/combat.js
-- `drawStrokeCost()` --calls--> `cmdLife()`  [EXTRACTED]
-  src/render.js → src/combat.js
+- `update()` --calls--> `nearestEnemy()`  [EXTRACTED]
+  src/main.js → src/combat.js
 
 ## Import Cycles
 - None detected.
 
-## Communities (164 total, 19 thin omitted)
+## Communities (163 total, 19 thin omitted)
 
 ### Community 0 - "ASSET_RECIPE_SCHEMA.md"
 Cohesion: 0.02
@@ -229,7 +228,7 @@ Nodes (60): 10. Workflow Registry, 11. Model Profile, 12. Prompt Construction, 1
 
 ### Community 5 - "main.js"
 Cohesion: 0.05
-Nodes (79): autoCommandEndpoint(), selectAutoTarget(), updateBossShots(), advanceRealm(), allowedLen(), applyOpeningVars(), artTierName(), beginDeath() (+71 more)
+Nodes (69): advanceRealm(), allowedLen(), applyOpeningVars(), artTierName(), beginDeath(), bisectDraw(), bisectMicro(), bisectPage() (+61 more)
 
 ### Community 6 - "Repository subsystem map"
 Cohesion: 0.20
@@ -257,11 +256,11 @@ Nodes (36): `assets/scenes/dunhuang-bg.png`, `assets/scenes/dunhuang-motes.png`,
 
 ### Community 13 - "render.js"
 Cohesion: 0.08
-Nodes (51): leadInLen(), supHash(), applyIntent(), warmSwordTint(), bakeHero(), bakeHeroF(), buildCracks(), buildPaper() (+43 more)
+Nodes (52): cmdLife(), leadInLen(), supHash(), applyIntent(), warmSwordTint(), bakeHero(), bakeHeroF(), buildCracks() (+44 more)
 
 ### Community 14 - "combat.js"
 Cohesion: 0.09
-Nodes (43): appendInlineTrail(), bladeLength(), buildStrokePasses(), canReturn(), cmdLife(), configureCombat(), detonateAnchor(), durCost() (+35 more)
+Nodes (41): appendInlineTrail(), bladeLength(), buildStrokePasses(), canReturn(), configureCombat(), detonateAnchor(), durCost(), extendCommand() (+33 more)
 
 ### Community 15 - "劍稟"
 Cohesion: 0.06
@@ -272,8 +271,8 @@ Cohesion: 0.09
 Nodes (35): applyInsight(), applyOperation(), canOfferInsight(), canPurchaseRebirth(), clampAllStats(), clearAllStatus(), clone(), createPermanentState() (+27 more)
 
 ### Community 17 - "enemy.js"
-Cohesion: 0.12
-Nodes (30): beginXuanmingWave(), BOSS_PLAYER_Y_RATIO, bossDissolveMist(), bossMoveToSide(), bossOrbitRadius(), bossPhase(), bossSafeSide(), bossVisualLift() (+22 more)
+Cohesion: 0.08
+Nodes (44): autoCommandEndpoint(), selectAutoTarget(), beginXuanmingWave(), BOSS_PLAYER_Y_RATIO, bossDissolveMist(), bossMoveToSide(), bossOrbitRadius(), bossPhase() (+36 more)
 
 ### Community 18 - "墨劍訣 · 戰鬥 v2 設計(站樁畫劍 × 彈幕抵銷 × 精英/BOSS × 60 波關卡)"
 Cohesion: 0.08
@@ -289,7 +288,7 @@ Nodes (10): additionalProperties, description, $id, schemaVersion, required, $sc
 
 ### Community 21 - "viewport.js"
 Cohesion: 0.07
-Nodes (29): bindBootEvents(), bindClick(), configureBoot(), gameLoop(), hooks, perfBuf, resetBootClock(), startBoot() (+21 more)
+Nodes (27): bindBootEvents(), bindClick(), configureBoot(), gameLoop(), hooks, perfBuf, resetBootClock(), startBoot() (+19 more)
 
 ### Community 22 - "三、分階段遷移(每階段可跑・可回滾・可驗收)"
 Cohesion: 0.10
@@ -333,7 +332,7 @@ Nodes (53): applyBattleMode(), bindHeroChoices(), bindPauseTabs(), bindSettingGr
 
 ### Community 35 - "properties"
 Cohesion: 0.13
-Nodes (15): $ref, properties, $ref, $ref, animationContractId, assetId, license, provenance (+7 more)
+Nodes (15): $ref, properties, $ref, $ref, $ref, animationContractId, assetId, assetType (+7 more)
 
 ### Community 36 - "$defs"
 Cohesion: 0.22
@@ -711,10 +710,6 @@ Nodes (35): applyVolume(), bandOf(), boom(), cast(), chooseVoice(), crit(), ensu
 Cohesion: 0.18
 Nodes (11): items, type, $ref, pattern, type, properties, assets, manifestVersion (+3 more)
 
-### Community 139 - "required"
-Cohesion: 0.29
-Nodes (7): required, type, clip, directions, fps, frameCount, loop
-
 ### Community 140 - "VISUAL-SMOKE-TEST.md"
 Cohesion: 0.06
 Nodes (31): 10. 手機 9:16 強制測試, 11. Safe Area, 12. PC Regression Test, 13. 共用 CSS 特別規則, 14. 截圖自證要求, 15. 截圖必須自行審查, 16. 最終回報格式, 17. 不可跳過原則 (+23 more)
@@ -731,9 +726,9 @@ Nodes (9): 全卡片功能與相容／互斥矩陣, 劍型（擇一鎖路）, �
 Cohesion: 0.22
 Nodes (9): properties, exclusiveMinimum, type, minimum, type, type, fps, frameCount (+1 more)
 
-### Community 146 - "actor-animation-manifest.schema.json"
-Cohesion: 0.13
-Nodes (14): additionalProperties, $defs, layer, $id, properties, required, type, type (+6 more)
+### Community 146 - "required"
+Cohesion: 0.12
+Nodes (17): required, type, $defs, clip, layer, properties, required, type (+9 more)
 
 ### Community 147 - "properties"
 Cohesion: 0.12
@@ -755,9 +750,9 @@ Nodes (11): point, x, y, additionalProperties, properties, required, type, x (+3
 Cohesion: 0.22
 Nodes (9): $ref, properties, type, body, layers, weaponBack, weaponFront, $ref (+1 more)
 
-### Community 152 - "required"
-Cohesion: 0.29
-Nodes (7): schemaVersion, required, actorId, animations, authoredDirections, canvas, layers
+### Community 152 - "actor-animation-manifest.schema.json"
+Cohesion: 0.17
+Nodes (11): additionalProperties, $id, schemaVersion, required, $schema, type, actorId, animations (+3 more)
 
 ### Community 153 - "art_pipeline.py"
 Cohesion: 0.39

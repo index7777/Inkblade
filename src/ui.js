@@ -102,6 +102,12 @@ export function updateHUD(){
     ui.classList.toggle('show',!!boss);
     ui.classList.toggle('phase',!!boss&&boss.bossState==='phase');
     if(boss){
+      const placement=hooks.getBossHudPlacement?.(boss);
+      if(placement){
+        ui.style.setProperty('--boss-hud-x',placement.x+'px');
+        ui.style.setProperty('--boss-hud-y',placement.y+'px');
+        ui.style.setProperty('--boss-hud-width',placement.width+'px');
+      }
       document.getElementById('bossfill').style.width=Math.max(0,boss.hp/boss.max*100).toFixed(2)+'%';
       // 血條不預告轉境門檻或下一招。
       document.getElementById('bossphase').textContent='墨軀盤卷';

@@ -1,0 +1,57 @@
+{
+  "id": "boss.xuanming.p1",
+  "canvas": {
+    "width": 1024,
+    "height": 1024
+  },
+  "anchor": {
+    "bodyPivot": {
+      "x": 0.5,
+      "y": 0.56
+    },
+    "head": {
+      "x": 0.31,
+      "y": 0.34
+    },
+    "healthBar": {
+      "x": 0.5,
+      "y": 0.045
+    }
+  },
+  "actions": {
+    "manifest": [
+      "BOSS_XUANMING_P1_manifest_01.png",
+      "BOSS_XUANMING_P1_manifest_02.png",
+      "BOSS_XUANMING_P1_manifest_03.png",
+      "BOSS_XUANMING_P1_manifest_04.png"
+    ],
+    "idle": [
+      "BOSS_XUANMING_P1_manifest_04.png"
+    ],
+    "skill": [
+      "BOSS_XUANMING_P1_skill_01.png",
+      "BOSS_XUANMING_P1_skill_02.png",
+      "BOSS_XUANMING_P1_skill_03.png"
+    ],
+    "hurt": [
+      "BOSS_XUANMING_P1_hurt_01.png",
+      "BOSS_XUANMING_P1_hurt_02.png",
+      "BOSS_XUANMING_P1_hurt_03.png",
+      "BOSS_XUANMING_P1_hurt_04.png"
+    ]
+  },
+  "projectiles": {
+    "heavyCore": [
+      "projectiles/BOSS_XUANMING_HEAVY_CORE_01.png",
+      "projectiles/BOSS_XUANMING_HEAVY_CORE_02.png",
+      "projectiles/BOSS_XUANMING_HEAVY_CORE_03.png",
+      "projectiles/BOSS_XUANMING_HEAVY_CORE_04.png"
+    ],
+    "ringWave": [
+      "projectiles/BOSS_XUANMING_RING_WAVE_01.png",
+      "projectiles/BOSS_XUANMING_RING_WAVE_02.png",
+      "projectiles/BOSS_XUANMING_RING_WAVE_03.png",
+      "projectiles/BOSS_XUANMING_RING_WAVE_04.png"
+    ]
+  }
+}

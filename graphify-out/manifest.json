@@ -30,8 +30,8 @@
     "semantic_hash": ""
   },
   "src/enemy.js": {
-    "mtime": 1786555149.8088677,
-    "ast_hash": "be7919b3b6a0d2075f4f0428eb294c08",
+    "mtime": 1786646382.473477,
+    "ast_hash": "42bd39faa7599d5fbc63b7b3ba5d17b8",
     "semantic_hash": ""
   },
   "src/geom.js": {
@@ -40,8 +40,8 @@
     "semantic_hash": ""
   },
   "src/main.js": {
-    "mtime": 1786639415.755448,
-    "ast_hash": "3ca2194baf0575f73679f2e7f07551a1",
+    "mtime": 1786646751.622126,
+    "ast_hash": "f1ef3ff7eeeae303c801d8c8a1bcefc0",
     "semantic_hash": ""
   },
   "src/viewport.js": {
@@ -270,8 +270,8 @@
     "semantic_hash": ""
   },
   "inkblade.html": {
-    "mtime": 1786636932.432234,
-    "ast_hash": "c653d50c17289ccace0662e6118d73ec",
+    "mtime": 1786642573.135797,
+    "ast_hash": "78c6dc2a29ebc9cfdf605d70b608ce66",
     "semantic_hash": ""
   },
   "music-prompts.md": {
@@ -2020,8 +2020,8 @@
     "semantic_hash": ""
   },
   "test/enemy-rules.test.js": {
-    "mtime": 1786450999.3087778,
-    "ast_hash": "d35ac2a13635693075b4eee00c48ca71",
+    "mtime": 1786640266.9233353,
+    "ast_hash": "4c3058bda35c5b2b47328890328df408",
     "semantic_hash": ""
   },
   "test/game-config.test.js": {
@@ -2050,13 +2050,13 @@
     "semantic_hash": ""
   },
   "src/render.js": {
-    "mtime": 1786639615.792164,
-    "ast_hash": "28b009f786a8de79662939d4dc500644",
+    "mtime": 1786646294.9627063,
+    "ast_hash": "f145a5af8935f25d331fa3a7928a0b63",
     "semantic_hash": ""
   },
   "src/ui.js": {
-    "mtime": 1786636928.0254977,
-    "ast_hash": "235228ba09ad3962a2dcbcca58c5ddbd",
+    "mtime": 1786642570.9571395,
+    "ast_hash": "cde2471d6b7f89883bdc6a0c15602e54",
     "semantic_hash": ""
   },
   "_stage/cfg_v10.js": {
@@ -3532,6 +3532,131 @@
   "assets/sword/blade-types/FLYING_SWORD_WIDE_MASTER.png": {
     "mtime": 1786639394.0606227,
     "ast_hash": "c1559fbb7e2ab42b837d90525ac95d5a",
+    "semantic_hash": ""
+  },
+  "tools/process_xuanming_p1_assets.py": {
+    "mtime": 1786646064.7972393,
+    "ast_hash": "e6ff46354f14115ab7f0e8dc4234036c",
+    "semantic_hash": ""
+  },
+  "art/staging/bosses/xuanming/README.md": {
+    "mtime": 1786645386.7052343,
+    "ast_hash": "6ebdeb379b8d46c3cf3a76a365f2e8e0",
+    "semantic_hash": ""
+  },
+  "art/staging/bosses/xuanming/projectiles/BOSS_XUANMING_HEAVY_CORE_sheet_candidate-v1-key.png": {
+    "mtime": 1786645132.4192965,
+    "ast_hash": "af5ccaae7256139df24344aaf560228f",
+    "semantic_hash": ""
+  },
+  "art/staging/bosses/xuanming/projectiles/BOSS_XUANMING_HEAVY_CORE_sheet_candidate-v1.png": {
+    "mtime": 1786645175.700585,
+    "ast_hash": "b2b12228e74113e49c7a5dfebffb1a67",
+    "semantic_hash": ""
+  },
+  "art/staging/bosses/xuanming/projectiles/BOSS_XUANMING_RING_WAVE_sheet_candidate-v1-key.png": {
+    "mtime": 1786645289.3320208,
+    "ast_hash": "890c1d6d65470f21a7a2c371ccd65b90",
+    "semantic_hash": ""
+  },
+  "art/staging/bosses/xuanming/projectiles/BOSS_XUANMING_RING_WAVE_sheet_candidate-v1.png": {
+    "mtime": 1786645334.662619,
+    "ast_hash": "ee58cee8c28068e4a68c65278063891d",
+    "semantic_hash": ""
+  },
+  "assets/boss/xuanming-p1/BOSS_XUANMING_P1_hurt_01.png": {
+    "mtime": 1786646095.0226102,
+    "ast_hash": "60b1be7bc9157e5ddeac6b29ec48bc9e",
+    "semantic_hash": ""
+  },
+  "assets/boss/xuanming-p1/BOSS_XUANMING_P1_hurt_02.png": {
+    "mtime": 1786646096.0187156,
+    "ast_hash": "c87bbe0be5b1f60d2780dee651687f7c",
+    "semantic_hash": ""
+  },
+  "assets/boss/xuanming-p1/BOSS_XUANMING_P1_hurt_03.png": {
+    "mtime": 1786646096.825271,
+    "ast_hash": "f544a9f250752f858bee0174957d7f33",
+    "semantic_hash": ""
+  },
+  "assets/boss/xuanming-p1/BOSS_XUANMING_P1_hurt_04.png": {
+    "mtime": 1786646097.7696152,
+    "ast_hash": "0090c13e8a5a9906e9cb0fb1e84bbae2",
+    "semantic_hash": ""
+  },
+  "assets/boss/xuanming-p1/BOSS_XUANMING_P1_manifest_01.png": {
+    "mtime": 1786646088.9028494,
+    "ast_hash": "4143db628e440636b924ff4458c2283b",
+    "semantic_hash": ""
+  },
+  "assets/boss/xuanming-p1/BOSS_XUANMING_P1_manifest_02.png": {
+    "mtime": 1786646089.6826231,
+    "ast_hash": "7628cceb4aa6efdd0bedba0f69c06c19",
+    "semantic_hash": ""
+  },
+  "assets/boss/xuanming-p1/BOSS_XUANMING_P1_manifest_03.png": {
+    "mtime": 1786646090.6297164,
+    "ast_hash": "80e2f7e25900023efc7511a4d93203f8",
+    "semantic_hash": ""
+  },
+  "assets/boss/xuanming-p1/BOSS_XUANMING_P1_manifest_04.png": {
+    "mtime": 1786646091.5940819,
+    "ast_hash": "0e57450f3379e79f8227374e7a4698e5",
+    "semantic_hash": ""
+  },
+  "assets/boss/xuanming-p1/BOSS_XUANMING_P1_skill_01.png": {
+    "mtime": 1786646092.4605825,
+    "ast_hash": "4c89c6d657d86d5f75fd4a17caa314ca",
+    "semantic_hash": ""
+  },
+  "assets/boss/xuanming-p1/BOSS_XUANMING_P1_skill_02.png": {
+    "mtime": 1786646093.3327506,
+    "ast_hash": "7b84a84e15d7f3254e9db0691c14e075",
+    "semantic_hash": ""
+  },
+  "assets/boss/xuanming-p1/BOSS_XUANMING_P1_skill_03.png": {
+    "mtime": 1786646094.2746513,
+    "ast_hash": "d2030b6fc662594d8b226b2af5542a07",
+    "semantic_hash": ""
+  },
+  "assets/boss/xuanming-p1/projectiles/BOSS_XUANMING_HEAVY_CORE_01.png": {
+    "mtime": 1786646097.8491652,
+    "ast_hash": "512850aac436a876aab3de4bc28fbe11",
+    "semantic_hash": ""
+  },
+  "assets/boss/xuanming-p1/projectiles/BOSS_XUANMING_HEAVY_CORE_02.png": {
+    "mtime": 1786646097.9284992,
+    "ast_hash": "14c8b64810126106d52c54720c60d09e",
+    "semantic_hash": ""
+  },
+  "assets/boss/xuanming-p1/projectiles/BOSS_XUANMING_HEAVY_CORE_03.png": {
+    "mtime": 1786646097.9992416,
+    "ast_hash": "55feac6998c377f270f5b377f1ba42ed",
+    "semantic_hash": ""
+  },
+  "assets/boss/xuanming-p1/projectiles/BOSS_XUANMING_HEAVY_CORE_04.png": {
+    "mtime": 1786646098.0684826,
+    "ast_hash": "cbd4bb1431d1152e9d3a4e9c658951e3",
+    "semantic_hash": ""
+  },
+  "assets/boss/xuanming-p1/projectiles/BOSS_XUANMING_RING_WAVE_01.png": {
+    "mtime": 1786646098.1798453,
+    "ast_hash": "f2c4457f75a04f9ef74af4653cef7eac",
+    "semantic_hash": ""
+  },
+  "assets/boss/xuanming-p1/projectiles/BOSS_XUANMING_RING_WAVE_02.png": {
+    "mtime": 1786646098.2614412,
+    "ast_hash": "6c6f53b7ec1887c62272f76df77bfb7e",
+    "semantic_hash": ""
+  },
+  "assets/boss/xuanming-p1/projectiles/BOSS_XUANMING_RING_WAVE_03.png": {
+    "mtime": 1786646098.3326285,
+    "ast_hash": "a7639981542d1ab87e2a60beb30646cb",
+    "semantic_hash": ""
+  },
+  "assets/boss/xuanming-p1/projectiles/BOSS_XUANMING_RING_WAVE_04.png": {
+    "mtime": 1786646098.4331913,
+    "ast_hash": "fe64b9ebb8e150c0e07fafc333bb9ab7",
     "semantic_hash": ""
   }
 }

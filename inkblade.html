@@ -288,16 +288,16 @@
     background:rgba(24,21,17,.66); pointer-events:auto; }
   #artsPanel.show { display:block; }
   #artsSheet { position:relative; max-height:100%; overflow:auto; padding:5cqw 4cqw; color:#2a241d;
-    background:rgba(242,234,216,.97); box-shadow:0 8px 30px rgba(0,0,0,.45);
-    clip-path:polygon(1% 1%,98% 0,100% 4%,99% 97%,96% 100%,3% 99%,0 96%,1% 49%,0 5%); }
+    background:url("assets/ui/insight-card-bookpage.png") center/100% 100% no-repeat;
+    box-shadow:0 8px 30px rgba(0,0,0,.45); }
   #artsSheet h2 { text-align:center; font-size:clamp(20px,5cqw,35px); letter-spacing:.28em; margin-bottom:3cqw; }
   #artsclose { position:absolute; right:3cqw; top:2cqw; border:0; background:none; font-size:26px; color:#4a3d30; }
   .artgroup { margin:0 0 3.2cqw; }
   .artgroup h3 { padding-bottom:.7cqw; border-bottom:1px solid rgba(58,48,37,.35); color:#7f2a25;
     font-size:clamp(13px,3cqw,22px); letter-spacing:.16em; }
-  .artrow { display:block; margin:1.2cqw 0; padding:2.2cqw 2.6cqw 2cqw;
-    min-height:18cqw; box-sizing:border-box; border:0;
-    background:url("assets/ui/insight-card-bookpage.png") center/100% 100% no-repeat; }
+  .artrow { display:block; margin:1.2cqw 0; padding:1.1cqw .8cqw;
+    min-height:0; box-sizing:border-box; background:transparent;
+    border-bottom:1px solid rgba(82,68,49,.16); }
   .arttitle { display:flex; align-items:baseline; justify-content:space-between; gap:1cqw; }
   .artrow b { font-size:clamp(13px,3cqw,21px); }
   .artrow span { color:#675b4c; font-size:clamp(11px,2.5cqw,18px); }
@@ -480,14 +480,12 @@
   #bosstesttools button.on { color:#f5ead3; background:#6f2924; border-color:#6f2924; }
   #bosstestreadout { min-width:92px; color:#473e33; white-space:pre-line;
     font:600 12px/1.25 "Noto Serif TC",serif; }
-  #bossui { position:absolute; z-index:34; top:118px; left:50%; width:min(58%,350px);
+  #bossui { position:absolute; z-index:14; top:var(--boss-hud-y,118px); left:var(--boss-hud-x,50%); width:var(--boss-hud-width,350px);
     transform:translateX(-50%); display:none; pointer-events:none; text-align:center; color:#241f1a; }
   #bossui.show { display:block; }
   #bossname { font:700 21px/1.1 "Noto Serif TC",serif; letter-spacing:5px; text-shadow:0 1px 3px #eee4cf; }
   #bossbar { position:relative; height:10px; margin-top:7px; padding:2px; border:1px solid rgba(35,30,25,.82); background:rgba(231,222,202,.72); box-shadow:0 1px 0 rgba(255,250,238,.55) inset; }
   #bossfill { width:100%; height:100%; background:#7e2923; transition:width .12s linear; }
-  #bossbar::before,#bossbar::after { content:""; position:absolute; z-index:2; top:-2px; bottom:-2px; width:1px; background:rgba(30,25,21,.82); }
-  #bossbar::before { left:30%; } #bossbar::after { left:60%; }
   #bossphase { margin-top:5px; font:600 12px "Noto Serif TC",serif; letter-spacing:2px; color:#51463a; }
   #bossui.phase #bossname { color:#6f2924; }
   #bossui.phase #bossbar { animation:bossPhaseBeat .62s ease-in-out infinite alternate; }

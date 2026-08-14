@@ -82,6 +82,7 @@ export function enemyVariantFrame(en,img){
 }
 
 export function drawBossShots(){
+  const fx=hooks.getBossFx?.();
   for(const q of G.bossShots){
     ctx.save(); ctx.translate(q.x,q.y); ctx.rotate(G.t*.025+q.seed);
     if(q.web){
@@ -92,6 +93,13 @@ export function drawBossShots(){
       ctx.strokeStyle='rgba(72,102,84,.7)';ctx.lineWidth=1;
       for(let k=0;k<4;k++){const a=k*1.571;ctx.beginPath();ctx.arc(0,0,q.r*(.38+k*.12),a,a+2.35);ctx.stroke();}
       ctx.restore();continue;
+    }
+    const frames=q.ring?fx?.ringWave:fx?.heavyCore;
+    if(frames?.length===4){
+      const fi=q.ring?Math.min(3,Math.floor(Math.min(1,q.age/42)*4)):(q.hp>=2?1:q.hp===1?2:3);
+      const img=frames[fi]||frames[0], size=q.ring?q.r*5.6:q.r*3.25;
+      ctx.drawImage(img,-size/2,-size/2,size,size);
+      ctx.restore(); continue;
     }
     const tail=Math.min(42,8+q.age*.6),v=Math.hypot(q.vx,q.vy)||1,ux=q.vx/v,uy=q.vy/v;
     ctx.rotate(-(G.t*.025+q.seed));
@@ -255,9 +263,22 @@ export function drawEnemies(){
       }
     }
     if(!renderedByManifest && grp && grp.ok){
+      if(en.isBoss&&grp.p1?.ok){
+        const p1=grp.p1;
+        let frames=p1.manifest, fi=3;
+        if(en.hit>0&&p1.hurt.length===4){ frames=p1.hurt; fi=Math.min(3,Math.floor((12-en.hit)/3)); }
+        else if(en.bossState==='manifest'||en.bossState==='telegraph') fi=Math.min(3,Math.floor(en.bossT/Math.max(1,(en.bossState==='manifest'?42:72)/4)));
+        else if(en.bossState==='lunge'&&p1.skill.length===3){ frames=p1.skill; fi=Math.min(2,Math.floor(en.bossT/58*3)); }
+        const img=frames[Math.max(0,fi)]||p1.manifest[3], size=Math.min(W*.70,H*.39), x=en.x-size*.5, y=en.y-size*.54;
+        ctx.save(); ctx.globalAlpha=en.alpha==null?1:en.alpha; ctx.drawImage(img,x,y,size,size); ctx.restore();
+        en.bossHeadX=x+size*.31; en.bossHeadY=y+size*.34;
+        en.bossHudAnchorX=x+size*.5; en.bossHudAnchorY=y+size*.045;
+        continue;
+      }
       // 真透明 sprite:多幀時隨機起始+慢速交叉淡入(變體感+煙霧晨變);單幀直接畫
       const dirGrp=en.isBoss&&en.bossSide===0?grp.top:en.isBoss&&en.bossSide===2?grp.bottom:null;
-      const bossIdle=dirGrp&&dirGrp.idle?dirGrp.idle:(en.isBoss?grp.frames[0]:null);
+      // 固定前方時以 S 形正面母版呈現；方向幀只供攻擊動畫使用。
+      const bossIdle=en.isBoss?grp.frames[0]:(dirGrp&&dirGrp.idle?dirGrp.idle:null);
       const atkSrc=dirGrp?dirGrp.attack:grp.attack;
       const bossAtk=en.isBoss&&en.bossState==='lunge'&&atkSrc&&atkSrc.filter(Boolean).length===6
         ? atkSrc.filter(Boolean) : null;
@@ -283,14 +304,21 @@ export function drawEnemies(){
         const src=en.isBoss?img:enemyVariantFrame(en,img);
         const iw=src.naturalWidth||src.width||1, ih=src.naturalHeight||src.height||1, b=img._inkBounds;
         ctx.globalAlpha=al;
-        if(en.isBoss&&b&&(en.bossSide===0||en.bossSide===2)){
+        if(en.isBoss&&b&&img!==bossIdle&&(en.bossSide===0||en.bossSide===2)){
           // 正面幀依透明墨形的實際邊界繪製；每幀統一有效高度，不再受畫布留白影響。
           const bodyH=en.r*1.85*scale, bodyW=bodyH*(b[2]/b[3]);
           const cy=Math.max(16+bodyH/2,Math.min(H-18-bodyH/2,en.y+visualLift));
-          ctx.drawImage(src,b[0],b[1],b[2],b[3],en.x-bodyW/2,cy-bodyH/2,bodyW,bodyH);
+          const drawY=cy-bodyH/2;
+          ctx.drawImage(src,b[0],b[1],b[2],b[3],en.x-bodyW/2,drawY,bodyW,bodyH);
+          en.bossHudAnchorX=en.x;
+          en.bossHudAnchorY=drawY-10;
         } else {
           const ww=hh*(iw/ih), y=Math.max(12,Math.min(H-hh-18,en.y-hh*.58+visualLift+fangGroundFix));
           ctx.drawImage(src,en.x-ww/2,y,ww,hh);
+          if(en.isBoss){
+            en.bossHudAnchorX=en.x;
+            en.bossHudAnchorY=y-10;
+          }
         }
       };
       ctx.save();
@@ -307,8 +335,10 @@ export function drawEnemies(){
         if(en.type==='raven') ctx.translate(0,Math.sin(en.aiT*.14+en.aiSeed)*2.2);
       }
       if(bossAtk){
+        // 攻擊幀只補充局部動作，不再取代或縮小常駐的正面墨蛟。
+        if(bossIdle) put(bossIdle,base);
         const fi=Math.max(0,Math.min(5,Math.floor(en.bossT/58*6)));
-        put(fr[fi],base);
+        put(fr[fi],base*.92);
       } else if(bossDis){
         const fi=Math.max(0,Math.min(5,Math.floor(en.bossT/46*6)));
         // 首八幀與待機母版交叉淡入，避免最後一張攻擊姿態瞬間跳成消散姿態。

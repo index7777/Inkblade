@@ -458,39 +458,45 @@
       st: {}
     });
   }
-  function spawnNetherSpider() {
-    const q = waveDifficulty(30), hp = 850 * q.hp;
-    G.enemies.push({
-      x: W * 0.5,
-      y: Math.max(18, PLAY_TOP + 42),
-      r: 42,
-      hp,
-      max: hp,
-      sp: 0.78 * q.speed,
-      c: "#173e31",
-      tier: 2,
-      type: "spider",
-      species: "netherSpider",
-      speciesName: "幽冥墨蛛",
-      ai: "spider",
-      isElite: true,
-      contactDamage: Math.round(24 * q.damage),
-      xpValue: 12,
-      aiT: 0,
-      aiSeed: Math.random() * 6.283,
-      orbitDir: Math.random() < 0.5 ? -1 : 1,
-      chargeX: 0,
-      chargeY: 1,
-      anim: 0,
-      ember: 0,
-      emberT: 0,
-      chill: 0,
-      hit: 0,
-      broken: 0,
-      wob: Math.random() * 7,
-      st: {}
-    });
-    G.banner = { txt: "第三十境 · 幽冥墨蛛", life: 1 };
+  function eliteSpiderCountForWave(w) {
+    return w === 30 ? 1 : w === 40 ? 2 : w === 55 ? 3 : 0;
+  }
+  function spawnNetherSpider(w = 30, count = 1) {
+    const q = waveDifficulty(w), hp = 850 * q.hp;
+    for (let i = 0; i < count; i++) {
+      const x = count === 1 ? W * 0.5 : W * (0.28 + 0.44 * (i / (count - 1)));
+      G.enemies.push({
+        x,
+        y: Math.max(18, PLAY_TOP + 42 + i % 2 * 18),
+        r: 42,
+        hp,
+        max: hp,
+        sp: 0.78 * q.speed,
+        c: "#173e31",
+        tier: 2,
+        type: "spider",
+        species: "netherSpider",
+        speciesName: "幽冥墨蛛",
+        ai: "spider",
+        isElite: true,
+        contactDamage: Math.round(24 * q.damage),
+        xpValue: 12,
+        aiT: i * 17,
+        aiSeed: Math.random() * 6.283,
+        orbitDir: i % 2 ? -1 : 1,
+        chargeX: 0,
+        chargeY: 1,
+        anim: i * 41,
+        ember: 0,
+        emberT: 0,
+        chill: 0,
+        hit: 0,
+        broken: 0,
+        wob: Math.random() * 7,
+        st: {}
+      });
+    }
+    G.banner = { txt: "第 " + w + " 境 · 幽冥墨蛛 ×" + count, life: 1 };
     if (hooks2.floatText) hooks2.floatText(W * 0.5, H * 0.22, "小精英現形", "#25684f");
     if (hooks2.playWave) hooks2.playWave();
     if (hooks2.flash) hooks2.flash(0.12, "190,225,205");
@@ -530,7 +536,7 @@
       dying: "boss_xuanming_dying"
     }
   };
-  var BOSS_PLAYER_Y_RATIO = 0.54;
+  var BOSS_PLAYER_Y_RATIO = 0.64;
   function spawnXuanmingBoss(testMode) {
     const hp = XUANMING_HP;
     const en = {
@@ -617,30 +623,18 @@
     return visualR;
   }
   function placeBoss(en, ang, r) {
-    if (en.bossSide === 0) {
-      en.x = W * 0.5;
-      en.y = H * 0.29 - bossVisualLift(0);
-    } else if (en.bossSide === 1) {
-      en.x = W + W * 0.12;
-      en.y = H * 0.34;
-    } else if (en.bossSide === 2) {
-      en.x = W * 0.5;
-      en.y = H * 0.9 - bossVisualLift(2);
-    } else {
-      en.x = -W * 0.12;
-      en.y = H * 0.34;
-    }
+    en.bossSide = 0;
+    en.bossAngle = -Math.PI / 2;
+    en.x = W * 0.5;
+    en.y = H * 0.38 - bossVisualLift(0);
   }
   function bossSafeSide(en) {
-    const candidates = [0, 1, 2, 3].filter((side) => side !== en.bossSide);
-    const valid = candidates.filter((side) => bossOrbitRadius(side) >= 150 + G.player.r);
-    const pool = valid.length ? valid : candidates;
-    return pool[Math.floor(Math.random() * Math.max(1, pool.length))] ?? 0;
+    return 0;
   }
   function bossMoveToSide(en, side, state) {
-    en.bossSide = side;
-    en.bossAngle = [-Math.PI / 2, 0, Math.PI / 2, Math.PI][side];
-    placeBoss(en, en.bossAngle, bossOrbitRadius(side));
+    en.bossSide = 0;
+    en.bossAngle = -Math.PI / 2;
+    placeBoss(en, en.bossAngle, bossOrbitRadius(0));
     en.bossState = state;
     en.bossT = 0;
     en.bossHit = false;
@@ -675,19 +669,19 @@
     const orbitFrames = G.bossTest ? 54 : 100;
     if (state === "phase") {
       placeBoss(en, en.bossAngle, R);
-      en.alpha = Math.max(0, 1 - en.bossT / 32);
+      en.alpha = 1;
       if (en.bossT % 3 === 0) bossDissolveMist(en);
       if (en.bossT >= 90) nextBossManifest(en);
     } else if (state === "telegraph") {
       placeBoss(en, en.bossAngle, R);
-      en.alpha = 0.05;
+      en.alpha = 1;
       if (en.bossT >= telegraphFrames) {
         en.bossState = "manifest";
         en.bossT = 0;
       }
     } else if (state === "manifest") {
       placeBoss(en, en.bossAngle, R);
-      en.alpha = Math.min(1, en.bossT / Math.max(1, manifestFrames - 4));
+      en.alpha = 1;
       if (en.bossT >= manifestFrames) {
         en.bossState = "orbit";
         en.bossT = 0;
@@ -715,11 +709,11 @@
         en.bossT = 0;
       }
     } else if (state === "dissolve") {
-      en.alpha = Math.max(0, 1 - en.bossT / 46);
+      en.alpha = 1;
       if (en.bossT >= 46) nextBossManifest(en);
     }
     en.depth = Math.max(0, Math.min(1, (en.y - (G.player.y - R)) / (R * 2)));
-    en.visualScale = en.bossSide === 0 ? 1.85 : en.bossSide === 2 ? 2.05 : 2.4;
+    en.visualScale = 2.12;
     en.lean = Math.max(-0.16, Math.min(0.16, (en.x - (en.px == null ? en.x : en.px)) * 0.025));
     en.face = Math.atan2(G.player.y - en.y, G.player.x - en.x);
     en.px = en.x;
@@ -1150,6 +1144,7 @@
         hp: 1,
         max: 1,
         dmg: 9,
+        ring: true,
         age: 0,
         seed: Math.random() * 100
       });
@@ -2438,6 +2433,7 @@
     return tone ? hooks4.tintFrame?.(img, tone) : img;
   }
   function drawBossShots() {
+    const fx = hooks4.getBossFx?.();
     for (const q of G.bossShots) {
       ctx.save();
       ctx.translate(q.x, q.y);
@@ -2460,6 +2456,14 @@
           ctx.arc(0, 0, q.r * (0.38 + k * 0.12), a, a + 2.35);
           ctx.stroke();
         }
+        ctx.restore();
+        continue;
+      }
+      const frames = q.ring ? fx?.ringWave : fx?.heavyCore;
+      if (frames?.length === 4) {
+        const fi = q.ring ? Math.min(3, Math.floor(Math.min(1, q.age / 42) * 4)) : q.hp >= 2 ? 1 : q.hp === 1 ? 2 : 3;
+        const img = frames[fi] || frames[0], size = q.ring ? q.r * 5.6 : q.r * 3.25;
+        ctx.drawImage(img, -size / 2, -size / 2, size, size);
         ctx.restore();
         continue;
       }
@@ -2649,8 +2653,30 @@
         }
       }
       if (!renderedByManifest && grp && grp.ok) {
+        if (en.isBoss && grp.p1?.ok) {
+          const p1 = grp.p1;
+          let frames = p1.manifest, fi = 3;
+          if (en.hit > 0 && p1.hurt.length === 4) {
+            frames = p1.hurt;
+            fi = Math.min(3, Math.floor((12 - en.hit) / 3));
+          } else if (en.bossState === "manifest" || en.bossState === "telegraph") fi = Math.min(3, Math.floor(en.bossT / Math.max(1, (en.bossState === "manifest" ? 42 : 72) / 4)));
+          else if (en.bossState === "lunge" && p1.skill.length === 3) {
+            frames = p1.skill;
+            fi = Math.min(2, Math.floor(en.bossT / 58 * 3));
+          }
+          const img = frames[Math.max(0, fi)] || p1.manifest[3], size = Math.min(W * 0.7, H * 0.39), x = en.x - size * 0.5, y = en.y - size * 0.54;
+          ctx.save();
+          ctx.globalAlpha = en.alpha == null ? 1 : en.alpha;
+          ctx.drawImage(img, x, y, size, size);
+          ctx.restore();
+          en.bossHeadX = x + size * 0.31;
+          en.bossHeadY = y + size * 0.34;
+          en.bossHudAnchorX = x + size * 0.5;
+          en.bossHudAnchorY = y + size * 0.045;
+          continue;
+        }
         const dirGrp = en.isBoss && en.bossSide === 0 ? grp.top : en.isBoss && en.bossSide === 2 ? grp.bottom : null;
-        const bossIdle = dirGrp && dirGrp.idle ? dirGrp.idle : en.isBoss ? grp.frames[0] : null;
+        const bossIdle = en.isBoss ? grp.frames[0] : dirGrp && dirGrp.idle ? dirGrp.idle : null;
         const atkSrc = dirGrp ? dirGrp.attack : grp.attack;
         const bossAtk = en.isBoss && en.bossState === "lunge" && atkSrc && atkSrc.filter(Boolean).length === 6 ? atkSrc.filter(Boolean) : null;
         const bossDis = en.isBoss && (en.bossSide === 1 || en.bossSide === 3) && en.bossState === "dissolve" && grp.dissolve && grp.dissolve.filter(Boolean).length === 6 ? grp.dissolve.filter(Boolean) : null;
@@ -2665,13 +2691,20 @@
           const src = en.isBoss ? img : enemyVariantFrame(en, img);
           const iw = src.naturalWidth || src.width || 1, ih = src.naturalHeight || src.height || 1, b = img._inkBounds;
           ctx.globalAlpha = al;
-          if (en.isBoss && b && (en.bossSide === 0 || en.bossSide === 2)) {
+          if (en.isBoss && b && img !== bossIdle && (en.bossSide === 0 || en.bossSide === 2)) {
             const bodyH = en.r * 1.85 * scale, bodyW = bodyH * (b[2] / b[3]);
             const cy = Math.max(16 + bodyH / 2, Math.min(H - 18 - bodyH / 2, en.y + visualLift));
-            ctx.drawImage(src, b[0], b[1], b[2], b[3], en.x - bodyW / 2, cy - bodyH / 2, bodyW, bodyH);
+            const drawY = cy - bodyH / 2;
+            ctx.drawImage(src, b[0], b[1], b[2], b[3], en.x - bodyW / 2, drawY, bodyW, bodyH);
+            en.bossHudAnchorX = en.x;
+            en.bossHudAnchorY = drawY - 10;
           } else {
             const ww = hh * (iw / ih), y = Math.max(12, Math.min(H - hh - 18, en.y - hh * 0.58 + visualLift + fangGroundFix));
             ctx.drawImage(src, en.x - ww / 2, y, ww, hh);
+            if (en.isBoss) {
+              en.bossHudAnchorX = en.x;
+              en.bossHudAnchorY = y - 10;
+            }
           }
         };
         ctx.save();
@@ -2686,8 +2719,9 @@
           if (en.type === "raven") ctx.translate(0, Math.sin(en.aiT * 0.14 + en.aiSeed) * 2.2);
         }
         if (bossAtk) {
+          if (bossIdle) put(bossIdle, base);
           const fi = Math.max(0, Math.min(5, Math.floor(en.bossT / 58 * 6)));
-          put(fr[fi], base);
+          put(fr[fi], base * 0.92);
         } else if (bossDis) {
           const fi = Math.max(0, Math.min(5, Math.floor(en.bossT / 46 * 6)));
           if (en.bossT < 8 && bossIdle) put(bossIdle, base * (1 - en.bossT / 8));
@@ -3629,6 +3663,12 @@
       ui.classList.toggle("show", !!boss);
       ui.classList.toggle("phase", !!boss && boss.bossState === "phase");
       if (boss) {
+        const placement = hooks5.getBossHudPlacement?.(boss);
+        if (placement) {
+          ui.style.setProperty("--boss-hud-x", placement.x + "px");
+          ui.style.setProperty("--boss-hud-y", placement.y + "px");
+          ui.style.setProperty("--boss-hud-width", placement.width + "px");
+        }
         document.getElementById("bossfill").style.width = Math.max(0, boss.hp / boss.max * 100).toFixed(2) + "%";
         document.getElementById("bossphase").textContent = "墨軀盤卷";
       }
@@ -4468,6 +4508,7 @@
     const ACTOR_POC = new URLSearchParams(location.search).has("actorpoc");
     const TRUTH_POC = new URLSearchParams(location.search).get("truthpoc");
     const BLADE_POC = new URLSearchParams(location.search).get("bladepoc");
+    const WAVE_POC = Number(new URLSearchParams(location.search).get("wavepoc")) || 0;
     let actorPocDiag = null;
     const assetRegistry = new AssetRegistry();
     assetRegistry.loadActorManifest("assets/actors/enemies/ink_blade/actor.manifest.json").then(() => {
@@ -4489,6 +4530,11 @@
       realmClockText: () => realmClockText(),
       realmTimeFrames: (wave) => realmTimeFrames(wave),
       bossTestAttackCountdown: (boss) => bossTestAttackCountdown(boss),
+      getBossHudPlacement: (boss) => ({
+        x: Math.max(W * 0.29, Math.min(W * 0.71, boss.bossHudAnchorX ?? boss.x)),
+        y: Math.max(PLAY_TOP + 18, Math.min(H * 0.42, (boss.bossHudAnchorY ?? boss.y) - 64)),
+        width: Math.min(330, W * 0.48)
+      }),
       getBossStateLabel: (state) => BOSS_STATE_CN[state],
       isDpsOpen: () => DPS.open,
       renderDps: () => renderDps(),
@@ -4558,6 +4604,7 @@
       getFX: () => FX,
       getDrawLevel: () => DRAWLV,
       getEnemySprites: () => ENESPR,
+      getBossFx: () => ENESPR.boss.p1.projectiles,
       getAssetRegistry: () => assetRegistry,
       onActorPocFrame: (info) => {
         actorPocDiag = info;
@@ -4785,7 +4832,7 @@
       raven: { frames: [], attack: [], ok: false },
       fang: { frames: [], attack: [], ok: false },
       spider: { frames: [], attack: [], ok: false },
-      boss: { frames: [], attack: [], dissolve: [], top: { idle: null, attack: [] }, bottom: { idle: null, attack: [] }, ok: false }
+      boss: { frames: [], attack: [], dissolve: [], p1: { manifest: [], skill: [], hurt: [], projectiles: { heavyCore: [], ringWave: [] }, ok: false }, top: { idle: null, attack: [] }, bottom: { idle: null, attack: [] }, ok: false }
     };
     (function() {
       const srcs = {
@@ -5668,10 +5715,11 @@
           gameOver();
         }
       }
-      if (!G.bossTest && !ACTOR_POC && G.wave < 60) {
-        if (G.wave === 30 && !G.eliteSpawned[30]) {
-          G.eliteSpawned[30] = true;
-          spawnNetherSpider();
+      if (!G.bossTest && (!ACTOR_POC || WAVE_POC) && G.wave < 60) {
+        const eliteCount = eliteSpiderCountForWave(G.wave);
+        if (eliteCount && !G.eliteSpawned[G.wave]) {
+          G.eliteSpawned[G.wave] = true;
+          spawnNetherSpider(G.wave, eliteCount);
         }
         const q = waveDifficulty(G.wave);
         G.spawnAcc += q.spawn;
@@ -6586,6 +6634,28 @@
         syncStat();
       }
       G.paused = false;
+      if (WAVE_POC === 40 || WAVE_POC === 55) {
+        G.wave = WAVE_POC;
+        G.waveTimer = 0;
+        G.waveKills = 0;
+        G.spawnAcc = 0;
+      }
+      const p1 = ENESPR.boss.p1, base = "assets/boss/xuanming-p1/";
+      const loadP1 = (bucket, index, path2) => {
+        const img = new Image();
+        img.onload = () => {
+          bucket[index] = img;
+          p1.ok = p1.manifest.filter(Boolean).length === 4;
+        };
+        img.src = base + path2;
+      };
+      for (let i = 1; i <= 4; i++) loadP1(p1.manifest, i - 1, "BOSS_XUANMING_P1_manifest_" + String(i).padStart(2, "0") + ".png");
+      for (let i = 1; i <= 3; i++) loadP1(p1.skill, i - 1, "BOSS_XUANMING_P1_skill_" + String(i).padStart(2, "0") + ".png");
+      for (let i = 1; i <= 4; i++) loadP1(p1.hurt, i - 1, "BOSS_XUANMING_P1_hurt_" + String(i).padStart(2, "0") + ".png");
+      for (let i = 1; i <= 4; i++) {
+        loadP1(p1.projectiles.heavyCore, i - 1, "projectiles/BOSS_XUANMING_HEAVY_CORE_" + String(i).padStart(2, "0") + ".png");
+        loadP1(p1.projectiles.ringWave, i - 1, "projectiles/BOSS_XUANMING_RING_WAVE_" + String(i).padStart(2, "0") + ".png");
+      }
       SND.startMusic();
       if (ACTOR_POC) spawnActorPocBlade();
     }
