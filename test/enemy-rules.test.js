@@ -6,7 +6,8 @@ globalThis.document={
   getElementById(){ return {getContext(){ return {}; }}; }
 };
 
-const { waveDifficulty, bossPhase, eliteSpiderCountForWave }=await import('../src/enemy.js');
+const { waveDifficulty, bossPhase, eliteSpiderCountForWave, bossSafeSide, spawnBossAttack }=await import('../src/enemy.js');
+const { G }=await import('../src/core.js');
 
 test('waveDifficulty preserves early-wave values and capped scaling', () => {
   const wave1=waveDifficulty(1);
@@ -44,4 +45,19 @@ test('elite spider formations occur only at waves 30, 40, and 55', () => {
   assert.equal(eliteSpiderCountForWave(55),3);
   assert.equal(eliteSpiderCountForWave(39),0);
   assert.equal(eliteSpiderCountForWave(56),0);
+});
+
+test('Xuanming P1 advances only through the top left, center, and right slots', () => {
+  assert.equal(bossSafeSide({bossSide:0}),1);
+  assert.equal(bossSafeSide({bossSide:1}),2);
+  assert.equal(bossSafeSide({bossSide:2}),0);
+});
+
+test('Xuanming P1 ink core is one two-hit projectile', () => {
+  G.player={x:320,y:640,r:18};
+  G.bossShots.length=0;
+  spawnBossAttack({attackKind:'core',bossSide:0,x:320,y:260,r:72});
+  assert.equal(G.bossShots.length,1);
+  assert.equal(G.bossShots[0].hp,2);
+  assert.equal(G.bossShots[0].max,2);
 });

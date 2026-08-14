@@ -550,16 +550,17 @@
       tier: 2,
       type: "boss",
       isBoss: true,
-      bossState: testMode ? "manifest" : "telegraph",
-      bossT: testMode ? 28 : 0,
-      bossSide: 0,
-      bossAngle: -Math.PI / 2,
+      bossState: "manifest",
+      bossT: 0,
+      bossSide: 1,
+      bossAngle: Math.PI / 2,
       bossHit: false,
       alpha: testMode ? 0.72 : 0.05,
       attackSeq: 0,
-      attackKind: "triple",
+      attackKind: "lunge",
       phaseSeen: 1,
       pendingPhase: 0,
+      attackPath: null,
       evadeCharges: XUANMING_CONFIG.evade.charges,
       evadeCooldown: 0,
       defenseCooldown: 0,
@@ -613,45 +614,55 @@
     const r = en ? en.hp / en.max : 1;
     return r > 0.7 ? 1 : r > 0.35 ? 2 : 3;
   }
-  function bossVisualLift(side) {
-    return side === 0 ? -24 : side === 2 ? -42 : 0;
-  }
-  function bossOrbitRadius(side) {
-    const visualR = Math.max(210, Math.min(300, W * 0.48, Math.min(W, H) * 0.46));
-    if (side === 0) return visualR + bossVisualLift(0);
-    if (side === 2) return visualR - bossVisualLift(2);
-    return visualR;
-  }
-  function placeBoss(en, ang, r) {
-    en.bossSide = 0;
-    en.bossAngle = -Math.PI / 2;
-    en.x = W * 0.5;
-    en.y = H * 0.38 - bossVisualLift(0);
-  }
-  function bossSafeSide(en) {
+  function bossVisualLift() {
     return 0;
   }
+  function bossOrbitRadius() {
+    return 0;
+  }
+  function placeBoss(en) {
+    en.bossSide = Math.max(0, Math.min(2, en.bossSide | 0));
+    en.bossAngle = Math.PI / 2;
+    en.x = W * [0.31, 0.5, 0.69][en.bossSide];
+    en.y = Math.max(H * 0.29, Math.min(H * 0.35, G.player.y - H * 0.27));
+  }
+  function bossSafeSide(en) {
+    return ((en?.bossSide ?? 1) + 1) % 3;
+  }
   function bossMoveToSide(en, side, state) {
-    en.bossSide = 0;
-    en.bossAngle = -Math.PI / 2;
-    placeBoss(en, en.bossAngle, bossOrbitRadius(0));
+    en.bossSide = (side % 3 + 3) % 3;
+    en.bossAngle = Math.PI / 2;
+    placeBoss(en);
     en.bossState = state;
     en.bossT = 0;
     en.bossHit = false;
+  }
+  function prepareBossP1Path(en) {
+    const P = G.player, start = { x: en.x, y: en.y + en.r * 0.42 };
+    if (en.attackKind === "core") {
+      en.attackPath = [start, { x: P.x, y: P.y }];
+      return;
+    }
+    const bend = (en.bossSide - 1) * W * 0.12;
+    en.attackPath = [
+      start,
+      { x: start.x + bend, y: start.y + H * 0.09 },
+      { x: P.x + bend, y: P.y - H * 0.13 },
+      { x: P.x, y: P.y }
+    ];
   }
   function nextBossManifest(en) {
     bossMoveToSide(en, bossSafeSide(en), "telegraph");
     en.alpha = 0.06;
     en.attackSeq = (en.attackSeq || 0) + 1;
-    const ratio = en.hp / en.max;
-    en.attackKind = ratio > 0.7 ? "triple" : ratio > 0.4 ? "ring" : en.attackSeq & 1 ? "ring" : "triple";
-    placeBoss(en, en.bossAngle, bossOrbitRadius(en.bossSide));
+    en.attackKind = en.attackSeq & 1 ? "core" : "lunge";
+    placeBoss(en);
+    prepareBossP1Path(en);
   }
   function updateBossP1(en) {
     const entering = bossPhase(en);
     if (entering > (en.phaseSeen || 1)) en.pendingPhase = Math.max(en.pendingPhase || 0, entering);
     en.bossT++;
-    const R = bossOrbitRadius(en.bossSide);
     let state = en.bossState;
     if (en.pendingPhase > (en.phaseSeen || 1) && (state === "orbit" || state === "telegraph")) {
       en.phaseSeen = en.pendingPhase;
@@ -668,19 +679,20 @@
     const manifestFrames = G.bossTest ? 28 : 42;
     const orbitFrames = G.bossTest ? 54 : 100;
     if (state === "phase") {
-      placeBoss(en, en.bossAngle, R);
+      placeBoss(en);
       en.alpha = 1;
       if (en.bossT % 3 === 0) bossDissolveMist(en);
       if (en.bossT >= 90) nextBossManifest(en);
     } else if (state === "telegraph") {
-      placeBoss(en, en.bossAngle, R);
+      placeBoss(en);
       en.alpha = 1;
+      if (!en.attackPath) prepareBossP1Path(en);
       if (en.bossT >= telegraphFrames) {
         en.bossState = "manifest";
         en.bossT = 0;
       }
     } else if (state === "manifest") {
-      placeBoss(en, en.bossAngle, R);
+      placeBoss(en);
       en.alpha = 1;
       if (en.bossT >= manifestFrames) {
         en.bossState = "orbit";
@@ -688,17 +700,17 @@
         en.alpha = 1;
       }
     } else if (state === "orbit") {
-      placeBoss(en, en.bossAngle, R);
+      placeBoss(en);
       en.alpha = 1;
       if (en.bossT >= orbitFrames) {
-        placeBoss(en, en.bossAngle, R);
+        placeBoss(en);
         en.bossState = "lunge";
         en.bossT = 0;
         en.bossHit = false;
       }
     } else if (state === "lunge") {
       const t = Math.min(1, en.bossT / 58);
-      placeBoss(en, en.bossAngle, R);
+      placeBoss(en);
       en.alpha = 1;
       if (!en.bossHit && t >= 0.68) {
         en.bossHit = true;
@@ -712,7 +724,7 @@
       en.alpha = 1;
       if (en.bossT >= 46) nextBossManifest(en);
     }
-    en.depth = Math.max(0, Math.min(1, (en.y - (G.player.y - R)) / (R * 2)));
+    en.depth = 0;
     en.visualScale = 2.12;
     en.lean = Math.max(-0.16, Math.min(0.16, (en.x - (en.px == null ? en.x : en.px)) * 0.025));
     en.face = Math.atan2(G.player.y - en.y, G.player.x - en.x);
@@ -741,11 +753,10 @@
         rot: f + (Math.random() - 0.5) * 0.8
       });
     }
-    const sides = [-Math.PI / 2, 0, Math.PI / 2, Math.PI], next = sides[(en.bossSide + 1) % 4];
-    const R = bossOrbitRadius((en.bossSide + 1) % 4);
+    const next = (en.bossSide + 1) % 3;
     if (progress >= 0.38) {
-      const mx = G.player.x + Math.cos(next) * R;
-      const my = G.player.y + Math.sin(next) * R + bossVisualLift((en.bossSide + 1) % 4);
+      const mx = W * [0.31, 0.5, 0.69][next];
+      const my = Math.max(H * 0.29, Math.min(H * 0.35, G.player.y - H * 0.27));
       const gather = Math.min(1, (progress - 0.38) / 0.62);
       G.mists.push({
         x: mx + (Math.random() - 0.5) * (1 - gather) * 42,
@@ -757,7 +768,7 @@
         dur: 22 + (Math.random() * 9 | 0),
         color: "40,37,33",
         squash: 0.28 + Math.random() * 0.14,
-        rot: next + Math.PI / 2
+        rot: 0
       });
     }
   }
@@ -1101,27 +1112,23 @@
       spawnBossRing(en);
       return;
     }
-    const P = G.player, mouth = [{ x: 0, y: 0.52 }, { x: -0.52, y: -0.08 }, { x: 0, y: -0.52 }, { x: 0.52, y: -0.08 }][en.bossSide];
-    const ox = en.x + mouth.x * en.r, oy = en.y + mouth.y * en.r + bossVisualLift(en.bossSide);
-    const dx = P.x - ox, dy = P.y - oy, d = Math.hypot(dx, dy) || 1, nx = -dy / d, ny = dx / d;
-    for (const lane of [-34, 0, 34]) {
-      const x = ox + nx * lane, y = oy + ny * lane, tx = P.x + nx * lane * 0.22, ty = P.y + ny * lane * 0.22;
-      const vx = tx - x, vy = ty - y, L = Math.hypot(vx, vy) || 1, heavy = lane === 0;
-      G.bossShots.push({
-        x,
-        y,
-        px: x,
-        py: y,
-        vx: vx / L * (heavy ? 1.12 : 1.38),
-        vy: vy / L * (heavy ? 1.12 : 1.38),
-        r: heavy ? 15 : 11,
-        hp: heavy ? 2 : 1,
-        max: heavy ? 2 : 1,
-        dmg: heavy ? 18 : 11,
-        age: 0,
-        seed: Math.random() * 100
-      });
-    }
+    const P = G.player, ox = en.x, oy = en.y + en.r * 0.42;
+    const dx = P.x - ox, dy = P.y - oy, d = Math.hypot(dx, dy) || 1;
+    G.bossShots.push({
+      x: ox,
+      y: oy,
+      px: ox,
+      py: oy,
+      vx: dx / d * 1.12,
+      vy: dy / d * 1.12,
+      r: en.attackKind === "lunge" ? 22 : 15,
+      hp: en.attackKind === "lunge" ? 1 : 2,
+      max: en.attackKind === "lunge" ? 1 : 2,
+      dmg: en.attackKind === "lunge" ? 14 : 18,
+      age: 0,
+      seed: Math.random() * 100,
+      rush: en.attackKind === "lunge"
+    });
   }
   function spawnBossRing(en) {
     const P = G.player, N = en.hp / en.max <= 0.4 ? 14 : 11, R = Math.max(170, Math.min(W, H) * 0.4);
@@ -2655,24 +2662,33 @@
       if (!renderedByManifest && grp && grp.ok) {
         if (en.isBoss && grp.p1?.ok) {
           const p1 = grp.p1;
-          let frames = p1.manifest, fi = 3;
+          let frames = [p1.master], fi = 0;
           if (en.hit > 0 && p1.hurt.length === 4) {
             frames = p1.hurt;
             fi = Math.min(3, Math.floor((12 - en.hit) / 3));
-          } else if (en.bossState === "manifest" || en.bossState === "telegraph") fi = Math.min(3, Math.floor(en.bossT / Math.max(1, (en.bossState === "manifest" ? 42 : 72) / 4)));
-          else if (en.bossState === "lunge" && p1.skill.length === 3) {
-            frames = p1.skill;
-            fi = Math.min(2, Math.floor(en.bossT / 58 * 3));
+          } else if (en.bossState === "telegraph") {
+            frames = p1.entrance;
+            fi = 0;
+          } else if (en.bossState === "manifest") {
+            frames = p1.entrance;
+            fi = Math.min(5, Math.floor(en.bossT / Math.max(1, 42 / 6)));
+          } else if (en.bossState === "dissolve") {
+            frames = p1.entrance;
+            fi = Math.max(0, 5 - Math.min(5, Math.floor(en.bossT / Math.max(1, 46 / 6))));
+          } else if (en.bossState === "lunge") {
+            frames = en.attackKind === "core" ? p1.coreCast : p1.rushCast;
+            fi = Math.min(frames.length - 1, Math.floor(en.bossT / 58 * frames.length));
           }
-          const img = frames[Math.max(0, fi)] || p1.manifest[3], size = Math.min(W * 0.7, H * 0.39), x = en.x - size * 0.5, y = en.y - size * 0.54;
+          const img = frames[Math.max(0, fi)] || p1.master, size = Math.min(W * 0.57, H * 0.31), x = en.x - size * 0.5, y = en.y - size * 0.54;
           ctx.save();
           ctx.globalAlpha = en.alpha == null ? 1 : en.alpha;
           ctx.drawImage(img, x, y, size, size);
           ctx.restore();
+          const ih = img.naturalHeight || img.height || 1, b = img._inkBounds;
           en.bossHeadX = x + size * 0.31;
           en.bossHeadY = y + size * 0.34;
           en.bossHudAnchorX = x + size * 0.5;
-          en.bossHudAnchorY = y + size * 0.045;
+          en.bossHudAnchorY = y + (b ? b[1] / ih * size : 0);
           continue;
         }
         const dirGrp = en.isBoss && en.bossSide === 0 ? grp.top : en.isBoss && en.bossSide === 2 ? grp.bottom : null;
@@ -2785,7 +2801,7 @@
       if (!en.isBoss && (en.isElite || en.hp < en.max)) {
         const manifestHeight = en.visualHeight || en.r * 2.1;
         const manifestTop = inkBlade && renderedByManifest ? en.y - manifestHeight * (inkBlade.manifest.canvas?.footPivot?.y ?? 1) : null;
-        const w = Math.max(30, Math.min(62, en.r * 2.45)), h = 4, x = en.x - w / 2, y = manifestTop == null ? en.y - en.r - 12 : manifestTop - 9;
+        const w = Math.max(30, Math.min(62, en.r * 2.45)), h = 4, x = en.x - w / 2, y = manifestTop == null ? en.y - en.r - 16 : manifestTop - 14;
         ctx.fillStyle = "rgba(20,17,14,.88)";
         ctx.fillRect(x - 1, y - 1, w + 2, h + 2);
         ctx.fillStyle = "rgba(76,66,55,.72)";
@@ -3663,14 +3679,15 @@
       ui.classList.toggle("show", !!boss);
       ui.classList.toggle("phase", !!boss && boss.bossState === "phase");
       if (boss) {
+        document.getElementById("bossphase").textContent = "墨軀盤卷";
         const placement = hooks5.getBossHudPlacement?.(boss);
         if (placement) {
           ui.style.setProperty("--boss-hud-x", placement.x + "px");
-          ui.style.setProperty("--boss-hud-y", placement.y + "px");
+          const hudTop = Math.max(0, placement.visualTop - ui.offsetHeight - 12);
+          ui.style.setProperty("--boss-hud-y", hudTop + "px");
           ui.style.setProperty("--boss-hud-width", placement.width + "px");
         }
         document.getElementById("bossfill").style.width = Math.max(0, boss.hp / boss.max * 100).toFixed(2) + "%";
-        document.getElementById("bossphase").textContent = "墨軀盤卷";
       }
     }
     if (hooks5.isDpsOpen?.()) hooks5.renderDps?.();
@@ -4531,9 +4548,11 @@
       realmTimeFrames: (wave) => realmTimeFrames(wave),
       bossTestAttackCountdown: (boss) => bossTestAttackCountdown(boss),
       getBossHudPlacement: (boss) => ({
-        x: Math.max(W * 0.29, Math.min(W * 0.71, boss.bossHudAnchorX ?? boss.x)),
-        y: Math.max(PLAY_TOP + 18, Math.min(H * 0.42, (boss.bossHudAnchorY ?? boss.y) - 64)),
-        width: Math.min(330, W * 0.48)
+        // Boss 可在上方左／中／右槽位移動，但 HUD 留在中央安全帶，避開兩側常駐 HUD。
+        x: Math.max(W * 0.48, Math.min(W * 0.52, boss.bossHudAnchorX ?? boss.x)),
+        visualTop: boss.bossHudAnchorY ?? boss.y,
+        // Boss 血條收在墨蛟本體的視覺寬度內，不橫跨大半個戰場。
+        width: Math.min(260, W * 0.4)
       }),
       getBossStateLabel: (state) => BOSS_STATE_CN[state],
       isDpsOpen: () => DPS.open,
@@ -4832,7 +4851,7 @@
       raven: { frames: [], attack: [], ok: false },
       fang: { frames: [], attack: [], ok: false },
       spider: { frames: [], attack: [], ok: false },
-      boss: { frames: [], attack: [], dissolve: [], p1: { manifest: [], skill: [], hurt: [], projectiles: { heavyCore: [], ringWave: [] }, ok: false }, top: { idle: null, attack: [] }, bottom: { idle: null, attack: [] }, ok: false }
+      boss: { frames: [], attack: [], dissolve: [], p1: { master: null, entrance: [], coreCast: [], rushCast: [], hurt: [], projectiles: { heavyCore: [], ringWave: [] }, ok: false }, top: { idle: null, attack: [] }, bottom: { idle: null, attack: [] }, ok: false }
     };
     (function() {
       const srcs = {
@@ -6641,17 +6660,45 @@
         G.spawnAcc = 0;
       }
       const p1 = ENESPR.boss.p1, base = "assets/boss/xuanming-p1/";
+      const refreshP1 = () => {
+        p1.ok = !!p1.master && p1.entrance.filter(Boolean).length === 6 && p1.coreCast.filter(Boolean).length === 4 && p1.rushCast.filter(Boolean).length === 5 && p1.hurt.filter(Boolean).length === 4;
+      };
+      const measureP1Bounds = (img) => {
+        const c = document.createElement("canvas"), w = img.naturalWidth, h = img.naturalHeight;
+        c.width = w;
+        c.height = h;
+        const g = c.getContext("2d", { willReadFrequently: true });
+        g.drawImage(img, 0, 0);
+        const d = g.getImageData(0, 0, w, h).data;
+        let x0 = w, y0 = h, x1 = -1, y1 = -1;
+        for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (d[(y * w + x) * 4 + 3] > 8) {
+          if (x < x0) x0 = x;
+          if (x > x1) x1 = x;
+          if (y < y0) y0 = y;
+          if (y > y1) y1 = y;
+        }
+        img._inkBounds = x1 >= x0 ? [x0, y0, x1 - x0 + 1, y1 - y0 + 1] : [0, 0, w, h];
+      };
       const loadP1 = (bucket, index, path2) => {
         const img = new Image();
         img.onload = () => {
+          measureP1Bounds(img);
           bucket[index] = img;
-          p1.ok = p1.manifest.filter(Boolean).length === 4;
+          refreshP1();
         };
         img.src = base + path2;
       };
-      for (let i = 1; i <= 4; i++) loadP1(p1.manifest, i - 1, "BOSS_XUANMING_P1_manifest_" + String(i).padStart(2, "0") + ".png");
-      for (let i = 1; i <= 3; i++) loadP1(p1.skill, i - 1, "BOSS_XUANMING_P1_skill_" + String(i).padStart(2, "0") + ".png");
-      for (let i = 1; i <= 4; i++) loadP1(p1.hurt, i - 1, "BOSS_XUANMING_P1_hurt_" + String(i).padStart(2, "0") + ".png");
+      const master = new Image();
+      master.onload = () => {
+        measureP1Bounds(master);
+        p1.master = master;
+        refreshP1();
+      };
+      master.src = base + "new-master/BOSS_XUANMING_P1_MASTER_WHITE_EYES.png";
+      for (let i = 1; i <= 6; i++) loadP1(p1.entrance, i - 1, "new-master/BOSS_XUANMING_P1_ENTRANCE_" + String(i).padStart(2, "0") + ".png");
+      for (let i = 1; i <= 4; i++) loadP1(p1.coreCast, i - 1, "new-master/core-cast/BOSS_XUANMING_P1_CORE_CAST_" + String(i).padStart(2, "0") + ".png");
+      for (let i = 1; i <= 5; i++) loadP1(p1.rushCast, i - 1, "new-master/rush-cast/BOSS_XUANMING_P1_RUSH_CAST_" + String(i).padStart(2, "0") + ".png");
+      for (let i = 1; i <= 4; i++) loadP1(p1.hurt, i - 1, "new-master/hurt/BOSS_XUANMING_P1_HURT_" + String(i).padStart(2, "0") + ".png");
       for (let i = 1; i <= 4; i++) {
         loadP1(p1.projectiles.heavyCore, i - 1, "projectiles/BOSS_XUANMING_HEAVY_CORE_" + String(i).padStart(2, "0") + ".png");
         loadP1(p1.projectiles.ringWave, i - 1, "projectiles/BOSS_XUANMING_RING_WAVE_" + String(i).padStart(2, "0") + ".png");
@@ -6774,10 +6821,11 @@
         boss.phaseSeen = 1;
         boss.bossState = "manifest";
         boss.bossT = 0;
-        boss.bossSide = 0;
-        boss.bossAngle = -Math.PI / 2;
+        boss.bossSide = 1;
+        boss.bossAngle = Math.PI / 2;
         boss.attackSeq = 0;
-        boss.attackKind = "triple";
+        boss.attackKind = "lunge";
+        boss.attackPath = null;
         boss.alpha = 0.08;
         placeBoss(boss, boss.bossAngle, bossOrbitRadius(boss.bossSide));
       }
@@ -6824,7 +6872,8 @@
       if (!en) return;
       const p = bossPhase(en), ratio = p === 1 ? 0.69 : p === 2 ? 0.39 : 0.99;
       en.hp = Math.max(1, en.max * ratio);
-      en.attackKind = p === 1 ? "ring" : "triple";
+      en.attackKind = p === 1 ? "lunge" : "core";
+      en.attackPath = null;
       en.attackSeq = (en.attackSeq || 0) + 1;
       updateHUD();
     }
@@ -6847,11 +6896,11 @@
       real.bossState = G.bossShowcase === 2 ? "lunge" : "orbit";
       real.bossT = G.bossShowcase === 2 ? 32 : 0;
       real.alpha = 1;
-      for (let side = 0; side < 4; side++) {
+      for (let side = 0; side < 3; side++) {
         const en = side === 0 ? real : Object.assign({}, real, { showcaseGhost: true, st: {} });
         en.bossSide = side;
-        en.bossAngle = [-Math.PI / 2, 0, Math.PI / 2, Math.PI][side];
-        placeBoss(en, en.bossAngle, bossOrbitRadius(side));
+        en.bossAngle = Math.PI / 2;
+        placeBoss(en);
         en.face = Math.atan2(G.player.y - en.y, G.player.x - en.x);
         if (side > 0) G.enemies.push(en);
       }

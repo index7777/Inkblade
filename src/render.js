@@ -265,14 +265,23 @@ export function drawEnemies(){
     if(!renderedByManifest && grp && grp.ok){
       if(en.isBoss&&grp.p1?.ok){
         const p1=grp.p1;
-        let frames=p1.manifest, fi=3;
+        let frames=[p1.master], fi=0;
         if(en.hit>0&&p1.hurt.length===4){ frames=p1.hurt; fi=Math.min(3,Math.floor((12-en.hit)/3)); }
-        else if(en.bossState==='manifest'||en.bossState==='telegraph') fi=Math.min(3,Math.floor(en.bossT/Math.max(1,(en.bossState==='manifest'?42:72)/4)));
-        else if(en.bossState==='lunge'&&p1.skill.length===3){ frames=p1.skill; fi=Math.min(2,Math.floor(en.bossT/58*3)); }
-        const img=frames[Math.max(0,fi)]||p1.manifest[3], size=Math.min(W*.70,H*.39), x=en.x-size*.5, y=en.y-size*.54;
+        else if(en.bossState==='telegraph'){ frames=p1.entrance; fi=0; }
+        else if(en.bossState==='manifest'){ frames=p1.entrance; fi=Math.min(5,Math.floor(en.bossT/Math.max(1,42/6))); }
+        else if(en.bossState==='dissolve'){ frames=p1.entrance; fi=Math.max(0,5-Math.min(5,Math.floor(en.bossT/Math.max(1,46/6)))); }
+        else if(en.bossState==='lunge'){
+          frames=en.attackKind==='core'?p1.coreCast:p1.rushCast;
+          fi=Math.min(frames.length-1,Math.floor(en.bossT/58*frames.length));
+        }
+        const img=frames[Math.max(0,fi)]||p1.master,
+          size=Math.min(W*.57,H*.31),
+          x=en.x-size*.5, y=en.y-size*.54;
         ctx.save(); ctx.globalAlpha=en.alpha==null?1:en.alpha; ctx.drawImage(img,x,y,size,size); ctx.restore();
+        const ih=img.naturalHeight||img.height||1, b=img._inkBounds;
         en.bossHeadX=x+size*.31; en.bossHeadY=y+size*.34;
-        en.bossHudAnchorX=x+size*.5; en.bossHudAnchorY=y+size*.045;
+        en.bossHudAnchorX=x+size*.5;
+        en.bossHudAnchorY=y+(b?b[1]/ih*size:0);
         continue;
       }
       // 真透明 sprite:多幀時隨機起始+慢速交叉淡入(變體感+煙霧晨變);單幀直接畫
@@ -390,7 +399,8 @@ export function drawEnemies(){
         ? en.y-manifestHeight*(inkBlade.manifest.canvas?.footPivot?.y??1)
         : null;
       const w=Math.max(30,Math.min(62,en.r*2.45)), h=4, x=en.x-w/2,
-            y=manifestTop==null?en.y-en.r-12:manifestTop-9;
+            // 血條底緣至少離角色素材頂端 10px，任何敵人都不與自己的血條重疊。
+            y=manifestTop==null?en.y-en.r-16:manifestTop-14;
       ctx.fillStyle='rgba(20,17,14,.88)'; ctx.fillRect(x-1,y-1,w+2,h+2);
       ctx.fillStyle='rgba(76,66,55,.72)'; ctx.fillRect(x,y,w,h);
       ctx.fillStyle='#a22f2b'; ctx.fillRect(x,y,Math.max(0,w*Math.min(1,en.hp/en.max)),h);

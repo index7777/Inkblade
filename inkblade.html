@@ -484,9 +484,10 @@
     transform:translateX(-50%); display:none; pointer-events:none; text-align:center; color:#241f1a; }
   #bossui.show { display:block; }
   #bossname { font:700 21px/1.1 "Noto Serif TC",serif; letter-spacing:5px; text-shadow:0 1px 3px #eee4cf; }
-  #bossbar { position:relative; height:10px; margin-top:7px; padding:2px; border:1px solid rgba(35,30,25,.82); background:rgba(231,222,202,.72); box-shadow:0 1px 0 rgba(255,250,238,.55) inset; }
+  #bossbar { position:relative; height:12px; margin-top:7px; padding:2px; border:2px solid rgba(35,30,25,.86); background:rgba(231,222,202,.72); box-shadow:0 1px 0 rgba(255,250,238,.55) inset; }
   #bossfill { width:100%; height:100%; background:#7e2923; transition:width .12s linear; }
-  #bossphase { margin-top:5px; font:600 12px "Noto Serif TC",serif; letter-spacing:2px; color:#51463a; }
+  /* Boss 狀態由本體動作與飛行物表達，不再把額外文字堆在血條下方壓住角色。 */
+  #bossphase { display:none; }
   #bossui.phase #bossname { color:#6f2924; }
   #bossui.phase #bossbar { animation:bossPhaseBeat .62s ease-in-out infinite alternate; }
   @keyframes bossPhaseBeat { from{ box-shadow:0 0 0 rgba(111,41,36,0) } to{ box-shadow:0 0 12px rgba(111,41,36,.32) } }

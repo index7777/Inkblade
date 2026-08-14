@@ -102,15 +102,17 @@ export function updateHUD(){
     ui.classList.toggle('show',!!boss);
     ui.classList.toggle('phase',!!boss&&boss.bossState==='phase');
     if(boss){
+      // 狀態文字是 HUD 的一部分；先寫入後量整組高度，避免它落到 Boss 墨形上。
+      document.getElementById('bossphase').textContent='墨軀盤卷';
       const placement=hooks.getBossHudPlacement?.(boss);
       if(placement){
         ui.style.setProperty('--boss-hud-x',placement.x+'px');
-        ui.style.setProperty('--boss-hud-y',placement.y+'px');
+        const hudTop=Math.max(0,placement.visualTop-ui.offsetHeight-12);
+        ui.style.setProperty('--boss-hud-y',hudTop+'px');
         ui.style.setProperty('--boss-hud-width',placement.width+'px');
       }
       document.getElementById('bossfill').style.width=Math.max(0,boss.hp/boss.max*100).toFixed(2)+'%';
       // 血條不預告轉境門檻或下一招。
-      document.getElementById('bossphase').textContent='墨軀盤卷';
     }
   }
   if(hooks.isDpsOpen?.()) hooks.renderDps?.();

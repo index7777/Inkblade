@@ -1,16 +1,16 @@
 # Graph Report - Inkblade  (2026-08-14)
 
 ## Corpus Check
-- 119 files · ~11,870,313 words
+- 127 files · ~13,977,272 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 3291 nodes · 5386 edges · 163 communities (144 shown, 19 thin omitted)
+- 3321 nodes · 5415 edges · 170 communities (150 shown, 20 thin omitted)
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 11 edges (avg confidence: 0.55)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `d577177e`
+- Built from commit: `c5046232`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -125,7 +125,7 @@
 - [2026-08-09] #84 移除滑過去的音效;效果文字把「幾成傷」改成看得懂的基準
 - cfg_v37.js
 - vercel.json
-- replacementAssetId
+- build-p1-entrance-from-master.py
 - cfg_v38.js
 - review
 - cfg_v39.js
@@ -152,10 +152,11 @@
 - snd_v7.js
 - snd_v5.js
 - properties
-- status
+- build-p1-core-sequence.py
 - VISUAL-SMOKE-TEST.md
 - UI-BASELINE.md
 - 全卡片功能與相容／互斥矩陣
+- 玄冥墨蛟新版素材 Staging
 - runtime
 - properties
 - required
@@ -175,6 +176,11 @@
 - ink_blade/README.md
 - source/README.md
 - runtime
+- p1-boss-new-master-generation-notes.md
+- build-p1-rush-sequence.py
+- replacementAssetId
+- status
+- build-p1-hurt-sequence.py
 - outputProfileId
 
 ## God Nodes (most connected - your core abstractions)
@@ -204,7 +210,7 @@
 ## Import Cycles
 - None detected.
 
-## Communities (163 total, 19 thin omitted)
+## Communities (170 total, 20 thin omitted)
 
 ### Community 0 - "ASSET_RECIPE_SCHEMA.md"
 Cohesion: 0.02
@@ -228,7 +234,7 @@ Nodes (60): 10. Workflow Registry, 11. Model Profile, 12. Prompt Construction, 1
 
 ### Community 5 - "main.js"
 Cohesion: 0.05
-Nodes (69): advanceRealm(), allowedLen(), applyOpeningVars(), artTierName(), beginDeath(), bisectDraw(), bisectMicro(), bisectPage() (+61 more)
+Nodes (70): bossOrbitRadius(), advanceRealm(), allowedLen(), applyOpeningVars(), artTierName(), beginDeath(), bisectDraw(), bisectMicro() (+62 more)
 
 ### Community 6 - "Repository subsystem map"
 Cohesion: 0.20
@@ -256,11 +262,11 @@ Nodes (36): `assets/scenes/dunhuang-bg.png`, `assets/scenes/dunhuang-motes.png`,
 
 ### Community 13 - "render.js"
 Cohesion: 0.08
-Nodes (52): cmdLife(), leadInLen(), supHash(), applyIntent(), warmSwordTint(), bakeHero(), bakeHeroF(), buildCracks() (+44 more)
+Nodes (53): cmdLife(), leadInLen(), bossVisualLift(), supHash(), applyIntent(), warmSwordTint(), bakeHero(), bakeHeroF() (+45 more)
 
 ### Community 14 - "combat.js"
 Cohesion: 0.09
-Nodes (41): appendInlineTrail(), bladeLength(), buildStrokePasses(), canReturn(), configureCombat(), detonateAnchor(), durCost(), extendCommand() (+33 more)
+Nodes (42): appendInlineTrail(), bladeLength(), buildStrokePasses(), canReturn(), configureCombat(), detonateAnchor(), durCost(), extendCommand() (+34 more)
 
 ### Community 15 - "劍稟"
 Cohesion: 0.06
@@ -271,8 +277,8 @@ Cohesion: 0.09
 Nodes (35): applyInsight(), applyOperation(), canOfferInsight(), canPurchaseRebirth(), clampAllStats(), clearAllStatus(), clone(), createPermanentState() (+27 more)
 
 ### Community 17 - "enemy.js"
-Cohesion: 0.08
-Nodes (44): autoCommandEndpoint(), selectAutoTarget(), beginXuanmingWave(), BOSS_PLAYER_Y_RATIO, bossDissolveMist(), bossMoveToSide(), bossOrbitRadius(), bossPhase() (+36 more)
+Cohesion: 0.07
+Nodes (42): autoCommandEndpoint(), selectAutoTarget(), beginXuanmingWave(), BOSS_PLAYER_Y_RATIO, bossDissolveMist(), bossMoveToSide(), bossPhase(), bossSafeSide() (+34 more)
 
 ### Community 18 - "墨劍訣 · 戰鬥 v2 設計(站樁畫劍 × 彈幕抵銷 × 精英/BOSS × 60 波關卡)"
 Cohesion: 0.08
@@ -404,7 +410,7 @@ Nodes (11): minLength, pattern, type, sourceFiles, tags, items, type, uniqueItem
 
 ### Community 53 - "第一章 Boss 母版：玄冥墨蛟"
 Cohesion: 0.18
-Nodes (10): 1. 正式視覺資產, 2. 戰鬥硬規則（依現有文件）, 3. 基本循環, 4. 三階段攻擊模式, 5. 動作資產清單, 6. 驗收條件, P1：四象試鋒（100–70%）, P2：八荒盤殺（70–40%） (+2 more)
+Nodes (10): 1. 正式視覺資產, 2. 戰鬥硬規則（依現有文件）, 3. 基本循環, 4. 三階段攻擊模式, 5. 動作資產清單, 6. 驗收條件, P1：上弦試鋒（100–70%）, P2：八荒盤殺（70–40%） (+2 more)
 
 ### Community 54 - "墨劍訣 · 開場畫卷展開(Opening Scroll)規劃"
 Cohesion: 0.18
@@ -626,6 +632,10 @@ Nodes (3): [2026-08-09] #84 移除滑過去的音效;效果文字把「幾成傷
 Cohesion: 0.09
 Nodes (33): applyInsight(), applyOperation(), canOfferInsight(), canPurchaseRebirth(), clampAllStats(), clearAllStatus(), clone(), createPermanentState() (+25 more)
 
+### Community 110 - "build-p1-entrance-from-master.py"
+Cohesion: 0.83
+Nodes (3): build_master(), main(), reveal()
+
 ### Community 111 - "cfg_v38.js"
 Cohesion: 0.09
 Nodes (33): applyInsight(), applyOperation(), canOfferInsight(), canPurchaseRebirth(), clampAllStats(), clearAllStatus(), clone(), createPermanentState() (+25 more)
@@ -710,6 +720,10 @@ Nodes (35): applyVolume(), bandOf(), boom(), cast(), chooseVoice(), crit(), ensu
 Cohesion: 0.18
 Nodes (11): items, type, $ref, pattern, type, properties, assets, manifestVersion (+3 more)
 
+### Community 139 - "build-p1-core-sequence.py"
+Cohesion: 0.70
+Nodes (4): main(), normalize(), paper_to_alpha(), release_frame()
+
 ### Community 140 - "VISUAL-SMOKE-TEST.md"
 Cohesion: 0.06
 Nodes (31): 10. 手機 9:16 強制測試, 11. Safe Area, 12. PC Regression Test, 13. 共用 CSS 特別規則, 14. 截圖自證要求, 15. 截圖必須自行審查, 16. 最終回報格式, 17. 不可跳過原則 (+23 more)
@@ -721,6 +735,14 @@ Nodes (28): 0. Source of Truth 規則, 10. Combat Baseline, 11. Gameplay Visual 
 ### Community 142 - "全卡片功能與相容／互斥矩陣"
 Cohesion: 0.20
 Nodes (9): 全卡片功能與相容／互斥矩陣, 劍型（擇一鎖路）, 劍痕（擇一鎖路）, 劍稟（不限路線）, 劍行, 劍陣（開局四選一）, 尚待決定的 A／B 關係, 已實裝硬規則 (+1 more)
+
+### Community 143 - "玄冥墨蛟新版素材 Staging"
+Cohesion: 0.33
+Nodes (5): 接入前仍需, 攻擊物候選, 新版 BOSS 本體來源, 明確排除, 玄冥墨蛟新版素材 Staging
+
+### Community 144 - "runtime"
+Cohesion: 0.29
+Nodes (7): runtime, scale, additionalProperties, properties, type, exclusiveMinimum, type
 
 ### Community 145 - "properties"
 Cohesion: 0.22
@@ -770,26 +792,30 @@ Nodes (5): enum, hand-authored, assetSource, ai-runtime, legacy
 Cohesion: 0.50
 Nodes (4): $ref, additionalProperties, type, animations
 
-### Community 170 - "runtime"
-Cohesion: 0.29
-Nodes (7): runtime, scale, additionalProperties, properties, type, exclusiveMinimum, type
+### Community 165 - "build-p1-rush-sequence.py"
+Cohesion: 0.90
+Nodes (4): build_release(), main(), normalize(), paper_to_alpha()
+
+### Community 168 - "build-p1-hurt-sequence.py"
+Cohesion: 0.83
+Nodes (3): main(), normalize(), paper_to_alpha()
 
 ## Knowledge Gaps
-- **1218 isolated node(s):** `$schema`, `$id`, `type`, `additionalProperties`, `schemaVersion` (+1213 more)
+- **1223 isolated node(s):** `$schema`, `$id`, `type`, `additionalProperties`, `schemaVersion` (+1218 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **19 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **20 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `墨劍訣 · 變更記錄(Ink Engine 整合)` connect `墨劍訣 · 變更記錄(Ink Engine 整合)` to `[2026-08-09] #83 全卡稽核:25 項問題一次修完`, `[2026-08-08] #34 劍意成本改為「劍大劍多就貴」、新增小劍流派、修好劍式不疊加、震動強度可調`, `[2026-08-08] #59 折返改「邊緣折返」;劍令改預付制(死劍不補);取消飛行壽命`, `[2026-08-08] #37 靜觀新增三項:畫質 / 幀數 / 劍訣註解;順帶修好 120Hz 兩倍速`, `[2026-08-08] #46 平衡:神識/劍意隨道行成長、xp 曲線降斜率、maxRank 全壓到 5`, `[2026-08-08] #49 續飛加回、自動御劍射程修正、首頁 logo 換 V2`, `[2026-08-08] #53 折返改為「穿過去再掉頭」;連珠修好重疊並加大轉向距離`, `[2026-08-09] #72 音效改走 WebAudio(每次出劍/受擊都會卡的真正共通點)`, `#88 折返收窄到單式/聚鋒;分裂整個移除;齊鋒撲空自行追跡`, `[2026-08-07] #27 主角 26 幀重製 + 隕落動畫、墨劍 14 幀、開場疊合/停頓修正`, `[2026-08-07] #29 女修士改為程序化演出(拆劍/風動/墨痕旋渦)、HUD 依參考稿重做、鎖右鍵`, `[2026-08-08] #45 鎮痕與蝕痕的視覺語言重做;商城返回鈕修正`, `[2026-08-08] #47 悟道階數加權;**更正 #46 的錯誤推演**`, `[2026-08-08] #68 修好近身傷害空區(連珠最明顯)+ 拔掉死欄位 swordLife`, `[2026-08-09] #75 耐久取消上限;新增護甲(降低耐久消耗),道行成長改為劍意/劍傷/護甲`, `[2026-08-09] #79 九張技能配合耐久/分裂制重做;劍寬新增護甲與速度的第二層意義`, `[2026-08-09] #81 卡片與階級表都改寫實際效果;**查出 22 個空的階級層**`, `[2026-08-09] #82 把 #81 查出的空階級層全部接線(21 個旗標)`, `[2026-08-07] #25 開場過場 v2(鏡頭推近畫軸 → 上下拉開 → 邊緣淡出)+ 生成點/射程修正`, `[2026-08-08] #35 小成/大成/圓滿框架上線;御劍啟用改為環繞墨線`, `[2026-08-08] #41 15 層 pending 全部實作;效果註解的版面驗證(卡片不再被裁字)`, `[2026-08-08] #48 修好飛白千峰的殘鋒 crash;實跑推演出真實存活深度`, `[2026-08-08] #70 HUD 左右兩組切齊同一條下緣;斬殺不再留墨漬`, `[2026-08-09] #71 手機卡幀:低血量時劍環每幀重新上色(15.6 倍代價)`, `[2026-08-09] #74 劍改為耐久制;穿透改成分裂數;折返不再補耐久`, `[2026-08-09] #76 分裂劍的可讀性:按威力縮小 + 同幀傷害合併`, `[2026-08-09] #84 移除滑過去的音效;效果文字把「幾成傷」改成看得懂的基準`, `[2026-08-09] #80 納息文案講清楚它會加耐久;**更正 #79 的平衡表**`, `[2026-08-09] #86 散鋒改為「每把劍各走一份旋轉過的劍令」;長劍令加側向上限`?**
-  _High betweenness centrality (0.005) - this node is a cross-community bridge._
-- **Why does `$defs` connect `$defs` to `enum`, `enum`, `properties`, `runtime`, `properties`, `required`, `asset_manifest.schema.json`, `enum`?**
   _High betweenness centrality (0.004) - this node is a cross-community bridge._
+- **Why does `$defs` connect `$defs` to `enum`, `enum`, `properties`, `properties`, `runtime`, `required`, `asset_manifest.schema.json`, `enum`?**
+  _High betweenness centrality (0.003) - this node is a cross-community bridge._
 - **Why does `assetEntry` connect `required` to `properties`, `$defs`?**
-  _High betweenness centrality (0.002) - this node is a cross-community bridge._
+  _High betweenness centrality (0.001) - this node is a cross-community bridge._
 - **What connects `$schema`, `$id`, `type` to the rest of the system?**
-  _1218 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _1223 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `ASSET_RECIPE_SCHEMA.md` be split into smaller, more focused modules?**
   _Cohesion score 0.017094017094017096 - nodes in this community are weakly interconnected._
 - **Should `墨劍訣 · 變更記錄(Ink Engine 整合)` be split into smaller, more focused modules?**

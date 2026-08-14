@@ -19,25 +19,35 @@
     }
   },
   "actions": {
-    "manifest": [
-      "BOSS_XUANMING_P1_manifest_01.png",
-      "BOSS_XUANMING_P1_manifest_02.png",
-      "BOSS_XUANMING_P1_manifest_03.png",
-      "BOSS_XUANMING_P1_manifest_04.png"
+    "master": [
+      "new-master/BOSS_XUANMING_P1_MASTER_WHITE_EYES.png"
     ],
-    "idle": [
-      "BOSS_XUANMING_P1_manifest_04.png"
+    "entrance": [
+      "new-master/BOSS_XUANMING_P1_ENTRANCE_01.png",
+      "new-master/BOSS_XUANMING_P1_ENTRANCE_02.png",
+      "new-master/BOSS_XUANMING_P1_ENTRANCE_03.png",
+      "new-master/BOSS_XUANMING_P1_ENTRANCE_04.png",
+      "new-master/BOSS_XUANMING_P1_ENTRANCE_05.png",
+      "new-master/BOSS_XUANMING_P1_ENTRANCE_06.png"
     ],
-    "skill": [
-      "BOSS_XUANMING_P1_skill_01.png",
-      "BOSS_XUANMING_P1_skill_02.png",
-      "BOSS_XUANMING_P1_skill_03.png"
+    "coreCast": [
+      "new-master/core-cast/BOSS_XUANMING_P1_CORE_CAST_01.png",
+      "new-master/core-cast/BOSS_XUANMING_P1_CORE_CAST_02.png",
+      "new-master/core-cast/BOSS_XUANMING_P1_CORE_CAST_03.png",
+      "new-master/core-cast/BOSS_XUANMING_P1_CORE_CAST_04.png"
+    ],
+    "rushCast": [
+      "new-master/rush-cast/BOSS_XUANMING_P1_RUSH_CAST_01.png",
+      "new-master/rush-cast/BOSS_XUANMING_P1_RUSH_CAST_02.png",
+      "new-master/rush-cast/BOSS_XUANMING_P1_RUSH_CAST_03.png",
+      "new-master/rush-cast/BOSS_XUANMING_P1_RUSH_CAST_04.png",
+      "new-master/rush-cast/BOSS_XUANMING_P1_RUSH_CAST_05.png"
     ],
     "hurt": [
-      "BOSS_XUANMING_P1_hurt_01.png",
-      "BOSS_XUANMING_P1_hurt_02.png",
-      "BOSS_XUANMING_P1_hurt_03.png",
-      "BOSS_XUANMING_P1_hurt_04.png"
+      "new-master/hurt/BOSS_XUANMING_P1_HURT_01.png",
+      "new-master/hurt/BOSS_XUANMING_P1_HURT_02.png",
+      "new-master/hurt/BOSS_XUANMING_P1_HURT_03.png",
+      "new-master/hurt/BOSS_XUANMING_P1_HURT_04.png"
     ]
   },
   "projectiles": {

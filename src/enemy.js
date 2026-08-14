@@ -120,8 +120,8 @@ export function spawnXuanmingBoss(testMode){
   const hp=XUANMING_HP;
   const en={
     x:W*.5,y:H*.19,r:72,hp,max:hp,sp:0,c:'#211f1d',tier:2,type:'boss',isBoss:true,
-    bossState:testMode?'manifest':'telegraph',bossT:testMode?28:0,bossSide:0,bossAngle:-Math.PI/2,bossHit:false,alpha:testMode?.72:.05,
-    attackSeq:0,attackKind:'triple',phaseSeen:1,pendingPhase:0,
+    bossState:'manifest',bossT:0,bossSide:1,bossAngle:Math.PI/2,bossHit:false,alpha:testMode?.72:.05,
+    attackSeq:0,attackKind:'lunge',phaseSeen:1,pendingPhase:0,attackPath:null,
     evadeCharges:XUANMING_CONFIG.evade.charges,evadeCooldown:0,defenseCooldown:0,rollingDamage:0,
     anim:0,ember:0,emberT:0,chill:0,hit:0,broken:0,wob:Math.random()*7,st:{}
   };
@@ -169,48 +169,56 @@ export function bossPhase(en){
   return r>.70?1:r>.35?2:3;
 }
 
-export function bossVisualLift(side){ return side===0?-24:side===2?-42:0; }
+export function bossVisualLift(){ return 0; }
 
-export function bossOrbitRadius(side){
-  const visualR=Math.max(210,Math.min(300,W*.48,Math.min(W,H)*.46));
-  if(side===0) return visualR+bossVisualLift(0);
-  if(side===2) return visualR-bossVisualLift(2);
-  return visualR;
-}
-
-export function placeBoss(en,ang,r){
-  // 玄冥墨蛟固定盤踞於玩家前方。攻擊狀態可以改變動作，但不再幻型到四側。
-  en.bossSide=0;
-  en.bossAngle=-Math.PI/2;
-  en.x=W*.5;
-  en.y=H*.38-bossVisualLift(0);
-}
-
-export function bossSafeSide(en){
+export function bossOrbitRadius(){
   return 0;
 }
 
+export function placeBoss(en){
+  // Boss 本體永遠留在上方活動帶；0/1/2 只代表靠左／中／靠右。
+  en.bossSide=Math.max(0,Math.min(2,en.bossSide|0));
+  en.bossAngle=Math.PI/2;
+  en.x=W*[.31,.5,.69][en.bossSide];
+  en.y=Math.max(H*.29,Math.min(H*.35,G.player.y-H*.27));
+}
+
+export function bossSafeSide(en){
+  return ((en?.bossSide??1)+1)%3;
+}
+
 export function bossMoveToSide(en,side,state){
-  en.bossSide=0;
-  en.bossAngle=-Math.PI/2;
-  placeBoss(en,en.bossAngle,bossOrbitRadius(0));
+  en.bossSide=((side%3)+3)%3;
+  en.bossAngle=Math.PI/2;
+  placeBoss(en);
   en.bossState=state; en.bossT=0; en.bossHit=false;
+}
+
+function prepareBossP1Path(en){
+  const P=G.player,start={x:en.x,y:en.y+en.r*.42};
+  if(en.attackKind==='core'){
+    en.attackPath=[start,{x:P.x,y:P.y}];
+    return;
+  }
+  const bend=(en.bossSide-1)*W*.12;
+  en.attackPath=[start,{x:start.x+bend,y:start.y+H*.09},
+    {x:P.x+bend,y:P.y-H*.13},{x:P.x,y:P.y}];
 }
 
 export function nextBossManifest(en){
   bossMoveToSide(en,bossSafeSide(en),'telegraph');
   en.alpha=.06;
   en.attackSeq=(en.attackSeq||0)+1;
-  const ratio=en.hp/en.max;
-  en.attackKind=ratio>.7?'triple':ratio>.4?'ring':((en.attackSeq&1)?'ring':'triple');
-  placeBoss(en,en.bossAngle,bossOrbitRadius(en.bossSide));
+  en.attackKind=(en.attackSeq&1)?'core':'lunge';
+  placeBoss(en);
+  prepareBossP1Path(en);
 }
 
 export function updateBossP1(en){
   const entering=bossPhase(en);
   if(entering>(en.phaseSeen||1)) en.pendingPhase=Math.max(en.pendingPhase||0,entering);
   en.bossT++;
-  const R=bossOrbitRadius(en.bossSide); let state=en.bossState;
+  let state=en.bossState;
   if(en.pendingPhase>(en.phaseSeen||1)&&(state==='orbit'||state==='telegraph')){
     en.phaseSeen=en.pendingPhase; en.pendingPhase=0; en.bossState='phase'; state='phase'; en.bossT=0; en.bossHit=false;
     G.bossShots.length=0;
@@ -221,22 +229,24 @@ export function updateBossP1(en){
   const manifestFrames=G.bossTest?28:42;
   const orbitFrames=G.bossTest?54:100;
   if(state==='phase'){
-    placeBoss(en,en.bossAngle,R);
+    placeBoss(en);
     en.alpha=1;
     if(en.bossT%3===0) bossDissolveMist(en);
     if(en.bossT>=90) nextBossManifest(en);
   } else if(state==='telegraph'){
-    placeBoss(en,en.bossAngle,R); en.alpha=1;
+    placeBoss(en); en.alpha=1;
+    if(!en.attackPath) prepareBossP1Path(en);
     if(en.bossT>=telegraphFrames){ en.bossState='manifest'; en.bossT=0; }
   } else if(state==='manifest'){
-    placeBoss(en,en.bossAngle,R); en.alpha=1;
+    placeBoss(en); en.alpha=1;
     if(en.bossT>=manifestFrames){ en.bossState='orbit'; en.bossT=0; en.alpha=1; }
   } else if(state==='orbit'){
-    placeBoss(en,en.bossAngle,R); en.alpha=1;
-    if(en.bossT>=orbitFrames){ placeBoss(en,en.bossAngle,R); en.bossState='lunge'; en.bossT=0; en.bossHit=false; }
+    placeBoss(en); en.alpha=1;
+    if(en.bossT>=orbitFrames){ placeBoss(en); en.bossState='lunge'; en.bossT=0; en.bossHit=false; }
   } else if(state==='lunge'){
     const t=Math.min(1,en.bossT/58);
-    placeBoss(en,en.bossAngle,R); en.alpha=1;
+    placeBoss(en);
+    en.alpha=1;
     if(!en.bossHit&&t>=.68){
       en.bossHit=true;
       spawnBossAttack(en);
@@ -246,7 +256,7 @@ export function updateBossP1(en){
     en.alpha=1;
     if(en.bossT>=46) nextBossManifest(en);
   }
-  en.depth=Math.max(0,Math.min(1,(en.y-(G.player.y-R))/(R*2)));
+  en.depth=0;
   en.visualScale=2.12;
   en.lean=Math.max(-.16,Math.min(.16,(en.x-(en.px==null?en.x:en.px))*.025));
   en.face=Math.atan2(G.player.y-en.y,G.player.x-en.x);
@@ -267,17 +277,16 @@ export function bossDissolveMist(en){
       r:18+Math.random()*24,age:0,dur:32+((Math.random()*18)|0),color:'38,35,32',
       squash:.32+Math.random()*.3,rot:f+(Math.random()-.5)*.8});
   }
-  const sides=[-Math.PI/2,0,Math.PI/2,Math.PI],next=sides[(en.bossSide+1)%4];
-  const R=bossOrbitRadius((en.bossSide+1)%4);
+  const next=(en.bossSide+1)%3;
   if(progress>=.38){
-    const mx=G.player.x+Math.cos(next)*R;
-    const my=G.player.y+Math.sin(next)*R+bossVisualLift((en.bossSide+1)%4);
+    const mx=W*[.31,.5,.69][next];
+    const my=Math.max(H*.29,Math.min(H*.35,G.player.y-H*.27));
     const gather=Math.min(1,(progress-.38)/.62);
     G.mists.push({x:mx+(Math.random()-.5)*(1-gather)*42,y:my+(Math.random()-.5)*(1-gather)*34,
       vx:(mx-en.x)*.0015*(1-gather)-Math.sin(next)*.18,
       vy:(my-en.y)*.0015*(1-gather)+Math.cos(next)*.18-.08,
       r:18+Math.random()*14,age:0,dur:22+((Math.random()*9)|0),color:'40,37,33',
-      squash:.28+Math.random()*.14,rot:next+Math.PI/2});
+      squash:.28+Math.random()*.14,rot:0});
   }
 }
 
@@ -506,15 +515,11 @@ export function updateEnemies(){
 
 export function spawnBossAttack(en){
   if(en.attackKind==='ring'){ spawnBossRing(en); return; }
-  const P=G.player,mouth=[{x:0,y:.52},{x:-.52,y:-.08},{x:0,y:-.52},{x:.52,y:-.08}][en.bossSide];
-  const ox=en.x+mouth.x*en.r,oy=en.y+mouth.y*en.r+bossVisualLift(en.bossSide);
-  const dx=P.x-ox,dy=P.y-oy,d=Math.hypot(dx,dy)||1,nx=-dy/d,ny=dx/d;
-  for(const lane of [-34,0,34]){
-    const x=ox+nx*lane,y=oy+ny*lane,tx=P.x+nx*lane*.22,ty=P.y+ny*lane*.22;
-    const vx=tx-x,vy=ty-y,L=Math.hypot(vx,vy)||1,heavy=lane===0;
-    G.bossShots.push({x,y,px:x,py:y,vx:vx/L*(heavy?1.12:1.38),vy:vy/L*(heavy?1.12:1.38),
-      r:heavy?15:11,hp:heavy?2:1,max:heavy?2:1,dmg:heavy?18:11,age:0,seed:Math.random()*100});
-  }
+  const P=G.player,ox=en.x,oy=en.y+en.r*.42;
+  const dx=P.x-ox,dy=P.y-oy,d=Math.hypot(dx,dy)||1;
+  G.bossShots.push({x:ox,y:oy,px:ox,py:oy,vx:dx/d*1.12,vy:dy/d*1.12,
+    r:en.attackKind==='lunge'?22:15,hp:en.attackKind==='lunge'?1:2,max:en.attackKind==='lunge'?1:2,
+    dmg:en.attackKind==='lunge'?14:18,age:0,seed:Math.random()*100,rush:en.attackKind==='lunge'});
 }
 
 export function spawnBossRing(en){

@@ -10,7 +10,7 @@ test('a single frame error cannot permanently stop requestAnimationFrame', async
     clientWidth:640, clientHeight:1138, width:640, height:1138,
     getContext(){ return ctx; }
   };
-  let scheduled=0, reported=0, nextFrame=null;
+  let scheduled=0, reported=0, nextFrame=null, shouldThrow=true;
   globalThis.document={getElementById:id=>id==='game'?canvas:null};
   globalThis.window={devicePixelRatio:1};
   globalThis.requestAnimationFrame=callback=>{ scheduled++; nextFrame=callback; return scheduled; };
@@ -20,10 +20,13 @@ test('a single frame error cannot permanently stop requestAnimationFrame', async
     Object.assign(G,{running:true,paused:false,hitstop:0});
     configureBoot({
       diagFrame(){}, getDiag:()=>({on:false}), getFps:()=>0, isNoDraw:()=>false,
-      update(){ throw new Error('intentional frame failure'); },
+      update(){
+        if(shouldThrow){ shouldThrow=false; throw new Error('intentional frame failure'); }
+      },
       draw(){}, onLoopError(){ reported++; }
     });
-    resetBootClock();
+    // Use the same deterministic clock domain as the synthetic frame timestamps below.
+    resetBootClock(100-1000/60);
     gameLoop(100);
     nextFrame(200);
     assert.equal(reported,1);

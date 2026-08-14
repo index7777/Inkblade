@@ -35,9 +35,11 @@ configureUI({
   realmTimeFrames:wave=>realmTimeFrames(wave),
   bossTestAttackCountdown:boss=>bossTestAttackCountdown(boss),
   getBossHudPlacement:boss=>({
-    x:Math.max(W*.29,Math.min(W*.71,boss.bossHudAnchorX??boss.x)),
-    y:Math.max(PLAY_TOP+18,Math.min(H*.42,(boss.bossHudAnchorY??boss.y)-64)),
-    width:Math.min(330,W*.48)
+    // Boss 可在上方左／中／右槽位移動，但 HUD 留在中央安全帶，避開兩側常駐 HUD。
+    x:Math.max(W*.48,Math.min(W*.52,boss.bossHudAnchorX??boss.x)),
+    visualTop:boss.bossHudAnchorY??boss.y,
+    // Boss 血條收在墨蛟本體的視覺寬度內，不橫跨大半個戰場。
+    width:Math.min(260,W*.40)
   }),
   getBossStateLabel:state=>BOSS_STATE_CN[state],
   isDpsOpen:()=>DPS.open,
@@ -474,7 +476,7 @@ function warmSwordTint(){
 // 敵人/Boss sprite 載入器:偵測到真透明 PNG 就用,否則回退程序化墨團(見敵人繪製)。
 // 檔名對應 docs/ch1-asset-library.md;放進對應資料夾即自動生效,無需改碼。
 const ENESPR = { inkling:{frames:[],ok:false}, blade:{frames:[],ok:false}, raven:{frames:[],attack:[],ok:false}, fang:{frames:[],attack:[],ok:false}, spider:{frames:[],attack:[],ok:false},
-  boss:{frames:[],attack:[],dissolve:[],p1:{manifest:[],skill:[],hurt:[],projectiles:{heavyCore:[],ringWave:[]},ok:false},top:{idle:null,attack:[]},bottom:{idle:null,attack:[]},ok:false} };
+  boss:{frames:[],attack:[],dissolve:[],p1:{master:null,entrance:[],coreCast:[],rushCast:[],hurt:[],projectiles:{heavyCore:[],ringWave:[]},ok:false},top:{idle:null,attack:[]},bottom:{idle:null,attack:[]},ok:false} };
 (function(){
   const srcs={
     inkling:['assets/enemies/ENE_INKLING_move_01.png','assets/enemies/ENE_INKLING_move_02.png',
@@ -1832,10 +1834,24 @@ function continueAfterFormation(fastRestart){
     G.wave=WAVE_POC; G.waveTimer=0; G.waveKills=0; G.spawnAcc=0;
   }
   const p1=ENESPR.boss.p1, base='assets/boss/xuanming-p1/';
-  const loadP1=(bucket,index,path)=>{ const img=new Image(); img.onload=()=>{ bucket[index]=img; p1.ok=p1.manifest.filter(Boolean).length===4; }; img.src=base+path; };
-  for(let i=1;i<=4;i++) loadP1(p1.manifest,i-1,'BOSS_XUANMING_P1_manifest_'+String(i).padStart(2,'0')+'.png');
-  for(let i=1;i<=3;i++) loadP1(p1.skill,i-1,'BOSS_XUANMING_P1_skill_'+String(i).padStart(2,'0')+'.png');
-  for(let i=1;i<=4;i++) loadP1(p1.hurt,i-1,'BOSS_XUANMING_P1_hurt_'+String(i).padStart(2,'0')+'.png');
+  const refreshP1=()=>{ p1.ok=!!p1.master&&p1.entrance.filter(Boolean).length===6&&p1.coreCast.filter(Boolean).length===4&&p1.rushCast.filter(Boolean).length===5&&p1.hurt.filter(Boolean).length===4; };
+  const measureP1Bounds=img=>{
+    const c=document.createElement('canvas'),w=img.naturalWidth,h=img.naturalHeight;
+    c.width=w;c.height=h;
+    const g=c.getContext('2d',{willReadFrequently:true});g.drawImage(img,0,0);
+    const d=g.getImageData(0,0,w,h).data;
+    let x0=w,y0=h,x1=-1,y1=-1;
+    for(let y=0;y<h;y++)for(let x=0;x<w;x++)if(d[(y*w+x)*4+3]>8){
+      if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y;
+    }
+    img._inkBounds=x1>=x0?[x0,y0,x1-x0+1,y1-y0+1]:[0,0,w,h];
+  };
+  const loadP1=(bucket,index,path)=>{ const img=new Image(); img.onload=()=>{ measureP1Bounds(img);bucket[index]=img;refreshP1(); }; img.src=base+path; };
+  const master=new Image(); master.onload=()=>{ measureP1Bounds(master);p1.master=master;refreshP1(); }; master.src=base+'new-master/BOSS_XUANMING_P1_MASTER_WHITE_EYES.png';
+  for(let i=1;i<=6;i++) loadP1(p1.entrance,i-1,'new-master/BOSS_XUANMING_P1_ENTRANCE_'+String(i).padStart(2,'0')+'.png');
+  for(let i=1;i<=4;i++) loadP1(p1.coreCast,i-1,'new-master/core-cast/BOSS_XUANMING_P1_CORE_CAST_'+String(i).padStart(2,'0')+'.png');
+  for(let i=1;i<=5;i++) loadP1(p1.rushCast,i-1,'new-master/rush-cast/BOSS_XUANMING_P1_RUSH_CAST_'+String(i).padStart(2,'0')+'.png');
+  for(let i=1;i<=4;i++) loadP1(p1.hurt,i-1,'new-master/hurt/BOSS_XUANMING_P1_HURT_'+String(i).padStart(2,'0')+'.png');
   for(let i=1;i<=4;i++){
     loadP1(p1.projectiles.heavyCore,i-1,'projectiles/BOSS_XUANMING_HEAVY_CORE_'+String(i).padStart(2,'0')+'.png');
     loadP1(p1.projectiles.ringWave,i-1,'projectiles/BOSS_XUANMING_RING_WAVE_'+String(i).padStart(2,'0')+'.png');
@@ -1895,7 +1911,7 @@ function bossTestWave60Preset(){
   G.commands.length=0; G.swords.length=0; G.bossShots.length=0; dpsReset();
   const boss=G.enemies.find(en=>en.isBoss&&!en.showcaseGhost);
   if(boss){ boss.hp=boss.max; boss.phaseSeen=1; boss.bossState='manifest'; boss.bossT=0;
-    boss.bossSide=0; boss.bossAngle=-Math.PI/2; boss.attackSeq=0; boss.attackKind='triple'; boss.alpha=.08;
+    boss.bossSide=1; boss.bossAngle=Math.PI/2; boss.attackSeq=0; boss.attackKind='lunge'; boss.attackPath=null; boss.alpha=.08;
     placeBoss(boss,boss.bossAngle,bossOrbitRadius(boss.bossSide)); }
   document.getElementById('overlay').classList.remove('show');
   renderAutoBtn(); renderBossTestTools(); updateHUD();
@@ -1935,7 +1951,7 @@ function bossTestNextPhase(){
   if(!G.bossTest) return;
   const en=G.enemies.find(x=>x.isBoss); if(!en) return;
   const p=bossPhase(en),ratio=p===1?.69:p===2?.39:.99;
-  en.hp=Math.max(1,en.max*ratio); en.attackKind=p===1?'ring':'triple';
+  en.hp=Math.max(1,en.max*ratio); en.attackKind=p===1?'lunge':'core'; en.attackPath=null;
   en.attackSeq=(en.attackSeq||0)+1;
   updateHUD();
 }
@@ -1949,10 +1965,10 @@ function bossTestFourDirections(){
     btn.textContent=G.bossShowcase===1?'四向·待機':G.bossShowcase===2?'四向·攻擊':'四向'; }
   if(!G.bossShowcase){ nextBossManifest(real); return; }
   G.bossShots.length=0; real.bossState=G.bossShowcase===2?'lunge':'orbit'; real.bossT=G.bossShowcase===2?32:0; real.alpha=1;
-  for(let side=0;side<4;side++){
+  for(let side=0;side<3;side++){
     const en=side===0?real:Object.assign({},real,{showcaseGhost:true,st:{}});
-    en.bossSide=side; en.bossAngle=[-Math.PI/2,0,Math.PI/2,Math.PI][side];
-    placeBoss(en,en.bossAngle,bossOrbitRadius(side)); en.face=Math.atan2(G.player.y-en.y,G.player.x-en.x);
+    en.bossSide=side; en.bossAngle=Math.PI/2;
+    placeBoss(en); en.face=Math.atan2(G.player.y-en.y,G.player.x-en.x);
     if(side>0) G.enemies.push(en);
   }
   G.banner={txt:'四向比例檢視',life:1}; updateHUD();
